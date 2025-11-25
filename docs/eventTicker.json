@@ -1,0 +1,406 @@
+[
+  {
+    "id": "OV-GLB-0001",
+    "timestamp": "2025-11-17T11:04:00Z",
+    "region": "Scandinavia / Lapland",
+    "classification": "MEMBRANE_STRESS",
+    "severity": 2,
+    "summary": "Oscilación de velo de baja frecuencia detectada cerca de estación meteorológica abandonada."
+  },
+  {
+    "id": "OV-GLB-0002",
+    "timestamp": "2025-11-17T11:06:00Z",
+    "region": "Japan / Hokkaido",
+    "classification": "ESOTERROR_ACTIVITY",
+    "severity": 3,
+    "summary": "Cúmulo de sigilos no autorizado observado en superficies de ventisqueros; derretimiento inconsistente con la temperatura."
+  },
+  {
+    "id": "OV-GLB-0003",
+    "timestamp": "2025-11-17T11:09:00Z",
+    "region": "North America / Minnesota",
+    "classification": "CRYPTOZOOLOGICAL_SIGHTING",
+    "severity": 1,
+    "summary": "Cazador reporta silueta bípeda con articulaciones invertidas; las huellas desaparecen después de 12 metros."
+  },
+  {
+    "id": "OV-GLB-0004",
+    "timestamp": "2025-11-17T11:12:00Z",
+    "region": "South America / Patagonia",
+    "classification": "REALITY_DISPLACEMENT",
+    "severity": 4,
+    "summary": "Desalineación topográfica registrada a lo largo de una cresta de 2.3 km; imágenes de dron parcialmente corruptas."
+  },
+  {
+    "id": "OV-GLB-0005",
+    "timestamp": "2025-11-17T11:14:00Z",
+    "region": "UK / Cornwall",
+    "classification": "CULT_ACTIVITY",
+    "severity": 3,
+    "summary": "Se descubre una disposición circular de piedras; los residuos muestran trazas de lípidos humanos."
+  },
+  {
+    "id": "OV-GLB-0006",
+    "timestamp": "2025-11-17T11:16:00Z",
+    "region": "Russia / Siberia",
+    "classification": "MEMBRANE_STRESS",
+    "severity": 4,
+    "summary": "Sensores de perforación profunda detectan vibraciones rítmicas del subsuelo que coinciden con la forma de onda de Brecha-Theta."
+  },
+  {
+    "id": "OV-GLB-0007",
+    "timestamp": "2025-11-17T11:17:00Z",
+    "region": "India / Assam",
+    "classification": "SOCIAL_PATTERN_ANOMALY",
+    "severity": 2,
+    "summary": "Evento de sonambulismo sincronizado en todo el pueblo con una duración de 14 minutos."
+  },
+  {
+    "id": "OV-GLB-0008",
+    "timestamp": "2025-11-17T11:20:00Z",
+    "region": "USA / Nevada",
+    "classification": "ENTITY_MANIFESTATION",
+    "severity": 5,
+    "summary": "Firma térmica no contabilizada que se asemeja a una masa humanoide registrada en un vertedero restringido."
+  },
+  {
+    "id": "OV-GLB-0009",
+    "timestamp": "2025-11-17T11:22:00Z",
+    "region": "France / Bretagne",
+    "classification": "ANTIMEMETIC_EVENT",
+    "severity": 3,
+    "summary": "Testigo incapaz de recordar la secuencia de luces fotografiadas momentos antes."
+  },
+  {
+    "id": "OV-GLB-0010",
+    "timestamp": "2025-11-17T11:23:00Z",
+    "region": "Australia / Northern Territory",
+    "classification": "CRYPTOZOOLOGICAL_SIGHTING",
+    "severity": 2,
+    "summary": "Patrulla del Outback encuentra un cuadrúpedo con sombras dobles; las huellas son químicamente inertes."
+  },
+
+  {
+    "id": "OV-GLB-0011",
+    "timestamp": "2025-11-17T11:26:00Z",
+    "region": "North Africa / Sahara",
+    "classification": "REALITY_DISPLACEMENT",
+    "severity": 4,
+    "summary": "Las brújulas magnéticas invierten su polaridad de forma intermitente en un radio de 300m."
+  },
+  {
+    "id": "OV-GLB-0012",
+    "timestamp": "2025-11-17T11:27:00Z",
+    "region": "Brazil / Manaus",
+    "classification": "ESOTERROR_ACTIVITY",
+    "severity": 3,
+    "summary": "Parafernalia ritual ilícita encontrada flotando río arriba contra la corriente."
+  },
+  {
+    "id": "OV-GLB-0013",
+    "timestamp": "2025-11-17T11:29:00Z",
+    "region": "China / Yunnan",
+    "classification": "MEMBRANE_STRESS",
+    "severity": 2,
+    "summary": "El dosel del bosque se hunde de forma antinatural formando un arco cóncavo perfecto durante el ciclo nocturno."
+  },
+  {
+    "id": "OV-GLB-0014",
+    "timestamp": "2025-11-17T11:30:00Z",
+    "region": "Spain / Galicia",
+    "classification": "CULT_ACTIVITY",
+    "severity": 3,
+    "summary": "Pescadores descubren efigie cubierta de percebes con vértebras incrustadas."
+  },
+  {
+    "id": "OV-GLB-0015",
+    "timestamp": "2025-11-17T11:33:00Z",
+    "region": "Canada / Yukon",
+    "classification": "CRYPTOZOOLOGICAL_SIGHTING",
+    "severity": 1,
+    "summary": "Cámara de seguimiento captura una forma cervina sin ojos moviéndose en contra de la dirección del viento."
+  },
+  {
+    "id": "OV-GLB-0016",
+    "timestamp": "2025-11-17T11:36:00Z",
+    "region": "Greece / Peloponnese",
+    "classification": "PHENOMENA_TYPE_RED",
+    "severity": 4,
+    "summary": "Muestras de espuma de mar brillan bajo IR y emiten un zumbido de baja frecuencia."
+  },
+  {
+    "id": "OV-GLB-0017",
+    "timestamp": "2025-11-17T11:37:00Z",
+    "region": "Turkey / Anatolia",
+    "classification": "MEMBRANE_STRESS",
+    "severity": 3,
+    "summary": "Sensores geológicos registran microfisuras de una fracción de segundo no consistentes con la tectónica."
+  },
+  {
+    "id": "OV-GLB-0018",
+    "timestamp": "2025-11-17T11:39:00Z",
+    "region": "USA / Appalachia",
+    "classification": "ENTITY_MANIFESTATION",
+    "severity": 4,
+    "summary": "Se observa una masa de sombra desprendiéndose de la pared de roca; no hay fuente de luz presente."
+  },
+  {
+    "id": "OV-GLB-0019",
+    "timestamp": "2025-11-17T11:40:00Z",
+    "region": "Mexico / Chiapas",
+    "classification": "CULT_ACTIVITY",
+    "severity": 3,
+    "summary": "Talla de símbolo no autorizado encontrada en la cima de una estructura de zigurat remota."
+  },
+  {
+    "id": "OV-GLB-0020",
+    "timestamp": "2025-11-17T11:41:00Z",
+    "region": "Iceland / Highlands",
+    "classification": "REALITY_DISPLACEMENT",
+    "severity": 5,
+    "summary": "Imágenes de dron térmico muestran un paisaje que parpadea entre dos topografías."
+  },
+
+  {
+    "id": "OV-GLB-0021",
+    "timestamp": "2025-11-17T11:44:00Z",
+    "region": "Argentina / Tierra del Fuego",
+    "classification": "CRYPTOZOOLOGICAL_SIGHTING",
+    "severity": 2,
+    "summary": "Dos excursionistas reportan un cuadrúpedo luminoso con una marcha segmentada."
+  },
+  {
+    "id": "OV-GLB-0022",
+    "timestamp": "2025-11-17T11:45:00Z",
+    "region": "Poland / Białowieża Forest",
+    "classification": "MEMBRANE_STRESS",
+    "severity": 3,
+    "summary": "Se detecta un campo de silencio localizado; la fauna ausente durante 8 horas."
+  },
+  {
+    "id": "OV-GLB-0023",
+    "timestamp": "2025-11-17T11:47:00Z",
+    "region": "South Korea / Jeju",
+    "classification": "ESOTERROR_ACTIVITY",
+    "severity": 4,
+    "summary": "Santuario sumergido muestra patrones bioluminiscentes espontáneos."
+  },
+  {
+    "id": "OV-GLB-0024",
+    "timestamp": "2025-11-17T11:48:00Z",
+    "region": "Egypt / Sinai",
+    "classification": "PHENOMENA_TYPE_RED",
+    "severity": 5,
+    "summary": "La arena arrastrada por el viento forma brevemente patrones coherentes parecidos a una escritura."
+  },
+  {
+    "id": "OV-GLB-0025",
+    "timestamp": "2025-11-17T11:49:00Z",
+    "region": "USA / Maine",
+    "classification": "ENTITY_MANIFESTATION",
+    "severity": 2,
+    "summary": "Pescador reporta silueta humanoide que se eleva desde un banco de niebla."
+  },
+  {
+    "id": "OV-GLB-0026",
+    "timestamp": "2025-11-17T11:50:00Z",
+    "region": "France / Lyon",
+    "classification": "SOCIAL_PATTERN_ANOMALY",
+    "severity": 1,
+    "summary": "38 viajeros reportan una secuencia de sueños idéntica que involucra una estación inundada."
+  },
+  {
+    "id": "OV-GLB-0027",
+    "timestamp": "2025-11-17T11:52:00Z",
+    "region": "New Zealand / South Island",
+    "classification": "MEMBRANE_STRESS",
+    "severity": 4,
+    "summary": "Caída repentina en la lectura geomagnética a través del fiordo; la anomalía persiste 9 minutos."
+  },
+  {
+    "id": "OV-GLB-0028",
+    "timestamp": "2025-11-17T11:54:00Z",
+    "region": "Colombia / Antioquia",
+    "classification": "CULT_ACTIVITY",
+    "severity": 3,
+    "summary": "Reunión ilícita se dispersa al contacto con OV; muestras de ceniza residual anómalas."
+  },
+  {
+    "id": "OV-GLB-0029",
+    "timestamp": "2025-11-17T11:55:00Z",
+    "region": "Italy / Veneto",
+    "classification": "REALITY_DISPLACEMENT",
+    "severity": 2,
+    "summary": "Se reporta que las campanas de la iglesia suenan sin entrada mecánica."
+  },
+  {
+    "id": "OV-GLB-0030",
+    "timestamp": "2025-11-17T11:57:00Z",
+    "region": "USA / Colorado Rockies",
+    "classification": "CRYPTOZOOLOGICAL_SIGHTING",
+    "severity": 1,
+    "summary": "Patrulla de esquí registra un bípedo alargado cruzando una zona de avalanchas cuesta arriba."
+  },
+
+  {
+    "id": "OV-GLB-0031",
+    "timestamp": "2025-11-17T12:00:00Z",
+    "region": "Saudi Arabia / Rub' al Khali",
+    "classification": "PHENOMENA_TYPE_RED",
+    "severity": 3,
+    "summary": "El espejismo de calor revela un contorno humanoide translúcido durante 3 segundos."
+  },
+  {
+    "id": "OV-GLB-0032",
+    "timestamp": "2025-11-17T12:02:00Z",
+    "region": "UK / Manchester",
+    "classification": "SOCIAL_PATTERN_ANOMALY",
+    "severity": 2,
+    "summary": "Oficina corporativa experimenta una cascada de déjà-vu masiva; las marcas de tiempo entran en conflicto."
+  },
+  {
+    "id": "OV-GLB-0033",
+    "timestamp": "2025-11-17T12:04:00Z",
+    "region": "Chile / Atacama",
+    "classification": "MEMBRANE_STRESS",
+    "severity": 3,
+    "summary": "Anomalía del subsuelo emite pulsos periódicos que coinciden con el Evento Precursor φ."
+  },
+  {
+    "id": "OV-GLB-0034",
+    "timestamp": "2025-11-17T12:06:00Z",
+    "region": "Morocco / Atlas",
+    "classification": "ENTITY_MANIFESTATION",
+    "severity": 4,
+    "summary": "Alpinistas reportan un bípedo luminoso que aparece invertido contra la pared de roca."
+  },
+  {
+    "id": "OV-GLB-0035",
+    "timestamp": "2025-11-17T12:07:00Z",
+    "region": "USA / Alaska",
+    "classification": "REALITY_DISPLACEMENT",
+    "severity": 3,
+    "summary": "Pescador en hielo registra un parche circular de agua que se resiste a la congelación."
+  },
+  {
+    "id": "OV-GLB-0036",
+    "timestamp": "2025-11-17T12:09:00Z",
+    "region": "Thailand / Chiang Mai",
+    "classification": "ESOTERROR_ACTIVITY",
+    "severity": 4,
+    "summary": "Guardián del templo descubre sigilos frescos grabados en una estupa de 700 años."
+  },
+  {
+    "id": "OV-GLB-0037",
+    "timestamp": "2025-11-17T12:10:00Z",
+    "region": "Finland / Karelia",
+    "classification": "ANTIMEMETIC_EVENT",
+    "severity": 5,
+    "summary": "Guardabosques incapaz de recordar los últimos 30 minutos a pesar de que la cámara corporal grabó todo el metraje."
+  },
+  {
+    "id": "OV-GLB-0038",
+    "timestamp": "2025-11-17T12:12:00Z",
+    "region": "USA / Texas Panhandle",
+    "classification": "CULT_ACTIVITY",
+    "severity": 2,
+    "summary": "Graffiti de un alfabeto desconocido aparece simultáneamente en tres pueblos."
+  },
+  {
+    "id": "OV-GLB-0039",
+    "timestamp": "2025-11-17T12:13:00Z",
+    "region": "Peru / Nazca",
+    "classification": "PHENOMENA_TYPE_RED",
+    "severity": 4,
+    "summary": "Satélite detecta una nueva huella similar a un geoglifo durante la noche."
+  },
+  {
+    "id": "OV-GLB-0040",
+    "timestamp": "2025-11-17T12:14:00Z",
+    "region": "Ukraine / Carpathians",
+    "classification": "ENTITY_MANIFESTATION",
+    "severity": 3,
+    "summary": "Pastor describe una silueta humanoide que carece de consistencia espacial."
+  },
+
+  {
+    "id": "OV-GLB-0041",
+    "timestamp": "2025-11-17T12:16:00Z",
+    "region": "Norway / Fjords",
+    "classification": "MEMBRANE_STRESS",
+    "severity": 2,
+    "summary": "Sensores acústicos capturan una firma subarmónica consistente con el Deshilachado del Velo."
+  },
+  {
+    "id": "OV-GLB-0042",
+    "timestamp": "2025-11-17T12:17:00Z",
+    "region": "Portugal / Azores",
+    "classification": "REALITY_DISPLACEMENT",
+    "severity": 4,
+    "summary": "Las cartas de navegación divergen del GPS por 14m sobre la plataforma costera."
+  },
+  {
+    "id": "OV-GLB-0043",
+    "timestamp": "2025-11-17T12:19:00Z",
+    "region": "Romania / Transylvania",
+    "classification": "CRYPTOZOOLOGICAL_SIGHTING",
+    "severity": 2,
+    "summary": "Pastor de cabras reporta un cuadrúpedo con caparazón reflectante emergiendo de la niebla."
+  },
+  {
+    "id": "OV-GLB-0044",
+    "timestamp": "2025-11-17T12:20:00Z",
+    "region": "Kenya / Rift Valley",
+    "classification": "ENTITY_MANIFESTATION",
+    "severity": 4,
+    "summary": "Remolino de polvo muestra una articulación humanoide; se disipa al ser observado."
+  },
+  {
+    "id": "OV-GLB-0045",
+    "timestamp": "2025-11-17T12:21:00Z",
+    "region": "Germany / Black Forest",
+    "classification": "CULT_ACTIVITY",
+    "severity": 3,
+    "summary": "Excursionistas fuera de la ruta encuentran un claro circular con la corteza de los árboles arrancada hacia adentro."
+  },
+  {
+    "id": "OV-GLB-0046",
+    "timestamp": "2025-11-17T12:23:00Z",
+    "region": "South Africa / Drakensberg",
+    "classification": "PHENOMENA_TYPE_RED",
+    "severity": 4,
+    "summary": "La niebla de la cascada se refracta en un espectro de colores no físicos."
+  },
+  {
+    "id": "OV-GLB-0047",
+    "timestamp": "2025-11-17T12:25:00Z",
+    "region": "USA / Florida Everglades",
+    "classification": "CRYPTOZOOLOGICAL_SIGHTING",
+    "severity": 1,
+    "summary": "Operador de hidrodeslizador encuentra una silueta serpentina con una estela bifurcada."
+  },
+  {
+    "id": "OV-GLB-0048",
+    "timestamp": "2025-11-17T12:27:00Z",
+    "region": "Vietnam / Highlands",
+    "classification": "ANTIMEMETIC_EVENT",
+    "severity": 5,
+    "summary": "Un pueblo entero es incapaz de recordar la causa de la muerte masiva de ganado."
+  },
+  {
+    "id": "OV-GLB-0049",
+    "timestamp": "2025-11-17T12:28:00Z",
+    "region": "USA / Great Lakes",
+    "classification": "MEMBRANE_STRESS",
+    "severity": 3,
+    "summary": "El sonar capta una resonancia hueca, similar a un órgano, debajo del lecho del lago."
+  },
+  {
+    "id": "OV-GLB-0050",
+    "timestamp": "2025-11-17T12:30:00Z",
+    "region": "Ireland / Wicklow",
+    "classification": "ESOTERROR_ACTIVITY",
+    "severity": 3,
+    "summary": "Un pozo antiguo exhibe una rotación espontánea en el sentido de las agujas del reloj de las algas de la superficie."
+  }
+]

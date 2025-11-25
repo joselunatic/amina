@@ -1,0 +1,23 @@
+{
+  "name": "esoterrorists-schuylkill-map",
+  "version": "1.0.0",
+  "description": "Map-based POI tracker for an Esoterrorists campaign in Schuylkill County.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "esoterrorists",
+    "map",
+    "mapbox",
+    "express",
+    "sqlite"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "sqlite3": "^5.1.7"
+  }
+}
