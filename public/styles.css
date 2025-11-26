@@ -308,7 +308,7 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
 .mode-agent[data-workspace-view='console'] .map-shell,
 .mode-agent[data-workspace-view='database'] .map-shell,
 .mode-agent[data-workspace-view='relations'] .map-shell {
-  display: none;
+  display: none !important;
 }
 
 .map-panel {
