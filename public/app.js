@@ -520,6 +520,7 @@ async function setupMap() {
   const decimalStyle = 'mapbox://styles/mapbox-map-design/ck4014y110wt61ctt07egsel6';
   const styleUrl = decimalStyle;
   state.currentMapStyle = styleUrl;
+  const mapPanelEl = document.getElementById('map-panel');
   state.map = new mapboxgl.Map({
     container: 'map',
     style: styleUrl,
@@ -530,7 +531,7 @@ async function setupMap() {
   bindStyleSwitcher(baseStyle);
 
   state.map.addControl(new mapboxgl.NavigationControl());
-  state.map.addControl(new mapboxgl.FullscreenControl());
+  state.map.addControl(new mapboxgl.FullscreenControl({ container: mapPanelEl || undefined }));
   // Remove hillshade layer if the style references a missing source layer to avoid console spam
   state.map.on('styledata', () => {
     try {
