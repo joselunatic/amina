@@ -38,6 +38,33 @@ body {
   overflow-x: hidden;
 }
 
+/* Scrollbar skin */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 255, 136, 0.15);
+  border-radius: 12px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(0, 255, 136, 0.45), rgba(0, 255, 136, 0.25));
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(0, 255, 136, 0.25);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.6);
+}
+
+* {
+  scrollbar-color: rgba(0, 255, 136, 0.45) rgba(0, 0, 0, 0.35);
+  scrollbar-width: thin;
+}
+
 html {
   background: #050709;
   padding: 0;
