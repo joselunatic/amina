@@ -525,7 +525,7 @@ async function setupMap() {
     zoom: 9
   });
 
-  bindStyleSwitcher();
+  bindStyleSwitcher(styleUrl);
 
   state.map.addControl(new mapboxgl.NavigationControl());
   state.map.addControl(new mapboxgl.FullscreenControl());
@@ -550,9 +550,13 @@ async function setupMap() {
   });
 }
 
-function bindStyleSwitcher() {
+function bindStyleSwitcher(defaultStyle) {
   const switcher = document.querySelector('.map-style-switch');
   if (!switcher || !state.map) return;
+  // replace placeholder with real default style
+  switcher.querySelectorAll('button[data-style="config-default"]').forEach((btn) => {
+    btn.dataset.style = defaultStyle;
+  });
   const setActive = (style) => {
     switcher.querySelectorAll('button[data-style]').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.style === style);
@@ -564,19 +568,28 @@ function bindStyleSwitcher() {
     if (!btn) return;
     const style = btn.dataset.style;
     if (!style) return;
-    const prevStyle = state.currentMapStyle || state.map.getStyle()?.sprite || '';
+    const prevStyle = state.currentMapStyle || defaultStyle;
     let reverted = false;
+    const timeout = setTimeout(() => {
+      if (reverted) return;
+      reverted = true;
+      showMessage('No se pudo cargar el estilo seleccionado (timeout).', true);
+      state.map.setStyle(prevStyle);
+      setActive(prevStyle);
+    }, 2000);
     const onError = () => {
       if (reverted) return;
       reverted = true;
+      clearTimeout(timeout);
       state.map.off('style.load', onLoad);
       state.map.off('error', onError);
       showMessage('No se pudo cargar el estilo seleccionado.', true);
-      if (prevStyle) state.map.setStyle(prevStyle);
+      state.map.setStyle(prevStyle);
       setActive(prevStyle);
     };
     const onLoad = () => {
       if (reverted) return;
+      clearTimeout(timeout);
       state.map.off('error', onError);
       state.currentMapStyle = style;
       setActive(style);
