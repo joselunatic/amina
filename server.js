@@ -603,6 +603,23 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: err.message || 'Internal Server Error' });
 });
 
-app.listen(PORT, HOST, () => {
-  console.log(`Server listening on http://${HOST}:${PORT}`);
-});
+// Allow HOST to be overridden, but fall back gracefully if the name cannot resolve (e.g. host.docker.internal absent).
+function startServer(host) {
+  const server = app.listen(PORT, host, () => {
+    console.log(`Server listening on http://${host}:${PORT}`);
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'ENOTFOUND' || err.code === 'EADDRNOTAVAIL') {
+      const fallbackHost = '0.0.0.0';
+      console.warn(`Host ${host} not resolvable. Falling back to ${fallbackHost}.`);
+      app.listen(PORT, fallbackHost, () => {
+        console.log(`Server listening on http://${fallbackHost}:${PORT}`);
+      });
+    } else {
+      throw err;
+    }
+  });
+}
+
+startServer(HOST);
