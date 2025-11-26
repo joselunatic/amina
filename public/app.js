@@ -1957,13 +1957,20 @@ function buildDossierCard(entity, dmView = false, active = false) {
   const role = entity.type === 'poi' ? categoryLabels[entity.category] || entity.role : entity.role;
   const status = entity.type === 'poi' ? `Amenaza ${entity.threat_level || '¿?'}` : entity.status || 'estado desconocido';
   const align = entity.type === 'poi' ? `Velo ${entity.alignment || entity.veil_status || '?'}` : entity.alignment || 'afinidad desconocida';
-  card.innerHTML = `
-    <div class="dossier-row-header">${badge} <strong>${sanitize(entity.code_name || entity.name)}</strong></div>
-    <div class="dossier-row-meta">${sanitize(role || 'Sin rol')} · ${sanitize(status)}</div>
-    <div class="dossier-row-meta">${sanitize(align)}</div>
-    <div class="dossier-row-note">${locked ? 'LOCKED — requiere clave' : sanitize(shortenText(entity.public_summary || 'Sin notas públicas', 140))}</div>
-    <div class="dossier-row-sessions">${sessionTags}</div>
-  `;
+  if (locked) {
+    card.innerHTML = `
+      <div class="dossier-row-header">${badge} <strong>${sanitize(entity.code_name || entity.name)}</strong></div>
+      <div class="dossier-row-note">LOCKED — requiere clave</div>
+    `;
+  } else {
+    card.innerHTML = `
+      <div class="dossier-row-header">${badge} <strong>${sanitize(entity.code_name || entity.name)}</strong></div>
+      <div class="dossier-row-meta">${sanitize(role || 'Sin rol')} · ${sanitize(status)}</div>
+      <div class="dossier-row-meta">${sanitize(align)}</div>
+      <div class="dossier-row-note">${sanitize(shortenText(entity.public_summary || 'Sin notas públicas', 140))}</div>
+      <div class="dossier-row-sessions">${sessionTags}</div>
+    `;
+  }
   if (dmView && entity.archived) {
     const pill = document.createElement('span');
     pill.className = 'badge-soft';
