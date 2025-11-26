@@ -603,7 +603,8 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: err.message || 'Internal Server Error' });
 });
 
-// Allow HOST to be overridden, but fall back gracefully if the name cannot resolve (e.g. host.docker.internal absent).
+// Allow HOST to be overridden. If the requested host is not resolvable (e.g. host.docker.internal on Linux),
+// fall back to a safer host (docker bridge IP or loopback) instead of exposing 0.0.0.0 by default.
 function startServer(host) {
   const server = app.listen(PORT, host, () => {
     console.log(`Server listening on http://${host}:${PORT}`);
@@ -611,7 +612,10 @@ function startServer(host) {
 
   server.on('error', (err) => {
     if (err.code === 'ENOTFOUND' || err.code === 'EADDRNOTAVAIL') {
-      const fallbackHost = '0.0.0.0';
+      const fallbackHost =
+        host === 'host.docker.internal'
+          ? process.env.DOCKER_BRIDGE_HOST || '172.17.0.1'
+          : '127.0.0.1';
       console.warn(`Host ${host} not resolvable. Falling back to ${fallbackHost}.`);
       app.listen(PORT, fallbackHost, () => {
         console.log(`Server listening on http://${fallbackHost}:${PORT}`);
