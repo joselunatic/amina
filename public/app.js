@@ -2015,8 +2015,6 @@ function renderDossierDetailView(target, entity, options = {}) {
       <div class="dossier-detail">
         <div class="locked-placeholder">LOCKED</div>
         <div class="dossier-title">${sanitize(entity.code_name || entity.name)}</div>
-        <div class="dossier-badges"><span class="locked-banner">LOCKED</span></div>
-        <p class="muted">${sanitize(entity.locked_hint || 'Protegido. Solicita clave de desbloqueo.')}</p>
         <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
           entity.locked_hint || ''
         )}">Desbloquear</button>
