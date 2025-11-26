@@ -1043,7 +1043,9 @@ async function unlockEntity(id, code) {
   if (!entity) return { status: 'not_found' };
   if (entity.visibility !== 'locked') return { status: 'not_locked' };
   if (entity.unlock_code && code && entity.unlock_code === code) {
-    const mapped = { ...mapRow(entity), visibility: 'agent_public' };
+    await run('UPDATE entities SET visibility = ? WHERE id = ?', ['agent_public', id]);
+    const updated = await get('SELECT * FROM entities WHERE id = ?', [id]);
+    const mapped = { ...mapRow(updated), visibility: 'agent_public' };
     return { status: 'ok', public_summary: mapped.public_summary || '', entity: filterAgentEntity(mapped) };
   }
   return { status: 'invalid_code' };
