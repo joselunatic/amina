@@ -516,7 +516,9 @@ async function setupMap() {
     debugPanel.classList.remove('hidden');
     logDebug('Modo depuración activo');
   }
-  const styleUrl = config.mapStyle || 'mapbox://styles/mapbox/dark-v11';
+  const baseStyle = config.mapStyle || 'mapbox://styles/mapbox/dark-v11';
+  const decimalStyle = 'mapbox://styles/mapbox-map-design/ck4014y110wt61ctt07egsel6';
+  const styleUrl = decimalStyle;
   state.currentMapStyle = styleUrl;
   state.map = new mapboxgl.Map({
     container: 'map',
@@ -525,7 +527,7 @@ async function setupMap() {
     zoom: 9
   });
 
-  bindStyleSwitcher(styleUrl);
+  bindStyleSwitcher(baseStyle);
 
   state.map.addControl(new mapboxgl.NavigationControl());
   state.map.addControl(new mapboxgl.FullscreenControl());
