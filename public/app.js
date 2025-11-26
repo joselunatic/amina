@@ -2286,7 +2286,7 @@ function setWorkspaceView(view) {
   });
   const desktop = !isMobileView();
   if (mapShell) {
-    const showMap = view === 'map' || (!state.dmMode && desktop);
+    const showMap = view === 'map';
     mapShell.classList.toggle('active', showMap);
     mapShell.style.display = showMap ? 'block' : 'none';
     if (showMap && state.activeEntityAdmin && state.activeEntityAdmin.kind === 'poi') {
