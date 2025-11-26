@@ -280,6 +280,18 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   display: block;
 }
 
+.mode-agent .map-shell {
+  display: none !important;
+}
+
+.mode-agent[data-workspace-view='map'] .map-shell {
+  display: block !important;
+}
+
+.mode-agent[data-workspace-view='console'] .workspace-top.agent-top[data-view='console'] {
+  display: block;
+}
+
 .mode-agent[data-workspace-view='console'] .map-shell,
 .mode-agent[data-workspace-view='database'] .map-shell,
 .mode-agent[data-workspace-view='relations'] .map-shell {
