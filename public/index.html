@@ -76,42 +76,63 @@
         <div class="app-layout no-sidebar">
           <section class="main-column" id="main-column">
             <div class="view-top">
-              <div class="map-shell">
-                <section class="map-panel" id="map-panel">
-                  <div id="map"></div>
-                  <div class="map-filters" id="map-filters"></div>
-                  <div id="message-bar"></div>
-                  <div class="brand-watermark">AMINA / Monitor de integridad de la Membrana</div>
+              <div class="view-left">
+                <div class="map-shell">
+                  <section class="map-panel" id="map-panel">
+                    <div id="map"></div>
+                    <div class="map-filters" id="map-filters"></div>
+                    <div id="message-bar"></div>
+                    <div class="brand-watermark">AMINA / Monitor de integridad de la Membrana</div>
+                  </section>
+                </div>
+                <section class="console-card poi-list-card agent-only" id="poi-list-shell">
+                  <div class="card-title">Puntos de Interés</div>
+                  <input type="search" id="poi-search" class="poi-search" placeholder="Buscar PdI por nombre, sesión o nota" />
+                  <ul id="poi-list" class="poi-list-inline"></ul>
                 </section>
               </div>
-              <div class="workspace-top agent-top" data-view="console">
-                <div class="console-card inbox-card" id="console-message-card">
-                  <div class="card-title">BUZÓN <span id="msg-box-label" class="badge-soft">Entrada</span></div>
-                  <div class="inbox-controls">
-                    <button type="button" id="msg-box-toggle" class="small ghost">Enviados</button>
-                    <div class="inbox-nav">
-                      <button type="button" id="msg-prev" class="small ghost">Ant</button>
-                      <button type="button" id="msg-next" class="small ghost">Sig</button>
-                      <button type="button" id="msg-reply" class="small ghost">Responder</button>
-                    </div>
+              <div class="view-right">
+                <div class="workspace-top agent-top" data-view="map">
+                  <div class="console-card focal-card" id="focal-poi-card">
+                    <div class="card-title">PDI FOCAL</div>
+                    <div class="console-card-body" id="focal-poi-content">Ningún PdI seleccionado. Elige uno del mapa o de la lista.</div>
                   </div>
-                  <div class="reply-pane hidden" id="mailbox-reply">
-                    <div class="reply-header">
-                      <span class="reply-label" id="reply-label">Respondiendo a</span>
-                      <button type="button" id="reply-cancel" class="small ghost">Cancelar</button>
-                    </div>
-                    <textarea id="reply-body" rows="3" placeholder="Compón tu respuesta…"></textarea>
-                    <div class="form-actions">
-                      <button type="button" id="reply-send" class="ghost">Enviar Respuesta</button>
-                    </div>
-                  </div>
-                  <div class="console-card-body" id="console-message-content">Sin despachos.</div>
                 </div>
-              </div>
-              <div class="workspace-top agent-top" data-view="database">
-                <div class="console-card dossier-card">
-                  <div class="card-title">Detalle de entidad</div>
-                  <div class="dossier-detail" id="dossier-detail">Selecciona una entidad para ver su dossier.</div>
+                <div class="workspace-top agent-top" data-view="console">
+                  <div class="console-card inbox-card" id="console-message-card">
+                    <div class="card-title">BUZÓN <span id="msg-box-label" class="badge-soft">Entrada</span></div>
+                    <div class="inbox-controls">
+                      <button type="button" id="msg-box-toggle" class="small ghost">Enviados</button>
+                      <div class="inbox-nav">
+                        <button type="button" id="msg-prev" class="small ghost">Ant</button>
+                        <button type="button" id="msg-next" class="small ghost">Sig</button>
+                        <button type="button" id="msg-reply" class="small ghost">Responder</button>
+                      </div>
+                    </div>
+                    <div class="reply-pane hidden" id="mailbox-reply">
+                      <div class="reply-header">
+                        <span class="reply-label" id="reply-label">Respondiendo a</span>
+                        <button type="button" id="reply-cancel" class="small ghost">Cancelar</button>
+                      </div>
+                      <textarea id="reply-body" rows="3" placeholder="Compón tu respuesta…"></textarea>
+                      <div class="form-actions">
+                        <button type="button" id="reply-send" class="ghost">Enviar Respuesta</button>
+                      </div>
+                    </div>
+                    <div class="console-card-body" id="console-message-content">Sin despachos.</div>
+                  </div>
+                </div>
+                <div class="workspace-top agent-top" data-view="database">
+                  <div class="console-card dossier-card">
+                    <div class="card-title">Detalle de entidad</div>
+                    <div class="dossier-detail" id="dossier-detail">Selecciona una entidad para ver su dossier.</div>
+                  </div>
+                </div>
+                <div class="workspace-top agent-top" data-view="relations">
+                  <div class="console-card" id="agent-relations-card-top">
+                    <div class="card-title">Relaciones</div>
+                    <div id="agent-graph" class="entity-graph-panel">Selecciona una entidad para ver sus vínculos.</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -120,22 +141,19 @@
                 <button type="button" class="workspace-tab active" data-view="map">Mapa</button>
                 <button type="button" class="workspace-tab" data-view="console">Consola</button>
                 <button type="button" class="workspace-tab" data-view="database">Base de Datos</button>
+                <button type="button" class="workspace-tab" data-view="relations">Relaciones</button>
               </div>
               <div class="workspace-tabs dm-tabs">
                 <button type="button" class="workspace-tab active" data-view="map">Mapa</button>
                 <button type="button" class="workspace-tab" data-view="journal">Journal</button>
                 <button type="button" class="workspace-tab" data-view="entities">Entidades</button>
+                <button type="button" class="workspace-tab" data-view="relations">Relaciones</button>
               </div>
             </nav>
 
             <section class="workspace" id="workspace">
               <div class="workspace-view agent-view active" data-view="map">
-                <div class="console-stack">
-                  <div class="console-card focal-card" id="focal-poi-card">
-                    <div class="card-title">PDI FOCAL</div>
-                    <div class="console-card-body" id="focal-poi-content">Ningún PdI seleccionado. Elige uno del mapa o de la lista.</div>
-                  </div>
-                </div>
+                <div class="console-stack"></div>
               </div>
               <div class="workspace-view agent-view" data-view="console">
                 <div class="console-stack">
@@ -164,7 +182,6 @@
                   </div>
                 </div>
               </div>
-
               <div class="workspace-view dm-view" data-view="map">
                 <div class="console-stack">
                   <div class="console-card focal-card" id="dm-focal-poi-card">
@@ -234,6 +251,14 @@
                       </div>
                     </div>
                   </div>
+                  <nav class="workspace-nav journal-nav dm-only" aria-label="Modo de consola">
+                    <div class="workspace-tabs dm-tabs">
+                      <button type="button" class="workspace-tab" data-view="map">Mapa</button>
+                      <button type="button" class="workspace-tab active" data-view="journal">Journal</button>
+                      <button type="button" class="workspace-tab" data-view="entities">Entidades</button>
+                      <button type="button" class="workspace-tab" data-view="relations">Relaciones</button>
+                    </div>
+                  </nav>
                   <div class="console-card mission-card">
                     <div class="card-title">Journal de sesión</div>
                     <label for="journal-public">Resumen para agentes</label>
@@ -247,6 +272,24 @@
                 </div>
               </div>
               <div class="workspace-view dm-view" data-view="entities">
+                <div class="dm-entities-top">
+                  <div class="console-card dm-entity-detail-card" id="dm-entity-detail-card">
+                    <div class="card-title">Detalle de entidad</div>
+                    <div class="dm-entity-detail-body">Selecciona un dossier para ver su ficha.</div>
+                  </div>
+                  <div class="console-card dm-entity-hero-card" id="dm-entity-hero-card">
+                    <div class="card-title">Hero</div>
+                    <div class="dm-entity-hero-body muted">Sin imagen disponible.</div>
+                  </div>
+                </div>
+                <nav class="workspace-nav journal-nav dm-only" aria-label="Modo de consola">
+                  <div class="workspace-tabs dm-tabs">
+                    <button type="button" class="workspace-tab" data-view="map">Mapa</button>
+                    <button type="button" class="workspace-tab" data-view="journal">Journal</button>
+                    <button type="button" class="workspace-tab active" data-view="entities">Entidades</button>
+                    <button type="button" class="workspace-tab" data-view="relations">Relaciones</button>
+                  </div>
+                </nav>
                 <div class="dm-entities-shell">
                   <div class="dm-entities-left">
                     <div class="console-card">
@@ -257,6 +300,7 @@
                           <button type="button" class="small ghost dm-filter-type" data-type="pc">PJ</button>
                           <button type="button" class="small ghost dm-filter-type" data-type="npc">PNJ</button>
                           <button type="button" class="small ghost dm-filter-type" data-type="org">Orgs</button>
+                          <button type="button" class="small ghost dm-filter-type" data-type="poi">PdI</button>
                         </div>
                         <input type="search" id="dm-entity-search" placeholder="Buscar por nombre o rol" />
                       </div>
@@ -273,145 +317,132 @@
                         <button type="button" id="entity-reset" class="ghost small">Reiniciar</button>
                       </div>
                       <form id="entity-form" class="entity-form">
-                        <input type="hidden" id="entity-id" />
-                        <div class="dossier-detail-grid">
-                          <div class="dossier-col">
-                            <div class="form-section">
-                              <div class="section-title">Identidad</div>
-                              <label for="entity-type">Tipo</label>
-                              <select id="entity-type" required>
-                                <option value="pc">PJ</option>
-                                <option value="npc">PNJ</option>
-                                <option value="org">Organización</option>
-                              </select>
-                              <label for="entity-code-name">Code name / callsign</label>
-                              <input type="text" id="entity-code-name" required />
+                      <input type="hidden" id="entity-id" />
+                      <input type="hidden" id="entity-kind" value="entity" />
+                      <div class="dossier-detail-grid">
+                        <div class="dossier-col">
+                          <div class="form-section">
+                            <div class="section-title">Identidad</div>
+                            <label for="entity-type">Tipo</label>
+                            <select id="entity-type" required>
+                              <option value="pc">PJ</option>
+                              <option value="npc">PNJ</option>
+                              <option value="org">Organización</option>
+                              <option value="poi">PdI</option>
+                            </select>
+                            <label for="entity-code-name">Code name / callsign</label>
+                            <input type="text" id="entity-code-name" required />
+                            <div class="entity-only">
                               <label for="entity-real-name">Nombre real</label>
                               <input type="text" id="entity-real-name" />
+                            </div>
+                            <div class="entity-only">
                               <label for="entity-role">Rol / función</label>
                               <input type="text" id="entity-role" />
                             </div>
-                            <div class="form-section">
-                              <div class="section-title">Estado y afinidad</div>
-                              <label for="entity-status">Estado</label>
-                              <input type="text" id="entity-status" placeholder="activo, desaparecido..." />
-                              <label for="entity-alignment">Alineación</label>
-                              <input type="text" id="entity-alignment" placeholder="ordo_veritatis, esoterror..." />
-                              <label for="entity-threat">Nivel de amenaza</label>
-                              <input type="number" id="entity-threat" min="1" max="5" />
-                              <label for="entity-image">URL de imagen</label>
-                              <input type="url" id="entity-image" placeholder="https://..." />
-                            </div>
-                            <div class="form-section">
-                              <div class="section-title">Actividad</div>
-                              <div class="coord-row">
-                                <div>
-                                  <label for="entity-session-first">Primera sesión</label>
-                                  <input type="text" id="entity-session-first" placeholder="1x00" />
-                                </div>
-                                <div>
-                                  <label for="entity-session-last">Última sesión</label>
-                                  <input type="text" id="entity-session-last" placeholder="1x03" />
-                                </div>
-                              </div>
-                              <label for="entity-sessions">Sesiones (coma)</label>
-                              <input type="text" id="entity-sessions" placeholder="1x00,1x01" />
-                              <label for="entity-pois">PdIs vinculados (id:rol:sesión)</label>
-                              <input type="text" id="entity-pois" placeholder="3:Vigía:1x02" />
-                              <label for="entity-links">Conexiones (id:relación)</label>
-                              <input type="text" id="entity-links" placeholder="6:Aliado,7:Enemigo" />
-                            </div>
                           </div>
-                          <div class="dossier-col">
-                            <div class="form-section">
-                              <div class="section-title">Intel</div>
-                              <label for="entity-public-note">Resumen público</label>
-                              <textarea id="entity-public-note" rows="4"></textarea>
-                              <label for="entity-dm-note">Notas DM</label>
-                              <textarea id="entity-dm-note" rows="6"></textarea>
-                            </div>
-                            <div class="form-section">
-                              <div class="section-title">Control de visibilidad</div>
-                              <label for="entity-visibility">Visibilidad</label>
-                              <select id="entity-visibility">
-                                <option value="agent_public">Visible para agentes</option>
-                                <option value="locked">Bloqueada (requiere clave)</option>
-                                <option value="dm_only">Solo DM</option>
-                              </select>
-                              <label for="entity-unlock">Código de desbloqueo</label>
-                              <input type="text" id="entity-unlock" />
-                              <label for="entity-locked-hint">Pista de desbloqueo</label>
-                              <input type="text" id="entity-locked-hint" placeholder="Pista breve" />
-                              <label class="checkbox-inline">
-                                <input type="checkbox" id="entity-archived" /> Archivada
-                              </label>
-                              <div class="form-actions">
-                                <button type="submit" id="entity-submit">Guardar dossier</button>
+                          <div class="form-section entity-only">
+                            <div class="section-title">Estado y afinidad</div>
+                            <label for="entity-status">Estado</label>
+                            <input type="text" id="entity-status" placeholder="activo, desaparecido..." />
+                            <label for="entity-alignment">Alineación</label>
+                            <input type="text" id="entity-alignment" placeholder="ordo_veritatis, esoterror..." />
+                            <label for="entity-threat">Nivel de amenaza</label>
+                            <input type="number" id="entity-threat" min="1" max="5" />
+                            <label for="entity-image">URL de imagen</label>
+                            <input type="url" id="entity-image" placeholder="https://..." />
+                          </div>
+                          <div class="form-section entity-only">
+                            <div class="section-title">Actividad</div>
+                            <div class="coord-row">
+                              <div>
+                                <label for="entity-session-first">Primera sesión</label>
+                                <input type="text" id="entity-session-first" placeholder="1x00" />
+                              </div>
+                              <div>
+                                <label for="entity-session-last">Última sesión</label>
+                                <input type="text" id="entity-session-last" placeholder="1x03" />
                               </div>
                             </div>
+                            <label for="entity-sessions">Sesiones (coma)</label>
+                            <input type="text" id="entity-sessions" placeholder="1x00,1x01" />
+                            <label for="entity-pois">PdIs vinculados (id:rol:sesión)</label>
+                            <input type="text" id="entity-pois" placeholder="3:Vigía:1x02" />
+                            <label for="entity-links">Conexiones (id:relación)</label>
+                            <input type="text" id="entity-links" placeholder="6:Aliado,7:Enemigo" />
                           </div>
                         </div>
-                      </form>
-                    </div>
-
-                    <div class="console-card dm-poi-card">
-                      <div class="card-title">PdI en mapa (DM)</div>
-                      <section class="panel-section dm-only" id="poi-form-section">
-                        <div class="blade-form-body">
-                          <form id="poi-form">
-                            <input type="hidden" id="poi-id" />
-                            <label for="poi-name">Nombre</label>
-                            <input type="text" id="poi-name" required />
-
+                        <div class="dossier-col">
+                          <div class="form-section entity-only">
+                            <div class="section-title">Intel</div>
+                            <label for="entity-public-note">Resumen público</label>
+                            <textarea id="entity-public-note" rows="4"></textarea>
+                            <label for="entity-dm-note">Notas DM</label>
+                            <textarea id="entity-dm-note" rows="6"></textarea>
+                          </div>
+                          <div class="form-section entity-only">
+                            <div class="section-title">Control de visibilidad</div>
+                            <label for="entity-visibility">Visibilidad</label>
+                            <select id="entity-visibility">
+                              <option value="agent_public">Visible para agentes</option>
+                              <option value="locked">Bloqueada (requiere clave)</option>
+                              <option value="dm_only">Solo DM</option>
+                            </select>
+                            <label for="entity-unlock">Código de desbloqueo</label>
+                            <input type="text" id="entity-unlock" />
+                            <label for="entity-locked-hint">Pista de desbloqueo</label>
+                            <input type="text" id="entity-locked-hint" placeholder="Pista breve" />
+                            <label class="checkbox-inline">
+                              <input type="checkbox" id="entity-archived" /> Archivada
+                            </label>
+                            <div class="form-actions">
+                              <button type="submit" id="entity-submit">Guardar dossier</button>
+                            </div>
+                          </div>
+                          <div class="form-section poi-only">
+                            <div class="section-title">Campos PdI</div>
                             <label for="poi-category">Categoría</label>
                             <select id="poi-category" required></select>
-
                             <div class="coord-row">
                               <div>
                                 <label for="poi-latitude">Latitud</label>
-                                <input type="number" step="0.000001" id="poi-latitude" required />
+                                <input type="number" step="0.000001" id="poi-latitude" />
                               </div>
                               <div>
                                 <label for="poi-longitude">Longitud</label>
-                                <input type="number" step="0.000001" id="poi-longitude" required />
+                                <input type="number" step="0.000001" id="poi-longitude" />
                               </div>
                             </div>
                             <button type="button" id="pick-location">Elegir del mapa</button>
-
-                            <label for="poi-image-url">URL de imagen (opcional)</label>
-                            <input type="url" id="poi-image-url" placeholder="https://..." />
-
                             <label for="poi-threat">Nivel de amenaza (1-5)</label>
-                            <input type="number" id="poi-threat" min="1" max="5" required />
-
+                            <input type="number" id="poi-threat" min="1" max="5" />
                             <label for="poi-veil">Estado del velo</label>
-                            <select id="poi-veil" required>
+                            <select id="poi-veil">
                               <option value="intact">Intacto</option>
                               <option value="frayed">Deshilachado</option>
                               <option value="torn">Roto</option>
                             </select>
-
                             <label for="poi-session">Etiqueta de sesión</label>
                             <input type="text" id="poi-session" placeholder="1x02" />
-
+                            <label for="poi-image-url">URL de imagen (opcional)</label>
+                            <input type="url" id="poi-image-url" placeholder="https://..." />
                             <label for="poi-public-note">Nota pública</label>
                             <textarea id="poi-public-note"></textarea>
-
                             <label for="poi-dm-note">Nota para el DJ</label>
                             <textarea id="poi-dm-note"></textarea>
-
-                            <div class="form-actions">
-                              <button type="submit" id="poi-submit">Guardar PdI</button>
-                              <button type="button" id="poi-cancel" class="ghost small">Reiniciar</button>
-                            </div>
-                          </form>
+                          </div>
                         </div>
-                      </section>
-                      <section class="console-card poi-list-card dm-only">
-                        <div class="card-title">Listado PdI</div>
-                        <ul id="poi-list-dm" class="poi-list-inline"></ul>
-                      </section>
-                    </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              </div>
+              <div class="workspace-view dm-view" data-view="relations">
+                <div class="console-stack">
+                  <div class="console-card" id="dm-relations-card">
+                    <div class="card-title">Relaciones (DJ)</div>
+                    <div id="dm-graph" class="entity-graph-panel">Selecciona una entidad en Entidades para ver el grafo.</div>
                   </div>
                 </div>
               </div>
@@ -446,6 +477,8 @@
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <script src="https://unpkg.com/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"></script>
     <script src="app.js" type="module"></script>
   </body>
 </html>

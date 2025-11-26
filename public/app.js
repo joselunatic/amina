@@ -34,7 +34,8 @@ const state = {
   pickMarker: null,
   filters: {
     category: '',
-    session_tag: ''
+    session_tag: '',
+    search: ''
   }
   ,
   messageFilters: {
@@ -61,10 +62,16 @@ const state = {
   activeEntityAdmin: null,
   agentBlade: 'focal'
   , entitiesMap: null,
+  entityDetailMap: null,
+  entityDetailMarker: null,
   unlockedEntities: new Set(),
   activeEntityContext: null,
   entityMarkers: [],
-  workspaceView: 'map'
+  workspaceView: 'map',
+  graphs: {
+    agent: null,
+    dm: null
+  }
 };
 
 const mapCenter = [-76.229, 40.68];
@@ -83,6 +90,7 @@ const categoryFilter = document.getElementById('category-filter');
 const sessionFilter = document.getElementById('session-filter');
 const poiList = document.getElementById('poi-list');
 const poiListDm = document.getElementById('poi-list-dm');
+const poiSearchInput = document.getElementById('poi-search');
 const poiFormSection = document.getElementById('poi-form-section');
 const poiForm = document.getElementById('poi-form');
 const poiFormTitle = document.getElementById('poi-form-title');
@@ -172,8 +180,11 @@ const dossierSearch = document.getElementById('dossier-search');
 const dossierListAdmin = document.getElementById('dossier-list-admin');
 const dossierDetailAdmin = document.getElementById('dossier-detail-admin');
 const dossierSearchAdmin = document.getElementById('dossier-search-admin');
+const agentGraphContainer = document.getElementById('agent-graph');
+const dmGraphContainer = document.getElementById('dm-graph');
 const entityForm = document.getElementById('entity-form');
 const entityIdInput = document.getElementById('entity-id');
+const entityKindInput = document.getElementById('entity-kind');
 const entityTypeInput = document.getElementById('entity-type');
 const entityCodeNameInput = document.getElementById('entity-code-name');
 const entityRealNameInput = document.getElementById('entity-real-name');
@@ -213,8 +224,8 @@ const mapFilters = document.getElementById('map-filters');
 const mapFiltersDm = document.getElementById('map-filters-dm');
 
 const formIds = {
-  id: document.getElementById('poi-id'),
-  name: document.getElementById('poi-name'),
+  id: entityIdInput,
+  name: entityCodeNameInput,
   latitude: document.getElementById('poi-latitude'),
   longitude: document.getElementById('poi-longitude'),
   imageUrl: document.getElementById('poi-image-url'),
@@ -282,9 +293,12 @@ function bindEvents() {
   if (sessionFilter) {
     sessionFilter.addEventListener('change', () => handleFilterSubmit());
   }
-  poiForm.addEventListener('submit', handlePoiSubmit);
-  poiCancelButton.addEventListener('click', resetPoiForm);
-  pickButton.addEventListener('click', togglePickMode);
+  if (poiForm) {
+    poiForm.addEventListener('submit', handlePoiSubmit);
+  }
+  poiCancelButton?.addEventListener('click', resetPoiForm);
+  pickButton?.addEventListener('click', togglePickMode);
+  entityTypeInput?.addEventListener('change', () => updateEntityFormMode(entityTypeInput.value));
   if (clearanceResetBtn) {
     clearanceResetBtn.addEventListener('click', showBootScreen);
   }
@@ -408,9 +422,14 @@ function bindEvents() {
     });
   });
 
+  poiSearchInput?.addEventListener('input', () => {
+    state.filters.search = poiSearchInput.value.trim();
+    renderPoiList();
+  });
+
   dmEntitySearch?.addEventListener('input', () => {
-    state.entityFiltersAdmin.q = dmEntitySearch.value;
-    loadEntities();
+    state.entityFiltersAdmin.q = dmEntitySearch.value.trim();
+    renderAdminDossiers();
   });
 
   dossierSearch?.addEventListener('input', () => {
@@ -585,30 +604,32 @@ function buildPopupImage(poi) {
 }
 
 function renderPoiList() {
-  renderPoiListInto(poiList, { mobileGrouping: isMobileView() && state.mobileTab === 'pois' });
+  const filtered = getFilteredPois();
+  renderPoiListInto(poiList, { mobileGrouping: isMobileView() && state.mobileTab === 'pois', items: filtered });
   if (poiListDm) {
-    renderPoiListInto(poiListDm, { mobileGrouping: false });
+    renderPoiListInto(poiListDm, { mobileGrouping: false, items: filtered });
   }
 }
 
 function renderPoiListInto(target, options = {}) {
   if (!target) return;
   target.innerHTML = '';
-  if (!state.pois.length) {
+  const items = options.items || [];
+  if (!items.length) {
     const empty = document.createElement('li');
     empty.textContent = 'Ningún PdI coincide con los filtros.';
     target.appendChild(empty);
     return;
   }
   if (options.mobileGrouping) {
-    renderPoiListMobileBySession(target);
+    renderPoiListMobileBySession(target, items);
     return;
   }
-  state.pois.forEach((poi) => renderPoiItem(poi, target));
+  items.forEach((poi) => renderPoiItem(poi, target));
 }
 
-function renderPoiListMobileBySession(target) {
-  const pois = state.pois;
+function renderPoiListMobileBySession(target, items) {
+  const pois = items || [];
   if (!pois.length || !target) {
     const empty = document.createElement('li');
     empty.textContent = 'Ningún PdI coincide con los filtros.';
@@ -668,13 +689,112 @@ function renderSessionHeader(target, label) {
   target.appendChild(headerItem);
 }
 
+function getFilteredPois() {
+  const { category, session_tag: sessionTag, search } = state.filters;
+  const base = state.pois.filter((poi) => {
+    if (category && poi.category !== category) return false;
+    if (sessionTag && (!poi.session_tag || !poi.session_tag.includes(sessionTag))) return false;
+    return true;
+  });
+  const query = (search || '').trim();
+  if (!query) return base;
+
+  if (typeof Fuse === 'undefined') {
+    return base.filter((poi) => {
+      const target = `${poi.name || ''} ${poi.session_tag || ''} ${poi.public_note || ''}`.toLowerCase();
+      return target.includes(query.toLowerCase());
+    });
+  }
+
+  const fuse = new Fuse(base, {
+    keys: [
+      { name: 'name', weight: 0.5 },
+      { name: 'session_tag', weight: 0.2 },
+      { name: 'category', weight: 0.15 },
+      { name: 'public_note', weight: 0.15 }
+    ],
+    threshold: 0.3,
+    ignoreLocation: true
+  });
+  return fuse.search(query).map((res) => res.item);
+}
+
+function updateEntityFormMode(kind) {
+  if (!entityForm) return;
+  const isPoi = kind === 'poi';
+  entityForm.classList.toggle('is-poi', isPoi);
+  if (entityKindInput) {
+    entityKindInput.value = isPoi ? 'poi' : 'entity';
+  }
+}
+
 function renderPoiItem(poi, target) {
   if (!target) return;
+  const mobile = isMobileView();
   const item = document.createElement('li');
   item.className = 'poi-item';
   item.dataset.poiId = poi.id;
   if (state.poiFocal && state.poiFocal.id === poi.id) {
     item.classList.add('active');
+  }
+
+  if (!mobile) {
+    item.classList.add('compact');
+    const row = document.createElement('div');
+    row.className = 'poi-row';
+
+    const main = document.createElement('div');
+    main.className = 'poi-main';
+    const icon = categoryIcons[poi.category] || '';
+    main.innerHTML = `${icon} ${sanitize(poi.name)}`;
+    row.appendChild(main);
+
+    const actions = document.createElement('div');
+    actions.className = 'poi-actions inline';
+    const focusBtn = document.createElement('button');
+    focusBtn.textContent = 'Enfocar';
+    focusBtn.addEventListener('click', () => {
+      setFocalPoi(poi);
+      focusOnPoi(poi.id);
+    });
+    actions.appendChild(focusBtn);
+    if (state.dmMode) {
+      const editBtn = document.createElement('button');
+      editBtn.textContent = 'Editar';
+      editBtn.addEventListener('click', () => {
+        setFocalPoi(poi);
+        populateFormForEdit(poi);
+        setDmBlade('entities');
+      });
+      actions.appendChild(editBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Borrar';
+      deleteBtn.addEventListener('click', () => handleDeletePoi(poi));
+      actions.appendChild(deleteBtn);
+    }
+    row.appendChild(actions);
+
+    const meta = document.createElement('div');
+    meta.className = 'poi-meta';
+    meta.innerHTML = `
+      <span class="badge">#${poi.id}</span>
+      <span class="badge">Amenaza ${poi.threat_level}</span>
+      <span class="badge veil-${poi.veil_status}">Velo ${poi.veil_status}</span>
+      <span class="badge-soft">${sanitize(poi.session_tag || 'Sin sesión')}</span>
+      <span class="poi-summary-sub">${categoryLabels[poi.category] || poi.category}</span>
+    `;
+    row.appendChild(meta);
+
+    row.addEventListener('click', (ev) => {
+      if (ev.target.tagName.toLowerCase() === 'button') return;
+      setFocalPoi(poi);
+      focusOnPoi(poi.id);
+    });
+
+    item.appendChild(row);
+    target.appendChild(item);
+    return;
   }
 
   const accordion = document.createElement('details');
@@ -800,7 +920,7 @@ function exitDmMode(silent = false, options = {}) {
   state.dmMode = false;
   state.dmSecret = null;
   if (dmSecretInput) dmSecretInput.value = '';
-  dmWarning.textContent = '';
+  if (dmWarning) dmWarning.textContent = '';
   disablePickMode();
   resetPoiForm();
   updateDmVisibility();
@@ -854,8 +974,8 @@ function updateDmVisibility() {
       if (icon) icon.textContent = '+';
     }
   });
-  poiSubmitButton.disabled = !state.dmMode || !state.dmSecret;
-  pickButton.disabled = !state.dmMode || !state.dmSecret;
+  if (poiSubmitButton) poiSubmitButton.disabled = !state.dmMode || !state.dmSecret;
+  if (pickButton) pickButton.disabled = !state.dmMode || !state.dmSecret;
   applyAgentStatus();
   updateRoleLayoutClasses();
   setDmBlade(state.activeDmBlade || 'dispatch');
@@ -917,6 +1037,59 @@ async function handlePoiSubmit(event) {
   showMessage(state.editingPoiId ? 'PdI actualizado.' : 'PdI creado.');
 }
 
+async function submitPoiFromEntityForm() {
+  if (!state.dmSecret) {
+    if (dmWarning) dmWarning.textContent = 'Introduce un código de autorización válido para crear o editar PdIs.';
+    return;
+  }
+  const payload = {
+    name: entityCodeNameInput.value.trim(),
+    category: poiCategorySelect.value,
+    latitude: formIds.latitude.value,
+    longitude: formIds.longitude.value,
+    image_url: formIds.imageUrl.value.trim(),
+    threat_level: formIds.threat.value,
+    veil_status: formIds.veil.value,
+    session_tag: formIds.session.value.trim(),
+    public_note: formIds.publicNote.value.trim(),
+    dm_note: formIds.dmNote.value.trim()
+  };
+
+  const isEdit = !!entityIdInput.value;
+  const endpoint = isEdit ? `/api/pois/${entityIdInput.value}` : '/api/pois';
+  const method = isEdit ? 'PUT' : 'POST';
+
+  const response = await fetch(endpoint, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-dm-secret': state.dmSecret
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (response.status === 401) {
+    handleUnauthorized();
+    return;
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    showMessage(error.error || 'Fallo al guardar el PdI.', true);
+    return;
+  }
+
+  const saved = await response.json();
+  await loadPois();
+  const mapped = mapPoiToAdminItem(saved);
+  state.activeEntityAdmin = mapped;
+  entityIdInput.value = saved.id;
+  entityKindInput.value = 'poi';
+  updateEntityFormMode('poi');
+  populateEntityForm(mapped);
+  showMessage(isEdit ? 'PdI actualizado.' : 'PdI creado.');
+}
+
 async function handleDeletePoi(poi) {
   if (!state.dmSecret) {
     if (dmWarning) dmWarning.textContent = 'Introduce un código de autorización válido para borrar PdIs.';
@@ -948,32 +1121,19 @@ async function handleDeletePoi(poi) {
 }
 
 function populateFormForEdit(poi) {
-  formIds.id.value = poi.id;
-  formIds.name.value = poi.name;
-  poiCategorySelect.value = poi.category;
-  formIds.latitude.value = poi.latitude;
-  formIds.longitude.value = poi.longitude;
-  formIds.imageUrl.value = poi.image_url || '';
-  formIds.threat.value = poi.threat_level;
-  formIds.veil.value = poi.veil_status;
-  formIds.session.value = poi.session_tag || '';
-  formIds.publicNote.value = poi.public_note || '';
-  formIds.dmNote.value = poi.dm_note || '';
+  const mapped = mapPoiToAdminItem(poi);
+  state.activeEntityAdmin = mapped;
   state.editingPoiId = poi.id;
-  poiFormTitle.textContent = 'Editar PdI';
-  poiSubmitButton.textContent = 'Guardar cambios';
-  if (state.dmMode && state.activeDmBlade !== 'poi') {
-    setDmBlade('poi');
-  }
+  populateEntityForm(mapped);
+  setDmBlade('entities');
 }
 
 function resetPoiForm() {
-  poiForm.reset();
+  poiForm?.reset();
   formIds.id.value = '';
   state.editingPoiId = null;
-  poiFormTitle.textContent = 'Crear PdI';
-  poiSubmitButton.textContent = 'Crear PdI';
-  ensureSectionExpanded(document.getElementById('poi-form-section'));
+  if (poiFormTitle) poiFormTitle.textContent = 'Crear PdI';
+  if (poiSubmitButton) poiSubmitButton.textContent = 'Crear PdI';
 }
 
 function handleUnauthorized() {
@@ -1525,10 +1685,8 @@ async function loadEntities() {
     if (isDmViewer()) {
       params.append('includeArchived', '1');
       if (state.entityFiltersAdmin.type) params.append('type', state.entityFiltersAdmin.type);
-      if (state.entityFiltersAdmin.q) params.append('q', state.entityFiltersAdmin.q);
     } else {
       if (state.entityFiltersAgent.type) params.append('type', state.entityFiltersAgent.type);
-      if (state.entityFiltersAgent.q) params.append('q', state.entityFiltersAgent.q);
     }
     const base = isDmViewer() ? '/api/dm/entities' : '/api/agent/entities';
     const url = params.toString() ? `${base}?${params.toString()}` : base;
@@ -1548,9 +1706,9 @@ async function loadEntities() {
       const found = state.entities.find((e) => e.id === state.activeEntityAgent.id && !e.archived);
       state.activeEntityAgent = found || null;
     }
-    if (state.activeEntityAdmin) {
+    if (state.activeEntityAdmin && state.activeEntityAdmin.kind !== 'poi') {
       const found = state.entities.find((e) => e.id === state.activeEntityAdmin.id);
-      state.activeEntityAdmin = found || null;
+      state.activeEntityAdmin = found ? { ...found, kind: 'entity' } : null;
     }
 
     renderAgentDossiers();
@@ -1564,16 +1722,90 @@ async function loadEntities() {
 function filterEntities(filters = {}, options = {}) {
   const includeArchived = options.includeArchived || false;
   const query = (filters.q || '').toLowerCase().trim();
-  return state.entities.filter((entity) => {
+  const base = state.entities.filter((entity) => {
     if (!includeArchived && entity.archived) return false;
     if (filters.type && entity.type !== filters.type) return false;
     if (filters.status && entity.status !== filters.status) return false;
-    if (query) {
-      const target = `${entity.name || ''} ${entity.role || ''}`.toLowerCase();
-      if (!target.includes(query)) return false;
-    }
     return true;
   });
+
+  if (!query) return base;
+  if (typeof Fuse === 'undefined') {
+    // fallback simple match
+    return base.filter((entity) => {
+      const target = `${entity.code_name || ''} ${entity.name || ''} ${entity.real_name || ''} ${entity.role || ''} ${entity.public_summary || ''}`.toLowerCase();
+      return target.includes(query);
+    });
+  }
+
+  const fuse = new Fuse(base, {
+    keys: [
+      { name: 'code_name', weight: 0.35 },
+      { name: 'name', weight: 0.2 },
+      { name: 'real_name', weight: 0.15 },
+      { name: 'role', weight: 0.15 },
+      { name: 'public_summary', weight: 0.1 },
+      { name: 'sessions', weight: 0.05 }
+    ],
+    threshold: 0.34,
+    ignoreLocation: true
+  });
+  return fuse.search(query).map((res) => res.item);
+}
+
+function mapPoiToAdminItem(poi) {
+  return {
+    kind: 'poi',
+    id: poi.id,
+    type: 'poi',
+    code_name: poi.name,
+    name: poi.name,
+    role: categoryLabels[poi.category] || poi.category,
+    status: poi.session_tag || '',
+    alignment: poi.veil_status,
+    threat_level: poi.threat_level,
+    image_url: poi.image_url,
+    sessions: poi.session_tag || '',
+    public_summary: poi.public_note || '',
+    dm_notes: poi.dm_note || '',
+    category: poi.category,
+    latitude: poi.latitude,
+    longitude: poi.longitude,
+    poi_id: poi.id,
+    veil_status: poi.veil_status
+  };
+}
+
+function filterPoisForAdmin(filters = {}) {
+  const query = (filters.q || '').trim();
+  const allowPoi = !filters.type || filters.type === 'poi';
+  if (!allowPoi) return [];
+  const base = state.pois.slice();
+  if (!query) return base.map(mapPoiToAdminItem);
+  if (typeof Fuse === 'undefined') {
+    return base
+      .filter((poi) => {
+        const target = `${poi.name || ''} ${poi.session_tag || ''} ${poi.public_note || ''}`.toLowerCase();
+        return target.includes(query.toLowerCase());
+      })
+      .map(mapPoiToAdminItem);
+  }
+  const fuse = new Fuse(base, {
+    keys: [
+      { name: 'name', weight: 0.6 },
+      { name: 'session_tag', weight: 0.2 },
+      { name: 'public_note', weight: 0.2 }
+    ],
+    threshold: 0.32,
+    ignoreLocation: true
+  });
+  return fuse.search(query).map((res) => mapPoiToAdminItem(res.item));
+}
+
+function filterDmItems(filters = {}) {
+  const entities = filterEntities(filters, { includeArchived: true }).map((e) => ({ ...e, kind: 'entity' }));
+  const pois = filterPoisForAdmin(filters);
+  return [...entities, ...pois];
 }
 
 function renderAgentDossiers() {
@@ -1615,47 +1847,66 @@ function renderAgentDossiers() {
 }
 
 function renderAdminDossiers() {
-  if (!dmEntityList || !dmEntitiesContext) return;
-  const entities = filterEntities(state.entityFiltersAdmin, { includeArchived: true });
+  if (!dmEntityList) return;
+  const items = filterDmItems(state.entityFiltersAdmin);
   dmEntityList.innerHTML = '';
-  if (!entities.length) {
+  if (!items.length) {
     const empty = document.createElement('div');
     empty.className = 'dossier-empty';
     empty.textContent = 'Sin entidades con estos filtros.';
     dmEntityList.appendChild(empty);
-    dmEntitiesContext.innerHTML = '<div class="dossier-detail">Selecciona una entidad para ver contexto.</div>';
+    if (dmEntitiesContext) {
+      dmEntitiesContext.innerHTML = '<div class="dossier-detail">Selecciona una entidad para ver contexto.</div>';
+    }
     return;
   }
 
-  if (!state.activeEntityAdmin || !entities.find((e) => e.id === state.activeEntityAdmin.id)) {
-    state.activeEntityAdmin = entities[0];
+  if (!state.activeEntityAdmin || !items.find((e) => e.id === state.activeEntityAdmin.id && e.kind === state.activeEntityAdmin.kind)) {
+    state.activeEntityAdmin = items[0];
   }
 
-  entities.forEach((entity) => {
-    const card = buildDossierCard(entity, true, state.activeEntityAdmin && state.activeEntityAdmin.id === entity.id);
+  items.forEach((entity) => {
+    const active =
+      state.activeEntityAdmin &&
+      state.activeEntityAdmin.id === entity.id &&
+      state.activeEntityAdmin.kind === entity.kind;
+    const card = buildDossierCard(entity, true, active);
     card.addEventListener('click', () => {
       state.activeEntityAdmin = entity;
+      renderDmEntityDetailCard(entity, state.activeEntityContext);
       populateEntityForm(entity);
       renderAdminDossiers();
-      loadDmContext(entity.id);
+      if (entity.kind === 'entity') {
+        loadDmContext(entity.id);
+      } else {
+        renderDossierDetailView(dmEntitiesContext, entity, { dm: true });
+      }
     });
     dmEntityList.appendChild(card);
   });
 
-  renderDossierDetailView(dmEntitiesContext, state.activeEntityAdmin, { dm: true });
+  if (dmEntitiesContext) {
+    renderDossierDetailView(dmEntitiesContext, state.activeEntityAdmin, { dm: true });
+  }
   populateEntityForm(state.activeEntityAdmin);
-  loadDmContext(state.activeEntityAdmin.id);
+  renderDmEntityDetailCard(state.activeEntityAdmin, state.activeEntityContext);
+  if (dmEntitiesContext && state.activeEntityAdmin && state.activeEntityAdmin.kind === 'entity') {
+    loadDmContext(state.activeEntityAdmin.id);
+  }
 }
 
 function buildDossierCard(entity, dmView = false, active = false) {
   const card = document.createElement('div');
   card.className = `dossier-card-row ${active ? 'active' : ''}`;
   const badge = `<span class="badge">${getEntityTypeLabel(entity.type)}</span>`;
-  const sessionTags = renderSessionChips(entity.sessions || []);
+  const sessionTags = renderSessionChips(entity.sessions || entity.session_tag || '');
+  const role = entity.type === 'poi' ? categoryLabels[entity.category] || entity.role : entity.role;
+  const status = entity.type === 'poi' ? `Amenaza ${entity.threat_level || '¿?'}` : entity.status || 'estado desconocido';
+  const align = entity.type === 'poi' ? `Velo ${entity.alignment || entity.veil_status || '?'}` : entity.alignment || 'afinidad desconocida';
   card.innerHTML = `
     <div class="dossier-row-header">${badge} <strong>${sanitize(entity.code_name || entity.name)}</strong></div>
-    <div class="dossier-row-meta">${sanitize(entity.role || 'Sin rol')} · ${sanitize(entity.status || 'estado desconocido')}</div>
-    <div class="dossier-row-meta">${sanitize(entity.alignment || 'afinidad desconocida')}</div>
+    <div class="dossier-row-meta">${sanitize(role || 'Sin rol')} · ${sanitize(status)}</div>
+    <div class="dossier-row-meta">${sanitize(align)}</div>
     <div class="dossier-row-note">${entity.visibility === 'locked' && !dmView ? 'Intel clasificado' : sanitize(shortenText(entity.public_summary || 'Sin notas públicas', 140))}</div>
     <div class="dossier-row-sessions">${sessionTags}</div>
   `;
@@ -1675,6 +1926,29 @@ function renderDossierDetailView(target, entity, options = {}) {
     return;
   }
   const dmView = options.dm;
+  if (entity.type === 'poi') {
+    target.innerHTML = `
+      <div class="dossier-detail">
+        <div class="dossier-title">${sanitize(entity.code_name || entity.name)}</div>
+        <div class="dossier-subtitle">${sanitize(categoryLabels[entity.category] || entity.role || 'PdI')}</div>
+        <div class="dossier-badges">
+          <span class="badge">Amenaza ${sanitize(String(entity.threat_level || '?'))}</span>
+          <span class="badge">Velo ${sanitize(entity.veil_status || entity.alignment || '?')}</span>
+          ${entity.sessions ? `<span class="badge-soft">${sanitize(entity.sessions)}</span>` : ''}
+        </div>
+        <div class="dossier-section">
+          <div class="section-title">Ubicación</div>
+          <p class="muted">Lat: ${sanitize(String(entity.latitude || '—'))} / Lng: ${sanitize(String(entity.longitude || '—'))}</p>
+        </div>
+        <div class="dossier-section">
+          <div class="section-title">Notas</div>
+          <p>${sanitize(entity.public_summary || entity.public_note || 'Sin notas públicas')}</p>
+          ${dmView ? `<div class="dm-note"><strong>Intel DM:</strong> ${sanitize(entity.dm_notes || entity.dm_note || 'Sin notas DM')}</div>` : ''}
+        </div>
+      </div>
+    `;
+    return;
+  }
   const isLocked = entity.visibility === 'locked' && !dmView;
   const sessionChips = renderSessionChips(entity.sessions || []);
   const poiLinks = Array.isArray(entity.pois || entity.poi_links) ? entity.pois || entity.poi_links : [];
@@ -1770,10 +2044,156 @@ function renderSessionChips(sessions) {
   return list.map((tag) => `<span class="badge-soft">${sanitize(tag)}</span>`).join(' ');
 }
 
+function buildGraphElements(ctx = {}) {
+  const elements = { nodes: [], edges: [] };
+  if (!ctx.entity) return { ...elements, focusId: null };
+  const focusId = `e-${ctx.entity.id}`;
+  const seen = new Set();
+  const pushNode = (data) => {
+    if (seen.has(data.id)) return;
+    seen.add(data.id);
+    elements.nodes.push({ data });
+  };
+  pushNode({
+    id: focusId,
+    label: ctx.entity.code_name || ctx.entity.name || `Entidad ${ctx.entity.id}`,
+    type: ctx.entity.type || 'npc',
+    session: ctx.entity.first_session || ctx.entity.sessions || null
+  });
+
+  (ctx.relations || []).forEach((rel, idx) => {
+    const toId = `e-${rel.to_entity_id}`;
+    pushNode({
+      id: toId,
+      label: rel.to_code_name || rel.target_name || `Entidad ${rel.to_entity_id}`,
+      type: rel.to_type || rel.target_type || 'npc',
+      session: rel.session_tag || null
+    });
+    elements.edges.push({
+      data: {
+        id: `rel-${ctx.entity.id}-${rel.to_entity_id}-${idx}`,
+        source: focusId,
+        target: toId,
+        relation: rel.relation_type || rel.relation || 'vínculo',
+        strength: rel.strength || 1
+      }
+    });
+  });
+
+  (ctx.pois || []).forEach((link, idx) => {
+    const poiId = `p-${link.poi_id}`;
+    pushNode({
+      id: poiId,
+      label: link.name || `PdI ${link.poi_id}`,
+      type: 'poi',
+      session: link.session_tag || link.poi_session || null
+    });
+    elements.edges.push({
+      data: {
+        id: `poi-${ctx.entity.id}-${link.poi_id}-${idx}`,
+        source: focusId,
+        target: poiId,
+        relation: link.role_at_poi || 'PdI',
+        strength: 1
+      }
+    });
+  });
+
+  return { ...elements, focusId };
+}
+
+function renderEntityGraph(container, ctx, options = {}) {
+  if (!container || !ctx || !ctx.entity || typeof cytoscape === 'undefined') return;
+  const { nodes, edges, focusId } = buildGraphElements(ctx);
+  if (!nodes.length) {
+    container.textContent = 'Sin relaciones registradas.';
+    return;
+  }
+  container.innerHTML = '';
+
+  const elements = [...nodes, ...edges];
+  let cy = container._cy;
+  const style = [
+    {
+      selector: 'node',
+      style: {
+        'background-color': '#00c676',
+        'label': 'data(label)',
+        'color': '#d9f7eb',
+        'font-size': 10,
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'text-wrap': 'wrap',
+        'text-max-width': 120,
+        'border-width': 1,
+        'border-color': 'rgba(0,255,136,0.4)',
+        'width': 42,
+        'height': 42
+      }
+    },
+    { selector: 'node[type = \"pc\"]', style: { 'shape': 'round-rectangle' } },
+    { selector: 'node[type = \"npc\"]', style: { 'shape': 'ellipse' } },
+    { selector: 'node[type = \"org\"]', style: { 'shape': 'hexagon' } },
+    { selector: 'node[type = \"poi\"]', style: { 'shape': 'diamond' } },
+    {
+      selector: 'node.focus',
+      style: { 'border-width': 3, 'border-color': '#ffffff', 'background-color': '#00ff88' }
+    },
+    {
+      selector: 'edge',
+      style: {
+        'line-color': '#00aa66',
+        'target-arrow-shape': 'triangle',
+        'target-arrow-color': '#00aa66',
+        'curve-style': 'bezier',
+        'width': 'mapData(strength, 1, 5, 1, 4)',
+        'opacity': 0.85,
+        'label': 'data(relation)',
+        'font-size': 9,
+        'text-background-opacity': 0.6,
+        'text-background-color': '#041014',
+        'text-background-padding': 2,
+        'text-rotation': 'autorotate',
+        'color': '#9ef0c4'
+      }
+    }
+  ];
+
+  if (!cy) {
+    cy = cytoscape({
+      container,
+      elements,
+      style,
+      layout: { name: 'concentric', padding: 24 }
+    });
+    container._cy = cy;
+  } else {
+    cy.elements().remove();
+    cy.add(elements);
+  }
+
+  cy.nodes().removeClass('focus');
+  if (focusId) {
+    cy.nodes(`[id = \"${focusId}\"]`).addClass('focus');
+  }
+
+  const layout = cy.elements().layout({
+    name: 'concentric',
+    padding: 24,
+    sweep: 2 * Math.PI,
+    startAngle: 1.5 * Math.PI,
+    concentric: (node) => (node.id() === focusId ? 2 : 1),
+    levelWidth: () => 1
+  });
+  layout.run();
+  cy.fit(undefined, 20);
+}
+
 function getEntityTypeLabel(type) {
   if (type === 'pc') return 'PJ';
   if (type === 'npc') return 'PNJ';
   if (type === 'org') return 'Org';
+  if (type === 'poi') return 'PdI';
   return 'Entidad';
 }
 
@@ -1792,6 +2212,9 @@ function highlightDossierType(context, value) {
 
 function setWorkspaceView(view) {
   state.workspaceView = view;
+  if (document?.body) {
+    document.body.dataset.workspaceView = view;
+  }
   workspaceTabs.forEach((tab) => {
     tab.classList.toggle('active', tab.dataset.view === view);
   });
@@ -1801,13 +2224,26 @@ function setWorkspaceView(view) {
   workspaceTopViews.forEach((panel) => {
     panel.classList.toggle('active', panel.dataset.view === view);
   });
+  const desktop = !isMobileView();
   if (mapShell) {
-    mapShell.classList.toggle('active', view === 'map');
-    mapShell.style.display = view === 'map' ? 'block' : 'none';
+    const showMap = view === 'map' || (!state.dmMode && desktop);
+    mapShell.classList.toggle('active', showMap);
+    mapShell.style.display = showMap ? 'block' : 'none';
+    if (showMap && state.activeEntityAdmin && state.activeEntityAdmin.kind === 'poi') {
+      const poiId = state.activeEntityAdmin.id;
+      const poi = state.pois.find((p) => Number(p.id) === Number(poiId));
+      if (poi) {
+        setFocalPoi(poi);
+        focusOnPoi(poi.id);
+      }
+    }
   }
   if (view === 'entities') {
     renderAgentDossiers();
     renderAdminDossiers();
+    if (isDmViewer()) {
+      loadEntities();
+    }
   }
   if (view === 'inbox') {
     loadMessages();
@@ -1825,6 +2261,7 @@ async function loadDmContext(id) {
     state.activeEntityContext = ctx;
     renderDmContext(ctx);
     renderEntitiesMap(ctx);
+    renderEntityGraph(dmGraphContainer, ctx, { focusId: id, mode: 'dm' });
   } catch (err) {
     logDebug(`Contexto DM error: ${err.message}`);
   }
@@ -1869,6 +2306,7 @@ function renderDmContext(ctx) {
       </div>
     </div>
   `;
+  renderDmEntityDetailCard(entity, ctx);
 }
 
 function renderEntitiesMap(ctx) {
@@ -1898,6 +2336,78 @@ function renderEntitiesMap(ctx) {
   if (!bounds.isEmpty()) {
     map.fitBounds(bounds, { padding: 40, maxZoom: 12 });
   }
+}
+
+function renderDmEntityDetailCard(entity, ctx = {}) {
+  const detail = document.getElementById('dm-entity-detail-card');
+  const hero = document.getElementById('dm-entity-hero-card');
+  if (!detail || !hero) return;
+  if (!entity) {
+    detail.innerHTML =
+      '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista de la izquierda. Podrás editarlo en el panel inferior y, si es un PdI, verlo en el mapa.</div>';
+    hero.innerHTML =
+      '<div class="card-title">Hero</div><div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
+    return;
+  }
+
+  const sessions = renderSessionChips((ctx && ctx.sessions) || entity.sessions || entity.session_tag || '');
+  const img = entity.image_url || entity.photo || '';
+  const renderHero = (title, subtitle) => {
+    hero.innerHTML = `
+      <div class="card-title">Hero</div>
+      <div class="dm-entity-hero-body">
+        ${img ? `<img src="${sanitize(img)}" alt="${sanitize(title)}" />` : '<div class="muted">Sin imagen disponible.</div>'}
+        <div class="dm-entity-meta">${sanitize(title)}${subtitle ? ` · ${sanitize(subtitle)}` : ''}</div>
+      </div>
+    `;
+  };
+
+  if (entity.type === 'poi') {
+    const lat = Number(entity.latitude || entity.poi_latitude);
+    const lng = Number(entity.longitude || entity.poi_longitude);
+    const hasCoords = !Number.isNaN(lat) && !Number.isNaN(lng);
+    const staticUrl =
+      hasCoords && state.mapboxConfig
+        ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/pin-s+00ff88(${lng},${lat})/${lng},${lat},12/800x520?access_token=${state.mapboxConfig.mapboxToken}`
+        : '';
+    detail.innerHTML = `
+      <div class="card-title">PdI seleccionado</div>
+      <div class="dm-entity-detail-body">
+        ${
+          hasCoords
+            ? `<div class="dm-entity-map"><img src="${staticUrl}" alt="Mapa de ${sanitize(entity.name || entity.code_name || 'PdI')}" /></div>`
+            : '<div class="muted">Sin coordenadas registradas.</div>'
+        }
+        <div class="dm-entity-meta">
+          <span class="badge">${categoryLabels[entity.category] || 'PdI'}</span>
+          <span class="badge">Amenaza ${sanitize(entity.threat_level || '?')}</span>
+          <span class="badge">Velo ${sanitize(entity.veil_status || entity.alignment || '?')}</span>
+          ${sessions || ''}
+        </div>
+        <div>${sanitize(entity.public_note || entity.public_summary || 'Sin nota pública')}</div>
+      </div>
+    `;
+    renderHero(entity.name || entity.code_name || 'PdI', entity.session_tag || '');
+    return;
+  }
+
+  detail.innerHTML = `
+    <div class="card-title">Dossier</div>
+    <div class="dm-entity-detail-body">
+      <div class="dm-entity-meta">
+        <span class="badge">${getEntityTypeLabel(entity.type)}</span>
+        ${entity.status ? `<span class="badge">${sanitize(entity.status)}</span>` : ''}
+        ${entity.alignment ? `<span class="badge">${sanitize(entity.alignment)}</span>` : ''}
+        ${sessions || ''}
+      </div>
+      <div>
+        <div><strong>${sanitize(entity.code_name || entity.name || '')}</strong></div>
+        <div class="muted">${sanitize(entity.role || 'Sin rol')}</div>
+      </div>
+      <div>${sanitize(entity.public_summary || 'Sin resumen público')}</div>
+    </div>
+  `;
+  renderHero(entity.code_name || entity.name || 'Entidad', entity.role || '');
 }
 
 function showMessage(text, isError = false) {
@@ -2274,6 +2784,9 @@ function parseEntityLinksInput(value) {
 
 function populateEntityForm(entity) {
   if (!entityForm || !entity) return;
+  const kind = entity.kind || (entity.type === 'poi' ? 'poi' : 'entity');
+  entityKindInput.value = kind;
+  entityForm.classList.toggle('is-poi', kind === 'poi');
   entityIdInput.value = entity.id;
   entityTypeInput.value = entity.type;
   entityCodeNameInput.value = entity.code_name || entity.name || '';
@@ -2285,15 +2798,15 @@ function populateEntityForm(entity) {
   entityImageInput.value = entity.image_url || '';
   entitySessionFirstInput.value = entity.first_session || '';
   entitySessionLastInput.value = entity.last_session || '';
-  entityPublicNoteInput.value = entity.public_summary || '';
-  entityDmNoteInput.value = entity.dm_notes || '';
+  entityPublicNoteInput.value = entity.public_summary || entity.public_note || '';
+  entityDmNoteInput.value = entity.dm_notes || entity.dm_note || '';
   entityVisibilityInput.value = entity.visibility || 'agent_public';
   entityUnlockInput.value = entity.unlock_code || '';
   entityLockedHintInput.value = entity.locked_hint || '';
   entityArchivedInput.checked = !!entity.archived;
   const sessions = Array.isArray(entity.sessions)
     ? entity.sessions.map((s) => s.session_tag).join(',')
-    : entity.sessions || '';
+    : entity.sessions || entity.session_tag || '';
   entitySessionsInput.value = sessions;
   entityPoisInput.value = (entity.pois || entity.poi_links || [])
     .map((p) => `${p.poi_id}:${p.role_at_poi || ''}:${p.session_tag || ''}`)
@@ -2301,6 +2814,24 @@ function populateEntityForm(entity) {
   entityLinksInput.value = (entity.relations || entity.links || [])
     .map((l) => `${l.to_entity_id || l.target_id}:${l.relation_type || l.relation}`)
     .join(',');
+
+  // PdI-specific fields
+  if (kind === 'poi') {
+    poiCategorySelect.value = entity.category || '';
+    formIds.latitude.value = entity.latitude || '';
+    formIds.longitude.value = entity.longitude || '';
+    formIds.imageUrl.value = entity.image_url || '';
+    formIds.threat.value = entity.threat_level || '';
+    formIds.veil.value = entity.veil_status || entity.alignment || '';
+    formIds.session.value = entity.session_tag || entity.sessions || '';
+    formIds.publicNote.value = entity.public_note || entity.public_summary || '';
+    formIds.dmNote.value = entity.dm_note || entity.dm_notes || '';
+    entityThreatInput.value = entity.threat_level || '';
+    state.editingPoiId = entity.id;
+  } else {
+    state.editingPoiId = null;
+  }
+  updateEntityFormMode(kind === 'poi' ? 'poi' : entity.type);
   renderDossierDetailView(dossierDetailAdmin || dmEntitiesDetail, entity, { dm: true });
 }
 
@@ -2309,6 +2840,8 @@ function resetEntityForm() {
   entityForm.reset();
   entityIdInput.value = '';
   entityArchivedInput.checked = false;
+  entityKindInput.value = 'entity';
+  updateEntityFormMode('entity');
   state.activeEntityAdmin = null;
   renderDossierDetailView(dmEntitiesContext || dossierDetailAdmin, null, { dm: true });
 }
@@ -2317,6 +2850,12 @@ async function handleEntitySubmit(event) {
   event.preventDefault();
   if (!isDmViewer()) {
     dmWarning.textContent = 'Se requiere canal de Sr. Verdad para guardar entidades.';
+    return;
+  }
+
+  const kind = (entityKindInput?.value || '').trim() || (entityTypeInput.value === 'poi' ? 'poi' : 'entity');
+  if (kind === 'poi' || entityTypeInput.value === 'poi') {
+    await submitPoiFromEntityForm();
     return;
   }
 
@@ -2402,6 +2941,7 @@ async function loadAgentContext(id) {
     const merged = { ...ctx.entity, poi_links: ctx.pois, sessions: ctx.sessions, links: ctx.relations };
     const detailTarget = agentDossierDetail || dossierDetail;
     renderDossierDetailView(detailTarget, merged, { dm: false });
+    renderEntityGraph(agentGraphContainer, ctx, { focusId: id });
   } catch (err) {
     logDebug(`Contexto agente error: ${err.message}`);
   }
@@ -2423,16 +2963,10 @@ function hydrateFromCookies() {
     showMessage('Acceso de Sr. Verdad restaurado de la sesión anterior.');
     setWorkspaceView('map');
   } else if (storedRole === 'operative') {
-    const storedAgent = getCookie('amina_agent');
-    if (storedAgent) {
-      const agent = state.agents.find((a) => a.username === storedAgent);
-      if (agent) {
-        setAgent(agent);
-      }
-    }
-    hideBootScreen();
-    showMessage('Vista de agente de campo cargada.');
-    setWorkspaceView('map');
+    // Forzamos re-selección de agente para evitar bloqueos de login
+    showBootScreen();
+    deleteCookie('amina_role');
+    deleteCookie('amina_agent');
   } else {
     showBootScreen();
   }
