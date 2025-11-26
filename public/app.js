@@ -524,6 +524,8 @@ async function setupMap() {
     zoom: 9
   });
 
+  bindStyleSwitcher();
+
   state.map.addControl(new mapboxgl.NavigationControl());
   state.map.addControl(new mapboxgl.FullscreenControl());
   // Remove hillshade layer if the style references a missing source layer to avoid console spam
@@ -544,6 +546,30 @@ async function setupMap() {
       setPickedLocation(event.lngLat.lat, event.lngLat.lng);
       disablePickMode();
     }
+  });
+}
+
+function bindStyleSwitcher() {
+  const switcher = document.querySelector('.map-style-switch');
+  if (!switcher || !state.map) return;
+  switcher.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-style]');
+    if (!btn) return;
+    const style = btn.dataset.style;
+    if (!style) return;
+    state.map.setStyle(style);
+    if (state.entitiesMap) {
+      try {
+        state.entitiesMap.setStyle(style);
+      } catch (_) {
+        // ignore if DM map not initialized
+      }
+    }
+    // re-render markers after style load
+    state.map.once('style.load', () => {
+      renderMarkers();
+      if (state.poiFocal) focusMapOnPois();
+    });
   });
 }
 

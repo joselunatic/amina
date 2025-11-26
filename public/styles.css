@@ -345,6 +345,23 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   box-shadow: 0 10px 18px rgba(0, 0, 0, 0.35);
 }
 
+.map-style-switch {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  display: flex;
+  gap: 0.25rem;
+  z-index: 155;
+}
+
+.map-style-switch button {
+  padding: 0.35rem 0.6rem;
+}
+
+.map-style-switch + .map-filters {
+  top: 2.6rem;
+}
+
 .filter-chip {
   border: 1px solid rgba(0, 255, 136, 0.25);
   background: rgba(0, 0, 0, 0.5);
