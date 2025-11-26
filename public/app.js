@@ -2013,6 +2013,7 @@ function renderDossierDetailView(target, entity, options = {}) {
   if (isLocked) {
     target.innerHTML = `
       <div class="dossier-detail">
+        <div class="locked-placeholder">LOCKED</div>
         <div class="dossier-title">${sanitize(entity.code_name || entity.name)}</div>
         <div class="dossier-badges"><span class="locked-banner">LOCKED</span></div>
         <p class="muted">${sanitize(entity.locked_hint || 'Protegido. Solicita clave de desbloqueo.')}</p>
@@ -2406,17 +2407,15 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   const sessions = renderSessionChips((ctx && ctx.sessions) || entity.sessions || entity.session_tag || '');
   const img = entity.image_url || entity.photo || '';
   const renderHero = (title, subtitle) => {
+    const locked = entity.visibility === 'locked' && !isDmViewer();
     hero.innerHTML = `
       <div class="dm-entity-hero-body">
         ${
-          img
-            ? `<div class="hero-wrapper ${entity.visibility === 'locked' && !isDmViewer() ? 'hero-locked' : ''}">
+          locked
+            ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
+            : img
+            ? `<div class="hero-wrapper">
                  <img src="${sanitize(img)}" alt="${sanitize(title)}" />
-                 ${
-                   entity.visibility === 'locked' && !isDmViewer()
-                     ? '<div class="hero-overlay locked-banner">LOCKED</div>'
-                     : ''
-                 }
                </div>`
             : '<div class="muted">Sin imagen disponible.</div>'
         }
