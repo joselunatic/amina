@@ -198,13 +198,18 @@ const entitySessionLastInput = document.getElementById('entity-session-last');
 const entitySessionsInput = document.getElementById('entity-sessions');
 const entityPoisInput = document.getElementById('entity-pois');
 const entityLinksInput = document.getElementById('entity-links');
+const entityLinksSearch = document.getElementById('entity-links-search');
+const entityLinksSuggestions = document.getElementById('entity-links-suggestions');
+const entityLinksChips = document.getElementById('entity-links-chips');
 const entityPublicNoteInput = document.getElementById('entity-public-note');
 const entityDmNoteInput = document.getElementById('entity-dm-note');
 const entityVisibilityInput = document.getElementById('entity-visibility');
 const entityUnlockInput = document.getElementById('entity-unlock');
 const entityLockedHintInput = document.getElementById('entity-locked-hint');
+const unlockFields = document.querySelector('.unlock-fields');
 const entityArchivedInput = document.getElementById('entity-archived');
 const entityResetBtn = document.getElementById('entity-reset');
+const entitySubmitBtn = document.getElementById('entity-submit');
 const dossierTypeButtons = document.querySelectorAll('#dossier-card .dossier-type');
 const dossierTypeButtonsAdmin = document.querySelectorAll('.console-blade[data-blade-panel="dossiers"] .dossier-type');
 const dmFilterTypeButtons = document.querySelectorAll('.dm-filter-type');
@@ -235,6 +240,19 @@ const formIds = {
   publicNote: document.getElementById('poi-public-note'),
   dmNote: document.getElementById('poi-dm-note')
 };
+
+const entityPoisSelect = {
+  input: document.getElementById('entity-pois-search'),
+  suggestions: document.getElementById('entity-pois-suggestions'),
+  chips: document.getElementById('entity-pois-chips'),
+  hidden: document.getElementById('entity-pois')
+};
+
+const unlockOverlay = document.getElementById('unlock-overlay');
+const unlockHint = document.getElementById('unlock-hint');
+const unlockInput = document.getElementById('unlock-code-input');
+const unlockClose = document.getElementById('unlock-close');
+const unlockConfirm = document.getElementById('unlock-confirm');
 
 async function init() {
   populateCategoryOptions();
@@ -387,9 +405,8 @@ function bindEvents() {
     const unlockBtn = event.target.closest('[data-unlock-target]');
     if (!unlockBtn) return;
     const id = unlockBtn.getAttribute('data-unlock-target');
-    const input = unlockBtn.previousElementSibling;
-    const code = input ? input.value.trim() : '';
-    attemptUnlock(id, code);
+    const hint = unlockBtn.getAttribute('data-unlock-hint') || '';
+    openUnlockOverlay(id, hint);
   });
 
   workspaceTabs.forEach((tab) => {
@@ -446,6 +463,38 @@ function bindEvents() {
     entityForm.addEventListener('submit', handleEntitySubmit);
   }
   entityResetBtn?.addEventListener('click', resetEntityForm);
+  setupMultiSelect(entityPoisSelect, () => state.pois || [], 'poi');
+  setupMultiSelect(
+    {
+      input: entityLinksSearch,
+      suggestions: entityLinksSuggestions,
+      chips: entityLinksChips,
+      hidden: entityLinksInput
+    },
+    () => (state.entities || []).filter((e) => e.type !== 'poi'),
+    'entity'
+  );
+  if (entityVisibilityInput) {
+    entityVisibilityInput.addEventListener('change', toggleUnlockFields);
+    toggleUnlockFields();
+  }
+  unlockClose?.addEventListener('click', hideUnlockOverlay);
+  unlockOverlay?.addEventListener('click', (event) => {
+    if (event.target === unlockOverlay) hideUnlockOverlay();
+  });
+  unlockConfirm?.addEventListener('click', () => {
+    const id = unlockOverlay?.dataset.targetId;
+    const code = unlockInput?.value || '';
+    if (id) attemptUnlock(id, code.trim());
+  });
+  unlockInput?.addEventListener('keypress', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const id = unlockOverlay?.dataset.targetId;
+      const code = unlockInput?.value || '';
+      if (id) attemptUnlock(id, code.trim());
+    }
+  });
 
 }
 
@@ -1042,6 +1091,7 @@ async function submitPoiFromEntityForm() {
     if (dmWarning) dmWarning.textContent = 'Introduce un código de autorización válido para crear o editar PdIs.';
     return;
   }
+  setSavingButton(entitySubmitBtn, true, 'Guardando…');
   const payload = {
     name: entityCodeNameInput.value.trim(),
     category: poiCategorySelect.value,
@@ -1088,6 +1138,9 @@ async function submitPoiFromEntityForm() {
   updateEntityFormMode('poi');
   populateEntityForm(mapped);
   showMessage(isEdit ? 'PdI actualizado.' : 'PdI creado.');
+  pulseSavedButton();
+  resetEntityForm();
+  setSavingButton(entitySubmitBtn, false);
 }
 
 async function handleDeletePoi(poi) {
@@ -1897,7 +1950,8 @@ function renderAdminDossiers() {
 
 function buildDossierCard(entity, dmView = false, active = false) {
   const card = document.createElement('div');
-  card.className = `dossier-card-row ${active ? 'active' : ''}`;
+  const locked = entity.visibility === 'locked' && !dmView;
+  card.className = `dossier-card-row ${active ? 'active' : ''} ${locked ? 'locked' : ''}`;
   const badge = `<span class="badge">${getEntityTypeLabel(entity.type)}</span>`;
   const sessionTags = renderSessionChips(entity.sessions || entity.session_tag || '');
   const role = entity.type === 'poi' ? categoryLabels[entity.category] || entity.role : entity.role;
@@ -1907,7 +1961,7 @@ function buildDossierCard(entity, dmView = false, active = false) {
     <div class="dossier-row-header">${badge} <strong>${sanitize(entity.code_name || entity.name)}</strong></div>
     <div class="dossier-row-meta">${sanitize(role || 'Sin rol')} · ${sanitize(status)}</div>
     <div class="dossier-row-meta">${sanitize(align)}</div>
-    <div class="dossier-row-note">${entity.visibility === 'locked' && !dmView ? 'Intel clasificado' : sanitize(shortenText(entity.public_summary || 'Sin notas públicas', 140))}</div>
+    <div class="dossier-row-note">${locked ? 'LOCKED — requiere clave' : sanitize(shortenText(entity.public_summary || 'Sin notas públicas', 140))}</div>
     <div class="dossier-row-sessions">${sessionTags}</div>
   `;
   if (dmView && entity.archived) {
@@ -1960,13 +2014,11 @@ function renderDossierDetailView(target, entity, options = {}) {
     target.innerHTML = `
       <div class="dossier-detail">
         <div class="dossier-title">${sanitize(entity.code_name || entity.name)}</div>
-        <div class="dossier-badges"><span class="badge-soft">Clasificado</span></div>
-        <p class="muted">${sanitize(entity.locked_hint || 'Introduce clave de desbloqueo')}</p>
-        <div class="form-section">
-          <label for="unlock-input">Código</label>
-          <input type="text" id="unlock-input" />
-          <button type="button" class="ghost" data-unlock-target="${entity.id}">Desbloquear</button>
-        </div>
+        <div class="dossier-badges"><span class="locked-banner">LOCKED</span></div>
+        <p class="muted">${sanitize(entity.locked_hint || 'Protegido. Solicita clave de desbloqueo.')}</p>
+        <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
+          entity.locked_hint || ''
+        )}">Desbloquear</button>
       </div>
     `;
     return;
@@ -2214,6 +2266,8 @@ function setWorkspaceView(view) {
   state.workspaceView = view;
   if (document?.body) {
     document.body.dataset.workspaceView = view;
+    const isDm = isDmViewer();
+    document.body.classList.toggle('dm-hide-top-nav', isDm && view === 'entities');
   }
   workspaceTabs.forEach((tab) => {
     tab.classList.toggle('active', tab.dataset.view === view);
@@ -2345,8 +2399,7 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   if (!entity) {
     detail.innerHTML =
       '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista de la izquierda. Podrás editarlo en el panel inferior y, si es un PdI, verlo en el mapa.</div>';
-    hero.innerHTML =
-      '<div class="card-title">Hero</div><div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
+    hero.innerHTML = '<div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
     return;
   }
 
@@ -2354,9 +2407,19 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   const img = entity.image_url || entity.photo || '';
   const renderHero = (title, subtitle) => {
     hero.innerHTML = `
-      <div class="card-title">Hero</div>
       <div class="dm-entity-hero-body">
-        ${img ? `<img src="${sanitize(img)}" alt="${sanitize(title)}" />` : '<div class="muted">Sin imagen disponible.</div>'}
+        ${
+          img
+            ? `<div class="hero-wrapper ${entity.visibility === 'locked' && !isDmViewer() ? 'hero-locked' : ''}">
+                 <img src="${sanitize(img)}" alt="${sanitize(title)}" />
+                 ${
+                   entity.visibility === 'locked' && !isDmViewer()
+                     ? '<div class="hero-overlay locked-banner">LOCKED</div>'
+                     : ''
+                 }
+               </div>`
+            : '<div class="muted">Sin imagen disponible.</div>'
+        }
         <div class="dm-entity-meta">${sanitize(title)}${subtitle ? ` · ${sanitize(subtitle)}` : ''}</div>
       </div>
     `;
@@ -2366,9 +2429,27 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
     const lat = Number(entity.latitude || entity.poi_latitude);
     const lng = Number(entity.longitude || entity.poi_longitude);
     const hasCoords = !Number.isNaN(lat) && !Number.isNaN(lng);
+    const staticStyle =
+      state.mapboxConfig && state.mapboxConfig.mapStyle
+        ? state.mapboxConfig.mapStyle
+        : 'mapbox://styles/mapbox/dark-v11';
+
+    const staticBaseFromStyle = (styleUrl) => {
+      if (!styleUrl) return null;
+      if (styleUrl.startsWith('mapbox://styles/')) {
+        const [, user, style] = styleUrl.replace('mapbox://styles/', '').split('/');
+        return user && style ? `https://api.mapbox.com/styles/v1/${user}/${style}` : null;
+      }
+      const match = styleUrl.match(/api\.mapbox\.com\/styles\/v1\/([^/]+\/[^/?]+)/);
+      if (match && match[1]) return `https://api.mapbox.com/styles/v1/${match[1]}`;
+      return null;
+    };
+
+    const staticBase = staticBaseFromStyle(staticStyle) || 'https://api.mapbox.com/styles/v1/mapbox/dark-v11';
+    const token = state.mapboxConfig?.mapboxToken || '';
     const staticUrl =
-      hasCoords && state.mapboxConfig
-        ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/pin-s+00ff88(${lng},${lat})/${lng},${lat},12/800x520?access_token=${state.mapboxConfig.mapboxToken}`
+      hasCoords && token
+        ? `${staticBase}/static/pin-s+00ff88(${lng},${lat})/${lng},${lat},12/800x520?access_token=${token}`
         : '';
     detail.innerHTML = `
       <div class="card-title">PdI seleccionado</div>
@@ -2710,6 +2791,7 @@ async function attemptUnlock(id, code) {
     if (result.status === 'ok') {
       state.unlockedEntities.add(Number(id));
       showMessage('Dossier desbloqueado.');
+      hideUnlockOverlay();
       await loadEntities();
       const entity = findEntityById(id);
       renderAgentDossiers();
@@ -2747,15 +2829,14 @@ function parseSessionInput(value) {
 }
 
 function parsePoiLinksInput(value) {
+  if (!value) return [];
   return value
     .split(',')
     .map((v) => v.trim())
     .filter(Boolean)
     .map((token) => {
-      const parts = token.split(':');
-      const idPart = parts[0];
-      const rolePart = parts[1];
-      const sessionPart = parts[2];
+      const [idPart, extras] = token.split('|');
+      const [rolePart, sessionPart] = (extras || '').split(':');
       const poiId = Number(idPart);
       if (!poiId || Number.isNaN(poiId)) return null;
       return {
@@ -2769,17 +2850,218 @@ function parsePoiLinksInput(value) {
 }
 
 function parseEntityLinksInput(value) {
+  if (!value) return [];
   return value
     .split(',')
     .map((v) => v.trim())
     .filter(Boolean)
     .map((token) => {
-      const [idPart, relationPart] = token.includes(':') ? token.split(':') : token.split('=');
+      const [idPart, relationPart] = token.split('|');
       const targetId = Number(idPart);
       if (!targetId || Number.isNaN(targetId) || !relationPart) return null;
       return { to_entity_id: targetId, relation_type: relationPart.trim(), is_public: true };
     })
     .filter(Boolean);
+}
+
+function parseMultiSelect(raw, kind = 'entity') {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const [id, extra] = item.split('|');
+      if (kind === 'poi') {
+        const [role_at_poi, session_tag] = (extra || '').split(':');
+        return { poi_id: Number(id), role_at_poi: role_at_poi || '', session_tag: session_tag || '' };
+      }
+      return { to_entity_id: Number(id), relation_type: extra || 'relacion' };
+    });
+}
+
+function buildMultiTokens(items, kind = 'entity') {
+  if (!items || !items.length) return [];
+  return items
+    .map((item) => {
+      if (kind === 'poi') {
+        const id = item.poi_id || item.id;
+        if (!id) return null;
+        const role = item.role_at_poi || '';
+        const session = item.session_tag || item.session || '';
+        return `${id}|${role}:${session}`;
+      }
+      const id = item.to_entity_id || item.target_id || item.id;
+      if (!id) return null;
+      const rel = item.relation_type || item.relation || '';
+      return `${id}|${rel}`;
+    })
+    .filter(Boolean);
+}
+
+function getTokenLabel(item, kind = 'entity') {
+  if (kind === 'poi') {
+    const name = item.name || item.code_name || item.title || `PdI #${item.id || item.poi_id}`;
+    const session = item.session_tag || item.session || '';
+    return `${name}${session ? ` · ${session}` : ''}`;
+  }
+  const name = item.code_name || item.name || item.title || `Entidad #${item.id || item.to_entity_id}`;
+  const rel = item.relation_type || item.relation || '';
+  return rel ? `${name} · ${rel}` : name;
+}
+
+function tokensFromHidden(hidden) {
+  if (!hidden) return [];
+  return hidden.value
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function writeTokens(hidden, tokens) {
+  if (hidden) hidden.value = tokens.join(',');
+}
+
+function setupMultiSelect(config, dataFn, mode = 'entity') {
+  if (!config || !config.input || !config.suggestions || !config.chips || !config.hidden) return;
+  const { input, suggestions, chips, hidden } = config;
+
+  function renderSuggestions(list) {
+    suggestions.innerHTML = '';
+    if (!list.length || !input.value.trim()) {
+      suggestions.classList.remove('visible');
+      return;
+    }
+    list.slice(0, 8).forEach((item) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = getTokenLabel(item, mode);
+      btn.addEventListener('click', () => {
+        addToken(item);
+        input.value = '';
+        suggestions.classList.remove('visible');
+      });
+      suggestions.appendChild(btn);
+    });
+    suggestions.classList.add('visible');
+  }
+
+  function addToken(item) {
+    const tokens = tokensFromHidden(hidden);
+    const token = mode === 'poi'
+      ? `${item.id || item.poi_id}|${(item.role_at_poi || '')}:${item.session_tag || item.session || ''}`
+      : `${item.id || item.to_entity_id || item.target_id}|${item.relation_type || item.relation || ''}`;
+    if (tokens.includes(token)) return;
+    tokens.push(token);
+    writeTokens(hidden, tokens);
+    renderChips(tokens);
+  }
+
+  function removeToken(token) {
+    const tokens = tokensFromHidden(hidden).filter((t) => t !== token);
+    writeTokens(hidden, tokens);
+    renderChips(tokens);
+  }
+
+  function renderChips(tokens) {
+    chips.innerHTML = '';
+    const dataList = dataFn() || [];
+    tokens.forEach((token) => {
+      const [id, extra] = token.split('|');
+      const match = dataList.find((item) => String(item.id || item.poi_id || item.to_entity_id || item.target_id) === id);
+      const label = match ? getTokenLabel({ ...match, relation_type: extra, role_at_poi: extra?.split(':')?.[0] }, mode) : token;
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = label;
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = '×';
+      close.addEventListener('click', () => removeToken(token));
+      chip.appendChild(close);
+      chips.appendChild(chip);
+    });
+  }
+
+  const fuseOptions =
+    mode === 'poi'
+      ? { keys: ['name', 'code_name', 'category', 'session_tag'], threshold: 0.3 }
+      : { keys: ['name', 'code_name', 'role', 'alignment'], threshold: 0.3 };
+
+  input.addEventListener('input', () => {
+    const data = dataFn() || [];
+    const fuse = new Fuse(data, fuseOptions);
+    const query = input.value.trim();
+    if (!query) {
+      suggestions.classList.remove('visible');
+      return;
+    }
+    const results = fuse.search(query).map((r) => r.item);
+    renderSuggestions(results);
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!suggestions.contains(event.target) && event.target !== input) {
+      suggestions.classList.remove('visible');
+    }
+  });
+
+  config.renderChips = renderChips;
+}
+
+function hydrateMultiSelect(config, items, mode = 'entity') {
+  if (!config || !config.hidden || !config.chips) return;
+  const tokens = buildMultiTokens(items, mode);
+  writeTokens(config.hidden, tokens);
+  if (config.renderChips) {
+    config.renderChips(tokens);
+  } else if (config.chips) {
+    config.chips.innerHTML = '';
+  }
+}
+
+function toggleUnlockFields() {
+  const locked = entityVisibilityInput && entityVisibilityInput.value === 'locked';
+  if (unlockFields) {
+    unlockFields.style.display = locked ? 'block' : 'none';
+  }
+}
+
+function openUnlockOverlay(id, hint = '') {
+  if (!unlockOverlay || !unlockInput || !unlockConfirm || !unlockHint) return;
+  unlockOverlay.classList.remove('hidden');
+  unlockOverlay.dataset.targetId = id;
+  unlockHint.textContent = hint || 'Introduce la clave para desbloquear.';
+  unlockInput.value = '';
+  unlockInput.focus();
+}
+
+function hideUnlockOverlay() {
+  if (unlockOverlay) {
+    unlockOverlay.classList.add('hidden');
+    unlockOverlay.dataset.targetId = '';
+  }
+}
+
+function pulseSavedButton() {
+  const saveBtn = document.getElementById('entity-submit');
+  if (!saveBtn) return;
+  saveBtn.classList.add('btn-saved');
+  setTimeout(() => saveBtn.classList.remove('btn-saved'), 800);
+}
+
+function setSavingButton(button, saving, savingText = 'Guardando…') {
+  if (!button) return;
+  if (saving) {
+    button.dataset.originalText = button.textContent;
+    button.textContent = savingText;
+    button.classList.add('btn-saving');
+    button.disabled = true;
+  } else {
+    const original = button.dataset.originalText;
+    button.textContent = original || button.textContent;
+    button.classList.remove('btn-saving');
+    button.disabled = false;
+  }
 }
 
 function populateEntityForm(entity) {
@@ -2832,7 +3114,18 @@ function populateEntityForm(entity) {
     state.editingPoiId = null;
   }
   updateEntityFormMode(kind === 'poi' ? 'poi' : entity.type);
-  renderDossierDetailView(dossierDetailAdmin || dmEntitiesDetail, entity, { dm: true });
+  hydrateMultiSelect(entityPoisSelect, entity.pois || entity.poi_links || [], 'poi');
+  hydrateMultiSelect(
+    {
+      input: entityLinksSearch,
+      suggestions: entityLinksSuggestions,
+      chips: entityLinksChips,
+      hidden: entityLinksInput
+    },
+    entity.relations || entity.links || [],
+    'entity'
+  );
+  toggleUnlockFields();
 }
 
 function resetEntityForm() {
@@ -2843,7 +3136,19 @@ function resetEntityForm() {
   entityKindInput.value = 'entity';
   updateEntityFormMode('entity');
   state.activeEntityAdmin = null;
-  renderDossierDetailView(dmEntitiesContext || dossierDetailAdmin, null, { dm: true });
+  renderDmEntityDetailCard(null);
+  hydrateMultiSelect(entityPoisSelect, [], 'poi');
+  hydrateMultiSelect(
+    {
+      input: entityLinksSearch,
+      suggestions: entityLinksSuggestions,
+      chips: entityLinksChips,
+      hidden: entityLinksInput
+    },
+    [],
+    'entity'
+  );
+  toggleUnlockFields();
 }
 
 async function handleEntitySubmit(event) {
@@ -2852,65 +3157,72 @@ async function handleEntitySubmit(event) {
     dmWarning.textContent = 'Se requiere canal de Sr. Verdad para guardar entidades.';
     return;
   }
+  setSavingButton(entitySubmitBtn, true, 'Guardando…');
 
   const kind = (entityKindInput?.value || '').trim() || (entityTypeInput.value === 'poi' ? 'poi' : 'entity');
-  if (kind === 'poi' || entityTypeInput.value === 'poi') {
-    await submitPoiFromEntityForm();
-    return;
+  try {
+    if (kind === 'poi' || entityTypeInput.value === 'poi') {
+      await submitPoiFromEntityForm();
+      return;
+    }
+
+    const payload = {
+      type: entityTypeInput.value,
+      code_name: entityCodeNameInput.value.trim(),
+      real_name: entityRealNameInput.value.trim(),
+      role: entityRoleInput.value.trim(),
+      status: entityStatusInput.value.trim(),
+      alignment: entityAlignmentInput.value.trim(),
+      threat_level: entityThreatInput.value ? Number(entityThreatInput.value) : null,
+      image_url: entityImageInput.value.trim(),
+      first_session: entitySessionFirstInput.value.trim(),
+      last_session: entitySessionLastInput.value.trim(),
+      sessions: entitySessionsInput.value.trim(),
+      public_summary: entityPublicNoteInput.value.trim(),
+      dm_notes: entityDmNoteInput.value.trim(),
+      visibility: entityVisibilityInput.value,
+      unlock_code: entityUnlockInput.value.trim(),
+      locked_hint: entityLockedHintInput.value.trim(),
+      archived: !!entityArchivedInput.checked,
+      session_links: parseSessionInput(entitySessionsInput.value),
+      poi_links: parseMultiSelect(entityPoisInput.value, 'poi'),
+      relations: parseMultiSelect(entityLinksInput.value, 'entity')
+    };
+
+    const isEdit = !!entityIdInput.value;
+    const endpoint = isEdit ? `/api/dm/entities/${entityIdInput.value}` : '/api/dm/entities';
+    const method = isEdit ? 'PUT' : 'POST';
+
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-dm-secret': state.dmSecret || ''
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.status === 401) {
+      handleUnauthorized();
+      return;
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      showMessage(error.error || 'Fallo al guardar la entidad.', true);
+      return;
+    }
+
+    const entity = await response.json();
+    state.activeEntityAdmin = entity;
+    populateEntityForm(entity);
+    await loadEntities();
+    showMessage('Dossier guardado.');
+    pulseSavedButton();
+    resetEntityForm();
+  } finally {
+    setSavingButton(entitySubmitBtn, false);
   }
-
-  const payload = {
-    type: entityTypeInput.value,
-    code_name: entityCodeNameInput.value.trim(),
-    real_name: entityRealNameInput.value.trim(),
-    role: entityRoleInput.value.trim(),
-    status: entityStatusInput.value.trim(),
-    alignment: entityAlignmentInput.value.trim(),
-    threat_level: entityThreatInput.value ? Number(entityThreatInput.value) : null,
-    image_url: entityImageInput.value.trim(),
-    first_session: entitySessionFirstInput.value.trim(),
-    last_session: entitySessionLastInput.value.trim(),
-    sessions: entitySessionsInput.value.trim(),
-    public_summary: entityPublicNoteInput.value.trim(),
-    dm_notes: entityDmNoteInput.value.trim(),
-    visibility: entityVisibilityInput.value,
-    unlock_code: entityUnlockInput.value.trim(),
-    locked_hint: entityLockedHintInput.value.trim(),
-    archived: !!entityArchivedInput.checked,
-    session_links: parseSessionInput(entitySessionsInput.value),
-    poi_links: parsePoiLinksInput(entityPoisInput.value),
-    relations: parseEntityLinksInput(entityLinksInput.value)
-  };
-
-  const isEdit = !!entityIdInput.value;
-  const endpoint = isEdit ? `/api/entities/${entityIdInput.value}` : '/api/entities';
-  const method = isEdit ? 'PUT' : 'POST';
-
-  const response = await fetch(endpoint, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-dm-secret': state.dmSecret || ''
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (response.status === 401) {
-    handleUnauthorized();
-    return;
-  }
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    showMessage(error.error || 'Fallo al guardar la entidad.', true);
-    return;
-  }
-
-  const entity = await response.json();
-  state.activeEntityAdmin = entity;
-  populateEntityForm(entity);
-  await loadEntities();
-  showMessage('Dossier guardado.');
 }
 
 function findEntityById(id) {

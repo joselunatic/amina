@@ -136,7 +136,7 @@
                 </div>
               </div>
             </div>
-            <nav class="workspace-nav" aria-label="Modo de consola">
+            <nav class="workspace-nav primary-nav" aria-label="Modo de consola">
               <div class="workspace-tabs agent-tabs">
                 <button type="button" class="workspace-tab active" data-view="map">Mapa</button>
                 <button type="button" class="workspace-tab" data-view="console">Consola</button>
@@ -278,7 +278,6 @@
                     <div class="dm-entity-detail-body">Selecciona un dossier para ver su ficha.</div>
                   </div>
                   <div class="console-card dm-entity-hero-card" id="dm-entity-hero-card">
-                    <div class="card-title">Hero</div>
                     <div class="dm-entity-hero-body muted">Sin imagen disponible.</div>
                   </div>
                 </div>
@@ -366,10 +365,20 @@
                             </div>
                             <label for="entity-sessions">Sesiones (coma)</label>
                             <input type="text" id="entity-sessions" placeholder="1x00,1x01" />
-                            <label for="entity-pois">PdIs vinculados (id:rol:sesión)</label>
-                            <input type="text" id="entity-pois" placeholder="3:Vigía:1x02" />
-                            <label for="entity-links">Conexiones (id:relación)</label>
-                            <input type="text" id="entity-links" placeholder="6:Aliado,7:Enemigo" />
+                            <label for="entity-pois-search">PdIs vinculados</label>
+                            <div class="multi-select" id="entity-pois-select">
+                              <input type="search" id="entity-pois-search" placeholder="Buscar PdI…" autocomplete="off" />
+                              <div class="multi-suggestions" id="entity-pois-suggestions"></div>
+                              <div class="multi-chips" id="entity-pois-chips"></div>
+                            </div>
+                            <input type="hidden" id="entity-pois" />
+                            <label for="entity-links-search">Conexiones</label>
+                            <div class="multi-select" id="entity-links-select">
+                              <input type="search" id="entity-links-search" placeholder="Buscar PJ/PNJ/Org…" autocomplete="off" />
+                              <div class="multi-suggestions" id="entity-links-suggestions"></div>
+                              <div class="multi-chips" id="entity-links-chips"></div>
+                            </div>
+                            <input type="hidden" id="entity-links" />
                           </div>
                         </div>
                         <div class="dossier-col">
@@ -388,15 +397,17 @@
                               <option value="locked">Bloqueada (requiere clave)</option>
                               <option value="dm_only">Solo DM</option>
                             </select>
-                            <label for="entity-unlock">Código de desbloqueo</label>
-                            <input type="text" id="entity-unlock" />
-                            <label for="entity-locked-hint">Pista de desbloqueo</label>
-                            <input type="text" id="entity-locked-hint" placeholder="Pista breve" />
-                            <label class="checkbox-inline">
-                              <input type="checkbox" id="entity-archived" /> Archivada
-                            </label>
-                            <div class="form-actions">
-                              <button type="submit" id="entity-submit">Guardar dossier</button>
+                              <div class="unlock-fields">
+                                <label for="entity-unlock">Código de desbloqueo</label>
+                                <input type="text" id="entity-unlock" />
+                                <label for="entity-locked-hint">Pista de desbloqueo</label>
+                                <input type="text" id="entity-locked-hint" placeholder="Pista breve" />
+                              </div>
+                              <label class="checkbox-inline">
+                                <input type="checkbox" id="entity-archived" /> Archivada
+                              </label>
+                              <div class="form-actions">
+                                <button type="submit" id="entity-submit">Guardar dossier</button>
                             </div>
                           </div>
                           <div class="form-section poi-only">
@@ -472,6 +483,22 @@
             <button id="inbox-close" class="ghost small">Cerrar</button>
           </header>
           <div id="inbox-messages" class="inbox-messages"></div>
+        </div>
+      </div>
+      <div id="unlock-overlay" class="unlock-overlay hidden">
+        <div class="unlock-panel">
+          <header class="unlock-header">
+            <div>
+              <div class="unlock-title">Dossier bloqueado</div>
+              <div id="unlock-hint" class="unlock-hint muted">Protegido. Introduce la clave.</div>
+            </div>
+            <button type="button" id="unlock-close" class="ghost small">Cerrar</button>
+          </header>
+          <label for="unlock-code-input">Código de desbloqueo</label>
+          <input type="password" id="unlock-code-input" autocomplete="off" />
+          <div class="form-actions">
+            <button type="button" id="unlock-confirm">Desbloquear</button>
+          </div>
         </div>
       </div>
     </div>
