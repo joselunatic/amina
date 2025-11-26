@@ -517,6 +517,7 @@ async function setupMap() {
     logDebug('Modo depuración activo');
   }
   const styleUrl = config.mapStyle || 'mapbox://styles/mapbox/dark-v11';
+  state.currentMapStyle = styleUrl;
   state.map = new mapboxgl.Map({
     container: 'map',
     style: styleUrl,
@@ -552,24 +553,46 @@ async function setupMap() {
 function bindStyleSwitcher() {
   const switcher = document.querySelector('.map-style-switch');
   if (!switcher || !state.map) return;
+  const setActive = (style) => {
+    switcher.querySelectorAll('button[data-style]').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.style === style);
+    });
+  };
+  setActive(state.currentMapStyle);
   switcher.addEventListener('click', (event) => {
     const btn = event.target.closest('button[data-style]');
     if (!btn) return;
     const style = btn.dataset.style;
     if (!style) return;
+    const prevStyle = state.currentMapStyle || state.map.getStyle()?.sprite || '';
+    let reverted = false;
+    const onError = () => {
+      if (reverted) return;
+      reverted = true;
+      state.map.off('style.load', onLoad);
+      state.map.off('error', onError);
+      showMessage('No se pudo cargar el estilo seleccionado.', true);
+      if (prevStyle) state.map.setStyle(prevStyle);
+      setActive(prevStyle);
+    };
+    const onLoad = () => {
+      if (reverted) return;
+      state.map.off('error', onError);
+      state.currentMapStyle = style;
+      setActive(style);
+      renderMarkers();
+      if (state.poiFocal) focusMapOnPois();
+    };
+    state.map.once('error', onError);
+    state.map.once('style.load', onLoad);
     state.map.setStyle(style);
     if (state.entitiesMap) {
       try {
         state.entitiesMap.setStyle(style);
       } catch (_) {
-        // ignore if DM map not initialized
+        /* ignore */
       }
     }
-    // re-render markers after style load
-    state.map.once('style.load', () => {
-      renderMarkers();
-      if (state.poiFocal) focusMapOnPois();
-    });
   });
 }
 

@@ -358,6 +358,11 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   padding: 0.35rem 0.6rem;
 }
 
+.map-style-switch button.active {
+  border-color: rgba(0, 255, 136, 0.6);
+  box-shadow: 0 0 0 1px rgba(0, 255, 136, 0.25);
+}
+
 .map-style-switch + .map-filters {
   top: 2.6rem;
 }
