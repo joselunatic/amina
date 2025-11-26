@@ -311,6 +311,10 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   display: none !important;
 }
 
+.mode-agent:not([data-workspace-view='map']) .map-shell {
+  display: none !important;
+}
+
 .map-panel {
   position: relative;
   flex: 1 1 auto;
