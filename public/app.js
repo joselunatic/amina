@@ -2420,7 +2420,6 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
                </div>`
             : '<div class="muted">Sin imagen disponible.</div>'
         }
-        <div class="dm-entity-meta">${sanitize(title)}${subtitle ? ` · ${sanitize(subtitle)}` : ''}</div>
       </div>
     `;
   };
