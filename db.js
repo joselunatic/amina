@@ -573,9 +573,6 @@ async function getMessages(filters = {}) {
   if (filters.box === 'sent' && filters.viewer) {
     conditions.push('created_by = ?');
     params.push(filters.viewer);
-  } else if (filters.box !== 'sent' && filters.recipient) {
-    conditions.push('recipient = ?');
-    params.push(filters.recipient);
   } else if (filters.enforceDmInbox && Array.isArray(filters.agentDisplays)) {
     const placeholders = filters.agentDisplays.map(() => '?').join(',');
     conditions.push(
@@ -590,6 +587,10 @@ async function getMessages(filters = {}) {
     filters.box !== 'sent'
   ) {
     // Agent inbox without specific recipient: include direct and 'All agents'
+    conditions.push('(recipient = ? OR recipient = ?)');
+    params.push(filters.viewer, 'All agents');
+  } else if (filters.viewer && !filters.box) {
+    // Default inbox scope for agent
     conditions.push('(recipient = ? OR recipient = ?)');
     params.push(filters.viewer, 'All agents');
   }
