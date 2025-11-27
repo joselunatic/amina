@@ -363,7 +363,9 @@ function bindEvents() {
   }
   msgPrevBtn?.addEventListener('click', showPrevMessage);
   msgNextBtn?.addEventListener('click', showNextMessage);
-  msgBoxToggleBtn?.addEventListener('click', toggleMessageBoxView);
+  if (msgBoxToggleBtn) {
+    msgBoxToggleBtn.addEventListener('click', toggleMessageBoxView);
+  }
   msgReplyBtn?.addEventListener('click', () => {
     if (!state.activeMessage) return;
     startReply(state.activeMessage);
