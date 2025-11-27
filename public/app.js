@@ -1458,6 +1458,19 @@ async function markMessageAsRead(id, viewer) {
   }
 }
 
+async function deleteMessageForViewer(id, viewer, box) {
+  try {
+    await fetch(`/api/messages/${id}/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ viewer, box })
+    });
+    await loadMessages();
+  } catch (err) {
+    logDebug(`Delete message failed: ${err.message}`);
+  }
+}
+
 function showNextMessage() {
   if (!state.messages.length) return;
   state.activeMessageIndex = (state.activeMessageIndex + 1) % state.messages.length;
@@ -2714,17 +2727,22 @@ function renderActiveMessageCard() {
     <div class="message-body">${sanitize(msg.body || '')}</div>
     <div class="message-actions">
       ${!isRead && viewer ? `<button type="button" class="ghost small" data-mark-read="${msg.id}">Marcar como leído</button>` : ''}
-      <button type="button" class="ghost small" data-reply="${msg.id}">Responder</button>
+      ${state.messageFilters.box === 'sent' ? '' : `<button type="button" class="ghost small" data-reply="${msg.id}">Responder</button>`}
+      <button type="button" class="ghost small danger" data-delete="${msg.id}">Eliminar</button>
     </div>
   `;
   messageReader.innerHTML = html;
   const markBtn = messageReader.querySelector('[data-mark-read]');
   const replyBtn = messageReader.querySelector('[data-reply]');
+  const deleteBtn = messageReader.querySelector('[data-delete]');
   if (markBtn && viewer) {
     markBtn.addEventListener('click', () => markMessageAsRead(Number(markBtn.dataset.markRead), viewer));
   }
   if (replyBtn) {
     replyBtn.addEventListener('click', () => startReply(state.activeMessage));
+  }
+  if (deleteBtn && viewer) {
+    deleteBtn.addEventListener('click', () => deleteMessageForViewer(msg.id, viewer, state.messageFilters.box || 'inbox'));
   }
 }
 

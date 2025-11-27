@@ -22,7 +22,8 @@ const {
   archiveEntity,
   getEntityContext,
   unlockEntity,
-  ENTITY_TYPES
+  ENTITY_TYPES,
+  deleteMessageForViewer
 } = require('./db');
 const crypto = require('crypto');
 
@@ -181,6 +182,23 @@ app.post('/api/messages/:id/read', async (req, res, next) => {
       return res.status(404).json({ error: 'Message not found.' });
     }
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/messages/:id/delete', async (req, res, next) => {
+  try {
+    const viewer = (req.body && req.body.viewer) || req.query.viewer;
+    const box = (req.body && req.body.box) || req.query.box || 'inbox';
+    if (!viewer) {
+      return res.status(400).json({ error: 'Viewer is required to delete a message.' });
+    }
+    const updated = await deleteMessageForViewer(req.params.id, viewer, box);
+    if (!updated) {
+      return res.status(404).json({ error: 'Message not found.' });
+    }
+    res.json({ status: 'ok' });
   } catch (err) {
     next(err);
   }

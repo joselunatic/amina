@@ -317,6 +317,7 @@ async function initialize() {
 
   await ensureMessageSessionColumn();
   await ensureMessageReadByColumn();
+  await ensureMessageDeletedByColumn();
 
   await ensureEntitiesTables();
   await seedPoisIfEmpty();
@@ -612,6 +613,10 @@ async function getMessages(filters = {}) {
   if (filters.unread_only && viewer) {
     return parsed.filter((msg) => !hasBeenReadBy(msg, viewer));
   }
+  // filter deleted by viewer (per box)
+  if (viewer) {
+    return parsed.filter((msg) => !hasBeenDeletedBy(msg, viewer, filters.box || 'inbox'));
+  }
   return parsed;
 }
 
@@ -628,6 +633,14 @@ async function ensureMessageReadByColumn() {
   const hasReadBy = columns.some((col) => col.name === 'read_by');
   if (!hasReadBy) {
     await run('ALTER TABLE messages ADD COLUMN read_by TEXT');
+  }
+}
+
+async function ensureMessageDeletedByColumn() {
+  const columns = await all(`PRAGMA table_info(messages)`);
+  const hasDeletedBy = columns.some((col) => col.name === 'deleted_by');
+  if (!hasDeletedBy) {
+    await run('ALTER TABLE messages ADD COLUMN deleted_by TEXT');
   }
 }
 
@@ -758,6 +771,37 @@ async function markMessageRead(id, viewer) {
   if (!current.includes(viewer)) {
     current.push(viewer);
     await run('UPDATE messages SET read_by = ? WHERE id = ?', [JSON.stringify(current), id]);
+  }
+  return get('SELECT * FROM messages WHERE id = ?', [id]);
+}
+
+function hasBeenDeletedBy(message, viewer, box) {
+  const list = parseDeletedBy(message.deleted_by);
+  const key = `${viewer}:${box || 'inbox'}`;
+  return list.includes(key);
+}
+
+function parseDeletedBy(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return String(value)
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+}
+
+async function deleteMessageForViewer(id, viewer, box) {
+  const message = await get('SELECT * FROM messages WHERE id = ?', [id]);
+  if (!message) return null;
+  const current = parseDeletedBy(message.deleted_by);
+  const key = `${viewer}:${box || 'inbox'}`;
+  if (!current.includes(key)) {
+    current.push(key);
+    await run('UPDATE messages SET deleted_by = ? WHERE id = ?', [JSON.stringify(current), id]);
   }
   return get('SELECT * FROM messages WHERE id = ?', [id]);
 }
@@ -1062,7 +1106,8 @@ module.exports = {
   VEIL_VALUES
   , getMessages,
   createMessage,
-  markMessageRead
+  markMessageRead,
+  deleteMessageForViewer
   , getEntitiesForDm,
   getEntityForDm,
   getEntitiesForAgent,
