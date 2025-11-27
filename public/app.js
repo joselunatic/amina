@@ -163,6 +163,7 @@ const msgNextBtn = document.getElementById('msg-next');
 const msgBoxInboxBtn = document.getElementById('msg-box-inbox');
 const msgBoxSentBtn = document.getElementById('msg-box-sent');
 const unreadOnlyCheckbox = document.getElementById('filter-unread-only');
+const msgBoxToggleBtn = document.getElementById('msg-box-toggle'); // legacy button (may not exist)
 const replyPane = document.getElementById('mailbox-reply');
 const replyBodyInput = document.getElementById('reply-body');
 const replyCancelBtn = document.getElementById('reply-cancel');
