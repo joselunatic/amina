@@ -150,7 +150,8 @@ const inboxMessages = document.getElementById('inbox-messages');
 const inboxCloseBtn = document.getElementById('inbox-close');
 const focalPoiContent = document.getElementById('focal-poi-content');
 const focalPoiContentDm = document.getElementById('dm-focal-poi-content');
-const consoleMessageContent = document.getElementById('console-message-content');
+const messageList = document.getElementById('message-list');
+const messageReader = document.getElementById('message-reader');
 const missionBriefText = document.getElementById('mission-brief-text');
 const journalPublicInput = document.getElementById('journal-public');
 const journalDmInput = document.getElementById('journal-dm');
@@ -159,8 +160,9 @@ const mobileNav = document.getElementById('mobile-nav');
 const dmFormOpenBtn = document.getElementById('dm-form-open');
 const msgPrevBtn = document.getElementById('msg-prev');
 const msgNextBtn = document.getElementById('msg-next');
-const msgBoxToggleBtn = document.getElementById('msg-box-toggle');
-const msgReplyBtn = document.getElementById('msg-reply');
+const msgBoxInboxBtn = document.getElementById('msg-box-inbox');
+const msgBoxSentBtn = document.getElementById('msg-box-sent');
+const unreadOnlyCheckbox = document.getElementById('filter-unread-only');
 const replyPane = document.getElementById('mailbox-reply');
 const replyBodyInput = document.getElementById('reply-body');
 const replyCancelBtn = document.getElementById('reply-cancel');
@@ -384,6 +386,29 @@ function bindEvents() {
       const target = event.target.closest('[data-mobile-tab]');
       if (!target) return;
       setMobileTab(target.getAttribute('data-mobile-tab'));
+    });
+  }
+  if (msgBoxInboxBtn) {
+    msgBoxInboxBtn.addEventListener('click', () => {
+      state.messageFilters.box = '';
+      state.activeMessageIndex = 0;
+      updateMessageBoxLabel();
+      loadMessages();
+    });
+  }
+  if (msgBoxSentBtn) {
+    msgBoxSentBtn.addEventListener('click', () => {
+      state.messageFilters.box = 'sent';
+      state.activeMessageIndex = 0;
+      updateMessageBoxLabel();
+      loadMessages();
+    });
+  }
+  if (unreadOnlyCheckbox) {
+    unreadOnlyCheckbox.addEventListener('change', () => {
+      state.messageFilters.unread_only = unreadOnlyCheckbox.checked;
+      state.activeMessageIndex = 0;
+      loadMessages();
     });
   }
   agentLoginButton.addEventListener('click', handleAgentLogin);
@@ -1379,43 +1404,37 @@ async function loadMessages() {
 function renderMessages(messages) {
   state.messages = messages;
   state.activeMessageIndex = Math.min(state.activeMessageIndex, Math.max(messages.length - 1, 0));
-  if (!messageFeed) return;
-  messageFeed.innerHTML = '';
+  if (!messageList || !messageReader) return;
+  messageList.innerHTML = '';
   if (!messages.length) {
     const empty = document.createElement('div');
-    empty.className = 'message-card';
+    empty.className = 'message-list-item';
     empty.textContent = 'No hay despachos disponibles.';
-    messageFeed.appendChild(empty);
+    messageList.appendChild(empty);
     state.activeMessage = null;
     renderActiveMessageCard();
     return;
   }
   const viewer = state.dmMode ? 'Sr. Verdad' : state.agent?.display || '';
-  messages.forEach((msg) => {
-    const card = document.createElement('div');
+  messages.forEach((msg, idx) => {
     const isRead = viewer ? Array.isArray(msg.read_by) && msg.read_by.includes(viewer) : true;
-    card.className = `message-card ${isRead ? 'message-card--read' : 'message-card--unread'}`;
-    const header = document.createElement('div');
-    header.className = 'header';
-    header.innerHTML = `<span>De: ${sanitize(msg.sender)}</span><span>${new Date(
-      msg.created_at
-    ).toLocaleString()}</span>`;
-    const body = document.createElement('div');
-    body.className = 'body';
-    body.innerHTML = `<strong>Para: ${sanitize(msg.recipient)}</strong><br/><em>${sanitize(
-      msg.subject
-    )}</em><br/>${sanitize(msg.body)}`;
-    if (!isRead && viewer) {
-      const markBtn = document.createElement('button');
-      markBtn.type = 'button';
-      markBtn.className = 'small';
-      markBtn.textContent = 'Marcar como leído';
-      markBtn.addEventListener('click', () => markMessageAsRead(msg.id, viewer));
-      body.appendChild(markBtn);
-    }
-    card.appendChild(header);
-    card.appendChild(body);
-    messageFeed.appendChild(card);
+    const item = document.createElement('div');
+    item.className = `message-list-item ${state.activeMessageIndex === idx ? 'active' : ''}`;
+    item.innerHTML = `
+      <div class="subject">${sanitize(msg.subject || '(Sin asunto)')}</div>
+      <div class="meta">
+        <span>${sanitize(msg.sender)}</span>
+        <span>${new Date(msg.created_at).toLocaleString()}</span>
+        <span>${sanitize(msg.recipient)}</span>
+        ${!isRead ? '<span class="badge-unread">No leído</span>' : ''}
+      </div>
+    `;
+    item.addEventListener('click', () => {
+      state.activeMessageIndex = idx;
+      state.activeMessage = msg;
+      renderMessages(messages);
+    });
+    messageList.appendChild(item);
   });
   state.activeMessage = messages[state.activeMessageIndex] || messages[0] || null;
   renderActiveMessageCard();
@@ -1454,9 +1473,6 @@ function toggleMessageBoxView() {
   const nextBox = state.messageFilters.box === 'sent' ? '' : 'sent';
   state.messageFilters.box = nextBox;
   state.activeMessageIndex = 0;
-  if (msgBoxToggleBtn) {
-    msgBoxToggleBtn.textContent = nextBox === 'sent' ? 'Entrada' : 'Enviados';
-  }
   updateMessageBoxLabel();
   loadMessages();
 }
@@ -1464,6 +1480,10 @@ function toggleMessageBoxView() {
 function updateMessageBoxLabel() {
   if (!msgBoxLabel) return;
   msgBoxLabel.textContent = state.messageFilters.box === 'sent' ? 'Enviados' : 'Entrada';
+  if (msgBoxInboxBtn && msgBoxSentBtn) {
+    msgBoxInboxBtn.classList.toggle('active', state.messageFilters.box !== 'sent');
+    msgBoxSentBtn.classList.toggle('active', state.messageFilters.box === 'sent');
+  }
 }
 
 function startReply(message) {
@@ -2672,17 +2692,36 @@ function renderFocalPoiCard() {
 }
 
 function renderActiveMessageCard() {
-  if (!consoleMessageContent) return;
+  if (!messageReader) return;
   const msg = state.activeMessage;
   if (!msg) {
-    consoleMessageContent.textContent = 'No hay despachos.';
+    messageReader.textContent = 'No hay despachos.';
     return;
   }
-  consoleMessageContent.innerHTML = `
-    <div class="message-header"><strong>${sanitize(msg.sender)}</strong> → ${sanitize(msg.recipient)}</div>
-    <div class="message-subject">${sanitize(msg.subject)}</div>
-    <div class="message-body">${sanitize(msg.body)}</div>
+  const viewer = state.dmMode ? 'Sr. Verdad' : state.agent?.display || '';
+  const isRead = viewer ? Array.isArray(msg.read_by) && msg.read_by.includes(viewer) : true;
+  const html = `
+    <div class="message-reader-header">
+      <div class="title">${sanitize(msg.subject || '(Sin asunto)')}</div>
+      <div class="meta">De: ${sanitize(msg.sender)} → ${sanitize(msg.recipient)} · ${new Date(
+        msg.created_at
+      ).toLocaleString()}</div>
+    </div>
+    <div class="message-body">${sanitize(msg.body || '')}</div>
+    <div class="message-actions">
+      ${!isRead && viewer ? `<button type="button" class="ghost small" data-mark-read="${msg.id}">Marcar como leído</button>` : ''}
+      <button type="button" class="ghost small" data-reply="${msg.id}">Responder</button>
+    </div>
   `;
+  messageReader.innerHTML = html;
+  const markBtn = messageReader.querySelector('[data-mark-read]');
+  const replyBtn = messageReader.querySelector('[data-reply]');
+  if (markBtn && viewer) {
+    markBtn.addEventListener('click', () => markMessageAsRead(Number(markBtn.dataset.markRead), viewer));
+  }
+  if (replyBtn) {
+    replyBtn.addEventListener('click', () => startReply(state.activeMessage));
+  }
 }
 
 function setFocalPoi(poi) {

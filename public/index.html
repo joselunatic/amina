@@ -105,25 +105,38 @@
                 <div class="workspace-top agent-top" data-view="console">
                   <div class="console-card inbox-card" id="console-message-card">
                     <div class="card-title">BUZÓN <span id="msg-box-label" class="badge-soft">Entrada</span></div>
-                    <div class="inbox-controls">
-                      <button type="button" id="msg-box-toggle" class="small ghost">Enviados</button>
-                      <div class="inbox-nav">
+                    <div class="mail-toolbar">
+                      <div class="mail-filters">
+                        <div class="pill-switch">
+                          <button type="button" id="msg-box-inbox" class="small ghost active" data-box="">Entrada</button>
+                          <button type="button" id="msg-box-sent" class="small ghost" data-box="sent">Enviados</button>
+                        </div>
+                        <label class="checkbox-inline">
+                          <input type="checkbox" id="filter-unread-only" />
+                          No leídos
+                        </label>
+                      </div>
+                      <div class="mail-actions">
                         <button type="button" id="msg-prev" class="small ghost">Ant</button>
                         <button type="button" id="msg-next" class="small ghost">Sig</button>
-                        <button type="button" id="msg-reply" class="small ghost">Responder</button>
                       </div>
                     </div>
-                    <div class="reply-pane hidden" id="mailbox-reply">
-                      <div class="reply-header">
-                        <span class="reply-label" id="reply-label">Respondiendo a</span>
-                        <button type="button" id="reply-cancel" class="small ghost">Cancelar</button>
-                      </div>
-                      <textarea id="reply-body" rows="3" placeholder="Compón tu respuesta…"></textarea>
-                      <div class="form-actions">
-                        <button type="button" id="reply-send" class="ghost">Enviar Respuesta</button>
+                    <div class="mail-layout">
+                      <div class="mail-list" id="message-list"></div>
+                      <div class="mail-reader">
+                        <div id="message-reader">Sin despachos.</div>
+                        <div class="reply-pane" id="mailbox-reply">
+                          <div class="reply-header">
+                            <span class="reply-label" id="reply-label">Responder</span>
+                            <button type="button" id="reply-cancel" class="small ghost">Cancelar</button>
+                          </div>
+                          <textarea id="reply-body" rows="3" placeholder="Compón tu respuesta…"></textarea>
+                          <div class="form-actions">
+                            <button type="button" id="reply-send" class="ghost">Enviar</button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div class="console-card-body" id="console-message-content">Sin despachos.</div>
                   </div>
                 </div>
                 <div class="workspace-top agent-top" data-view="database">
