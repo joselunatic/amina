@@ -85,3 +85,45 @@ button:hover {
     height: auto;
     border: 1px solid #00ff88;
 }
+
+/* AMINA Marker Selector Styles */
+.marker-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Responsive grid */
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.marker-selector button {
+    background-color: #3a3a3a;
+    border: 1px solid #666;
+    color: #f0f0f0;
+    padding: 10px;
+    text-align: left;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.marker-selector button:hover {
+    background-color: #4a4a4a;
+    border-color: #00ff88;
+}
+
+.marker-selector button.active {
+    background-color: #005a2e;
+    border-color: #00ff88;
+    box-shadow: 0 0 5px #00ff88;
+}
+
+.marker-selector button .label {
+    font-weight: bold;
+    color: #00ff88;
+    margin-bottom: 5px;
+}
+
+.marker-selector button .description {
+    font-size: 0.8em;
+    color: #bbb;
+}

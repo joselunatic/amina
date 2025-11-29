@@ -2,9 +2,56 @@
 const state = {
     ws: null,
     agents: [],
+    selectedMarkerType: 'default', // Default marker type
 };
 
 const agentSelect = document.getElementById('agent-select');
+const aminaMarkerSelector = document.getElementById('amina-marker-selector');
+
+// --- AMINA Marker Types Taxonomy ---
+const AMINA_MARKER_TYPES = [
+    {
+        id: 'default',
+        label: 'Neutro (Default)',
+        description: 'Marcador genérico sin categoría específica.'
+    },
+    {
+        id: 'incident-active',
+        label: 'Incidente Activo',
+        description: 'Ubicación de un incidente en curso o una alerta activa.'
+    },
+    {
+        id: 'incident-closed',
+        label: 'Incidente Cerrado',
+        description: 'Lugar donde ocurrió un incidente ya resuelto o archivado.'
+    },
+    {
+        id: 'anomaly',
+        label: 'Anomalía (Red Vacía)',
+        description: 'Presencia de actividad esoterrorista o fenómenos anómalos.'
+    },
+    {
+        id: 'entity-person',
+        label: 'Entidad (Persona)',
+        description: 'PNJ relevante, sospechoso, testigo, etc.'
+    },
+    {
+        id: 'entity-organization',
+        label: 'Entidad (Organización)',
+        description: 'Grupo, célula, culto, empresa tapadera, etc.'
+    },
+    {
+        id: 'location-safehouse',
+        label: 'Ubicación (Piso Franco)',
+        description: 'Piso franco o refugio seguro de la AMINA.'
+    },
+    {
+        id: 'location-hotspot',
+        label: 'Ubicación (Punto Caliente)',
+        description: 'Lugar hostil, peligroso o de interés crítico.'
+    }
+];
+
 
 // --- WebSocket Communication ---
 function connectWebSocket() {
@@ -65,6 +112,12 @@ function sendEffect(effect, payload = {}) {
         console.error("WebSocket is not connected.");
         return;
     }
+    
+    // Add markerType to POI effects payload
+    if (effect.startsWith('POI_')) {
+        payload.markerType = state.selectedMarkerType;
+    }
+
     const message = {
         type: 'effect',
         effect,
@@ -74,6 +127,33 @@ function sendEffect(effect, payload = {}) {
     console.log("Sending effect:", message);
     state.ws.send(JSON.stringify(message));
 }
+
+// --- AMINA Marker Selector UI ---
+function renderMarkerSelector() {
+    if (!aminaMarkerSelector) return;
+
+    aminaMarkerSelector.innerHTML = ''; // Clear previous buttons
+
+    AMINA_MARKER_TYPES.forEach(markerType => {
+        const button = document.createElement('button');
+        button.dataset.markerTypeId = markerType.id;
+        button.innerHTML = `
+            <span class="label">${markerType.label}</span>
+            <span class="description">${markerType.description}</span>
+        `;
+        if (markerType.id === state.selectedMarkerType) {
+            button.classList.add('active');
+        }
+        button.addEventListener('click', () => handleMarkerTypeChange(markerType.id));
+        aminaMarkerSelector.appendChild(button);
+    });
+}
+
+function handleMarkerTypeChange(markerTypeId) {
+    state.selectedMarkerType = markerTypeId;
+    renderMarkerSelector(); // Re-render to update active state
+}
+
 
 // --- Event Listeners ---
 function bindEvents() {
@@ -157,7 +237,9 @@ function bindEvents() {
 // --- App Startup ---
 function main() {
     connectWebSocket();
+    renderMarkerSelector(); // Render the selector on startup
     bindEvents();
 }
 
 main();
+
