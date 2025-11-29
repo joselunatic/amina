@@ -94,7 +94,8 @@ async function loadPois() {
             return res.json();
         });
         state.pois = pois;
-        renderPoiSelector();
+        console.log('POIs loaded:', state.pois); // Debugging line
+        // renderPoiSelector will be called from main after awaiting
     } catch (e) {
         console.error(e.message);
         // Maybe render an error in the dropdown
@@ -120,12 +121,24 @@ function updateAgentList(agents) {
 function renderPoiSelector() {
     if (!poiSelect) return;
     poiSelect.innerHTML = '';
+    if (state.pois.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No POIs available';
+        poiSelect.appendChild(option);
+        return;
+    }
     state.pois.forEach(poi => {
         const option = document.createElement('option');
         option.value = poi.id;
-        option.textContent = `${poi.id}: ${poi.name}`;
+        option.textContent = poi.name; // Display name
         poiSelect.appendChild(option);
     });
+
+    // Set default selected value
+    if (state.pois.length > 0) {
+        poiSelect.value = state.pois[0].id;
+    }
 }
 
 function getTarget() {
@@ -291,9 +304,10 @@ function bindEvents() {
 }
 
 // --- App Startup ---
-function main() {
+async function main() {
     connectWebSocket();
-    loadPois();
+    await loadPois(); // Await POI loading before rendering selector
+    renderPoiSelector();
     renderMarkerSelector(); // Render the selector on startup
     bindEvents();
 }
