@@ -615,6 +615,31 @@ app.delete('/api/pois/:id', dmSecretRequired, async (req, res, next) => {
   }
 });
 
+app.get('/api/dm/generate_static_map/:poiId', async (req, res, next) => {
+    try {
+        const poi = await getPoiById(req.params.poiId);
+        if (!poi) {
+            return res.status(404).json({ error: 'POI not found.' });
+        }
+
+        const lon = poi.longitude;
+        const lat = poi.latitude;
+        const zoom = 15;
+        const width = 800;
+        const height = 600;
+        const style = 'mapbox/satellite-v9'; // Satellite style
+
+        // Custom red marker overlay
+        const marker = `pin-s-star+ff0000(${lon},${lat})`;
+
+        const staticImageUrl = `https://api.mapbox.com/styles/v1/${style}/static/${marker}/${lon},${lat},${zoom},0/${width}x${height}?access_token=${MAPBOX_TOKEN}`;
+
+        res.json({ imageUrl: staticImageUrl });
+    } catch (err) {
+        next(err);
+    }
+});
+
 app.use((err, req, res, next) => {
   console.error(err);
   const status = err.status || 500;

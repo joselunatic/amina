@@ -129,6 +129,29 @@ function bindEvents() {
         const layerId = document.getElementById('layer-id').value;
         sendEffect('LAYER_TOGGLE', { layerId, visible: false });
     });
+
+    // Satellite Image Request
+    document.getElementById('request-satellite-image').addEventListener('click', async () => {
+        const poiId = document.getElementById('poi-id').value;
+        if (!poiId) {
+            alert("Por favor, introduce un ID de POI.");
+            return;
+        }
+        const imagePanel = document.getElementById('image-analysis-panel');
+        imagePanel.innerHTML = '<p>Solicitando imagen de satélite...</p>';
+
+        try {
+            const response = await fetch(`/api/dm/generate_static_map/${poiId}`);
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Fallo al generar la imagen.');
+            }
+            const data = await response.json();
+            imagePanel.innerHTML = `<img src="${data.imageUrl}" alt="Imagen de Satélite para POI ${poiId}" />`;
+        } catch (error) {
+            imagePanel.innerHTML = `<p style="color: #ff0000;">Error: ${error.message}</p>`;
+        }
+    });
 }
 
 // --- App Startup ---

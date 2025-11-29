@@ -9,58 +9,72 @@
 <body>
     <h1>Consola de Efectos de DM</h1>
 
-    <div class="control-section">
-        <h2>Estado del Sistema</h2>
-        <div class="agent-list-container">
-            <label for="agent-select">Agente Objetivo:</label>
-            <select id="agent-select">
-                <option value="all">Todos los Agentes</option>
-            </select>
-        </div>
-    </div>
+    <div class="main-container">
+        <div class="controls-column">
+            <div class="control-section">
+                <h2>Estado del Sistema</h2>
+                <div class="agent-list-container">
+                    <label for="agent-select">Agente Objetivo:</label>
+                    <select id="agent-select">
+                        <option value="all">Todos los Agentes</option>
+                    </select>
+                </div>
+            </div>
 
-    <div class="control-section">
-        <h2>Efectos Visuales Globales</h2>
-        <button id="effect-glitch">Activar Glitch</button>
-        <button id="effect-noise">Activar Ruido</button>
-        <div class="control-group">
-            <label for="vignette-level">Nivel de Viñeta:</label>
-            <input type="range" id="vignette-level" min="0" max="3" value="0" />
-            <button id="effect-vignette">Aplicar Viñeta</button>
-        </div>
-    </div>
+            <div class="control-section">
+                <h2>Efectos Visuales Globales</h2>
+                <button id="effect-glitch">Activar Glitch</button>
+                <button id="effect-noise">Activar Ruido</button>
+                <div class="control-group">
+                    <label for="vignette-level">Nivel de Viñeta:</label>
+                    <input type="range" id="vignette-level" min="0" max="3" value="0" />
+                    <button id="effect-vignette">Aplicar Viñeta</button>
+                </div>
+            </div>
 
-    <div class="control-section">
-        <h2>Efectos de Cámara</h2>
-        <button id="effect-nudge">Mover Cámara</button>
-        <div class="control-group">
-            <input type="text" id="focus-coords" placeholder="lng,lat,zoom" value="-76.26391,40.70682,16" />
-            <button id="effect-focus">Enfocar Incidente</button>
-        </div>
-         <div class="control-group">
-            <input type="text" id="sweep-coords" placeholder="start_lng,lat|end_lng,lat" value="-76.3,40.7|-76.2,40.65" />
-            <button id="effect-sweep">Barrido de Área</button>
-        </div>
-    </div>
+            <div class="control-section">
+                <h2>Efectos de Cámara</h2>
+                <button id="effect-nudge">Mover Cámara</button>
+                <div class="control-group">
+                    <input type="text" id="focus-coords" placeholder="lng,lat,zoom" value="-76.26391,40.70682,16" />
+                    <button id="effect-focus">Enfocar Incidente</button>
+                </div>
+                 <div class="control-group">
+                    <input type="text" id="sweep-coords" placeholder="start_lng,lat|end_lng,lat" value="-76.3,40.7|-76.2,40.65" />
+                    <button id="effect-sweep">Barrido de Área</button>
+                </div>
+            </div>
 
-    <div class="control-section">
-        <h2>Efectos de POI</h2>
-        <div class="control-group">
-            <input type="text" id="poi-id" value="poi-2" placeholder="ID del POI" />
-            <button id="effect-poi-blink-on">Iniciar Parpadeo</button>
-            <button id="effect-poi-blink-off">Detener Parpadeo</button>
-            <button id="effect-poi-highlight">Resaltar</button>
-            <button id="effect-poi-lock">Bloquear</button>
-            <button id="effect-poi-unlock">Desbloquear</button>
+            <div class="control-section">
+                <h2>Efectos de POI</h2>
+                <div class="control-group">
+                    <input type="text" id="poi-id" value="2" placeholder="ID del POI" />
+                    <button id="effect-poi-blink-on">Iniciar Parpadeo</button>
+                    <button id="effect-poi-blink-off">Detener Parpadeo</button>
+                    <button id="effect-poi-highlight">Resaltar</button>
+                    <button id="effect-poi-lock">Bloquear</button>
+                    <button id="effect-poi-unlock">Desbloquear</button>
+                    <button id="request-satellite-image">Solicitar Imagen Satelital</button>
+                </div>
+            </div>
+            
+            <div class="control-section">
+                <h2>Efectos de Capas</h2>
+                <div class="control-group">
+                    <input type="text" id="layer-id" value="3d-buildings" placeholder="ID de la Capa" />
+                    <button id="effect-layer-on">Mostrar Capa</button>
+                    <button id="effect-layer-off">Ocultar Capa</button>
+                </div>
+            </div>
         </div>
-    </div>
-    
-    <div class="control-section">
-        <h2>Efectos de Capas</h2>
-        <div class="control-group">
-            <input type="text" id="layer-id" value="3d-buildings" placeholder="ID de la Capa" />
-            <button id="effect-layer-on">Mostrar Capa</button>
-            <button id="effect-layer-off">Ocultar Capa</button>
+
+        <div class="intel-column">
+            <div class="control-section">
+                <h2>Análisis de Inteligencia</h2>
+                <div id="image-analysis-panel">
+                    <p>Esperando solicitud de imagen...</p>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -12,6 +12,20 @@ h1, h2 {
     padding-bottom: 5px;
 }
 
+.main-container {
+    display: flex;
+    gap: 20px;
+}
+
+.controls-column {
+    flex: 1;
+}
+
+.intel-column {
+    flex: 1;
+    max-width: 50%;
+}
+
 .control-section {
     background-color: #2a2a2a;
     border: 1px solid #444;
@@ -45,6 +59,7 @@ button {
     background-color: #005a2e;
     border-color: #00ff88;
     margin-right: 5px;
+    margin-top: 5px; /* Added for better spacing */
 }
 
 button:hover {
@@ -55,4 +70,18 @@ button:hover {
     padding: 10px;
     background-color: #333;
     border: 1px solid #555;
+}
+
+#image-analysis-panel {
+    background-color: #000;
+    border: 1px solid #444;
+    min-height: 400px;
+    padding: 10px;
+    text-align: center;
+}
+
+#image-analysis-panel img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #00ff88;
 }
