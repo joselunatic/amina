@@ -93,4 +93,20 @@ All responses are JSON and include `dm_note` and `image_url`; the frontend decid
   - `pike` / `123456` (Howard Pike)
   - `allen` / `123456` (Victoria Allen)
 - These usernames appear in the **Field Operative** flow; enter their password to authenticate.
+
+## Real-Time Effects System
+AMINA now includes a real-time effects system that allows a Game Master (DM) to trigger visual and narrative effects on players' (Agents) screens. This system uses WebSockets for instant communication.
+
+### Architecture
+- A WebSocket server is integrated into the main Node.js application.
+- A dedicated DM control panel (`/dm.html`) sends effect commands.
+- A dedicated Agent view (`/agent.html`) receives and renders these effects on a Mapbox map.
+
+### Usage
+1.  **Start the server** as usual:
+    ```bash
+    npm start
+    ```
+2.  **DM View**: The Game Master should open the control panel by navigating to [http://localhost:3001/dm.html](http://localhost:3001/dm.html). This page provides a list of connected agents and controls for all available effects.
+3.  **Agent View**: Each player should open the agent view by navigating to [http://localhost:3001/agent.html](http://localhost:3001/agent.html). The page will automatically connect to the server and be ready to receive effects. Each agent is assigned a unique, persistent ID stored in a cookie.
 # amina

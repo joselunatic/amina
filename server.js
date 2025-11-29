@@ -621,10 +621,87 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: err.message || 'Internal Server Error' });
 });
 
+const server = require('http').createServer(app);
+const { WebSocketServer } = require('ws');
+const wss = new WebSocketServer({ server });
+
+const dmClients = new Set();
+const agentClients = new Map(); // Map<ws, { agentId: string }>
+
+function broadcastAgentList() {
+  const agents = Array.from(agentClients.values());
+  const message = JSON.stringify({
+    type: 'agents-list',
+    agents,
+  });
+  for (const client of dmClients) {
+    client.send(message);
+  }
+}
+
+wss.on('connection', (ws) => {
+  if (DEBUG_MODE) {
+    console.log('[DEBUG] WebSocket client connected');
+  }
+
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      if (data.type === 'hello') {
+        if (data.role === 'dm') {
+          dmClients.add(ws);
+          console.log('DM client connected');
+          broadcastAgentList(); // Send initial list
+        } else if (data.role === 'agent' && data.agentId) {
+          agentClients.set(ws, { agentId: data.agentId });
+          console.log(`Agent client connected: ${data.agentId}`);
+          broadcastAgentList();
+        }
+      } else if (data.type === 'effect') {
+        if (!dmClients.has(ws)) {
+          return; // Only DMs can send effects
+        }
+        // Handle effect message
+        const { effect, target, agentId, payload } = data;
+        const effectMessage = JSON.stringify({ type: 'effect', effect, payload });
+
+        if (target === 'all') {
+          for (const clientWs of agentClients.keys()) {
+            clientWs.send(effectMessage);
+          }
+        } else if (target === 'agent' && agentId) {
+          for (const [clientWs, clientData] of agentClients.entries()) {
+            if (clientData.agentId === agentId) {
+              clientWs.send(effectMessage);
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse WebSocket message', e);
+    }
+  });
+
+  ws.on('close', () => {
+    if (DEBUG_MODE) {
+      console.log('[DEBUG] WebSocket client disconnected');
+    }
+    if (dmClients.has(ws)) {
+      dmClients.delete(ws);
+      console.log('DM client disconnected');
+    } else if (agentClients.has(ws)) {
+      agentClients.delete(ws);
+      console.log('Agent client disconnected');
+      broadcastAgentList();
+    }
+  });
+});
+
 // Allow HOST to be overridden. If the requested host is not resolvable (e.g. host.docker.internal on Linux),
 // fall back to a safer host (docker bridge IP or loopback) instead of exposing 0.0.0.0 by default.
 function startServer(host) {
-  const server = app.listen(PORT, host, () => {
+  server.listen(PORT, host, () => {
     console.log(`Server listening on http://${host}:${PORT}`);
   });
 
@@ -635,7 +712,7 @@ function startServer(host) {
           ? process.env.DOCKER_BRIDGE_HOST || '172.17.0.1'
           : '127.0.0.1';
       console.warn(`Host ${host} not resolvable. Falling back to ${fallbackHost}.`);
-      app.listen(PORT, fallbackHost, () => {
+      server.listen(PORT, fallbackHost, () => {
         console.log(`Server listening on http://${fallbackHost}:${PORT}`);
       });
     } else {
