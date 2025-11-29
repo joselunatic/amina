@@ -48,7 +48,12 @@
             <div class="control-section">
                 <h2>Efectos de POI</h2>
                 <div class="control-group">
-                    <input type="text" id="poi-id" value="2" placeholder="ID del POI" />
+                    <label for="poi-select">POI Objetivo:</label>
+                    <select id="poi-select">
+                        <!-- POIs will be loaded here by dm.js -->
+                    </select>
+                </div>
+                <div class="control-group">
                     <button id="effect-poi-blink-on">Iniciar Parpadeo</button>
                     <button id="effect-poi-blink-off">Detener Parpadeo</button>
                     <button id="effect-poi-highlight">Resaltar</button>
@@ -71,6 +76,15 @@
                     <input type="text" id="layer-id" value="3d-buildings" placeholder="ID de la Capa" />
                     <button id="effect-layer-on">Mostrar Capa</button>
                     <button id="effect-layer-off">Ocultar Capa</button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>POI Efímero</h2>
+                <div id="ephemeral-poi-form" class="control-group">
+                    <input type="text" id="ephemeral-poi-name" placeholder="Nombre del POI Efímero" />
+                    <input type="text" id="ephemeral-poi-coords" placeholder="lng,lat" value="-76.4,40.75" />
+                    <button id="create-ephemeral-poi">Crear y Resaltar POI Efímero</button>
                 </div>
             </div>
         </div>

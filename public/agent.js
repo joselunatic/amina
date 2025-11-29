@@ -74,6 +74,21 @@ function connectWebSocket() {
 }
 
 // --- Effect Handling ---
+function applyMarkerStyle(element, markerType) {
+    if (!element || !markerType) return;
+
+    // Remove all other marker type classes
+    element.className.split(' ').forEach(className => {
+        if (className.startsWith('marker-type-')) {
+            element.classList.remove(className);
+        }
+    });
+
+    // Add the new marker type class
+    element.classList.add(`marker-type-${markerType}`);
+}
+
+
 function handleEffect(effect, payload) {
     console.log(`Received effect: ${effect}`, payload);
     switch (effect) {
@@ -127,20 +142,42 @@ function handleEffect(effect, payload) {
         case 'POI_UNLOCKED':
             const poiMarkerEl = document.querySelector(`.poi-marker[data-poi-id="${payload.poiId}"]`);
             if(poiMarkerEl) {
+                // Apply marker style if provided
+                if (payload.markerType) {
+                    applyMarkerStyle(poiMarkerEl, payload.markerType);
+                }
+
                 if(effect === 'POI_BLINK_ON') poiMarkerEl.classList.add('blink');
                 if(effect === 'POI_BLINK_OFF') poiMarkerEl.classList.remove('blink');
                 if(effect === 'POI_HIGHLIGHT') poiMarkerEl.classList.toggle('highlight');
                 if(effect === 'POI_LOCKED') {
                     poiMarkerEl.classList.add('locked');
-                    poiMarkerEl.style.backgroundColor = '#888';
+                    // Style is now handled by CSS, but we can override if needed
                 }
                 if(effect === 'POI_UNLOCKED') {
                     poiMarkerEl.classList.remove('locked');
-                    poiMarkerEl.style.backgroundColor = '#00ff88';
                 }
             }
             break;
         
+        case 'POI_EPHEMERAL_ADD':
+            const ephemeralEl = document.createElement('div');
+            ephemeralEl.className = 'poi-marker';
+            ephemeralEl.dataset.poiId = payload.poiId;
+            
+            applyMarkerStyle(ephemeralEl, payload.markerType);
+            
+            const ephemeralMarker = new mapboxgl.Marker(ephemeralEl)
+                .setLngLat([payload.lng, payload.lat])
+                .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(payload.name))
+                .addTo(state.map);
+            
+            // Highlight it immediately
+            ephemeralEl.classList.add('highlight');
+
+            state.pois.set(payload.poiId, ephemeralMarker);
+            break;
+
         // Layer Effects
         case 'LAYER_TOGGLE':
             state.map.setLayoutProperty(payload.layerId, 'visibility', payload.visible ? 'visible' : 'none');

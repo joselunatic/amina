@@ -2,10 +2,12 @@
 const state = {
     ws: null,
     agents: [],
+    pois: [],
     selectedMarkerType: 'default', // Default marker type
 };
 
 const agentSelect = document.getElementById('agent-select');
+const poiSelect = document.getElementById('poi-select');
 const aminaMarkerSelector = document.getElementById('amina-marker-selector');
 
 // --- AMINA Marker Types Taxonomy ---
@@ -84,6 +86,22 @@ function connectWebSocket() {
     };
 }
 
+// --- Data Fetching ---
+async function loadPois() {
+    try {
+        const pois = await fetch('/api/pois').then(res => {
+            if (!res.ok) throw new Error('Failed to fetch POIs');
+            return res.json();
+        });
+        state.pois = pois;
+        renderPoiSelector();
+    } catch (e) {
+        console.error(e.message);
+        // Maybe render an error in the dropdown
+    }
+}
+
+
 // --- UI Logic ---
 function updateAgentList(agents) {
     state.agents = agents;
@@ -96,6 +114,17 @@ function updateAgentList(agents) {
         option.value = agent.agentId;
         option.textContent = agent.agentId;
         agentSelect.appendChild(option);
+    });
+}
+
+function renderPoiSelector() {
+    if (!poiSelect) return;
+    poiSelect.innerHTML = '';
+    state.pois.forEach(poi => {
+        const option = document.createElement('option');
+        option.value = poi.id;
+        option.textContent = `${poi.id}: ${poi.name}`;
+        poiSelect.appendChild(option);
     });
 }
 
@@ -180,23 +209,23 @@ function bindEvents() {
 
     // POI Effects
     document.getElementById('effect-poi-blink-on').addEventListener('click', () => {
-        const poiId = document.getElementById('poi-id').value;
+        const poiId = document.getElementById('poi-select').value;
         sendEffect('POI_BLINK_ON', { poiId });
     });
     document.getElementById('effect-poi-blink-off').addEventListener('click', () => {
-        const poiId = document.getElementById('poi-id').value;
+        const poiId = document.getElementById('poi-select').value;
         sendEffect('POI_BLINK_OFF', { poiId });
     });
     document.getElementById('effect-poi-highlight').addEventListener('click', () => {
-        const poiId = document.getElementById('poi-id').value;
+        const poiId = document.getElementById('poi-select').value;
         sendEffect('POI_HIGHLIGHT', { poiId });
     });
     document.getElementById('effect-poi-lock').addEventListener('click', () => {
-        const poiId = document.getElementById('poi-id').value;
+        const poiId = document.getElementById('poi-select').value;
         sendEffect('POI_LOCKED', { poiId });
     });
     document.getElementById('effect-poi-unlock').addEventListener('click', () => {
-        const poiId = document.getElementById('poi-id').value;
+        const poiId = document.getElementById('poi-select').value;
         sendEffect('POI_UNLOCKED', { poiId });
     });
     
@@ -212,9 +241,9 @@ function bindEvents() {
 
     // Satellite Image Request
     document.getElementById('request-satellite-image').addEventListener('click', async () => {
-        const poiId = document.getElementById('poi-id').value;
+        const poiId = document.getElementById('poi-select').value;
         if (!poiId) {
-            alert("Por favor, introduce un ID de POI.");
+            alert("Por favor, selecciona un POI.");
             return;
         }
         const imagePanel = document.getElementById('image-analysis-panel');
@@ -232,11 +261,39 @@ function bindEvents() {
             imagePanel.innerHTML = `<p style="color: #ff0000;">Error: ${error.message}</p>`;
         }
     });
+
+    // Ephemeral POI
+    document.getElementById('create-ephemeral-poi').addEventListener('click', () => {
+        const name = document.getElementById('ephemeral-poi-name').value;
+        const coords = document.getElementById('ephemeral-poi-coords').value;
+        if (!name || !coords) {
+            alert("Por favor, introduce nombre y coordenadas para el POI efímero.");
+            return;
+        }
+
+        const [lng, lat] = coords.split(',').map(Number);
+        if (isNaN(lng) || isNaN(lat)) {
+            alert("Coordenadas inválidas. Usa el formato 'lng,lat'.");
+            return;
+        }
+        
+        const ephemeralId = `ephemeral_${Date.now()}`;
+        const payload = {
+            poiId: ephemeralId,
+            name,
+            lng,
+            lat,
+            markerType: state.selectedMarkerType,
+        };
+
+        sendEffect('POI_EPHEMERAL_ADD', payload);
+    });
 }
 
 // --- App Startup ---
 function main() {
     connectWebSocket();
+    loadPois();
     renderMarkerSelector(); // Render the selector on startup
     bindEvents();
 }

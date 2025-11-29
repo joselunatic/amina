@@ -67,17 +67,19 @@ body, html {
 
 /* POI Marker styles */
 .poi-marker {
-    width: 20px;
-    height: 20px;
+    box-sizing: border-box;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     background-color: #00ff88;
     border: 2px solid #fff;
     cursor: pointer;
+    transition: all 0.3s;
 }
 
 .poi-marker.highlight {
-    background-color: #ff00ff;
-    box-shadow: 0 0 10px #ff00ff;
+    transform: scale(1.5);
+    box-shadow: 0 0 15px #ff00ff;
 }
 
 .poi-marker.blink {
@@ -85,8 +87,44 @@ body, html {
 }
 
 @keyframes blink-animation {
-    50% { opacity: 0.2; }
+    50% { opacity: 0.2; transform: scale(0.8); }
 }
+
+/* AMINA Marker Type Styles */
+.poi-marker.marker-type-default {
+    background-color: #00ff88; /* Default Green */
+    border-color: #fff;
+}
+.poi-marker.marker-type-incident-active {
+    background-color: #ff4136; /* Red */
+    border-color: #ffb3b3;
+}
+.poi-marker.marker-type-incident-closed {
+    background-color: #777; /* Gray */
+    border-color: #ccc;
+}
+.poi-marker.marker-type-anomaly {
+    background-color: #b10dc9; /* Purple */
+    border-color: #f0abfd;
+    animation: blink-animation 1.5s infinite; /* Anomalies pulse slowly */
+}
+.poi-marker.marker-type-entity-person {
+    background-color: #0074d9; /* Blue */
+    border-color: #a1cfff;
+}
+.poi-marker.marker-type-entity-organization {
+    background-color: #ff851b; /* Orange */
+    border-color: #ffc299;
+}
+.poi-marker.marker-type-location-safehouse {
+    background-color: #2ecc40; /* Green */
+    border-color: #b0f2b8;
+}
+.poi-marker.marker-type-location-hotspot {
+    background-color: #ffdc00; /* Yellow */
+    border-color: #fff6a6;
+}
+
 
 #agent-id-display {
     position: fixed;
