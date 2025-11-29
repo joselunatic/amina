@@ -49,7 +49,6 @@ const state = {
   missionNotes: '',
   journalDm: '',
   activeDmBlade: 'journal',
-  mobileTab: 'map',
   poiFocal: null,
   activeMessage: null,
   activeMessageIndex: 0
@@ -75,6 +74,7 @@ const state = {
 };
 
 const mapCenter = [-76.229, 40.68];
+const DECIMAL_STYLE = 'mapbox://styles/mapbox-map-design/ck4014y110wt61ctt07egsel6';
 const MISSION_NOTES_KEY = 'amina_mission_notes';
 const JOURNAL_DM_KEY = 'amina_journal_dm';
 const TICKER_REFRESH_INTERVAL = 1000 * 60 * 2;
@@ -117,7 +117,6 @@ const agentLoginButton = document.getElementById('agent-login-button');
 const agentLoginStatus = document.getElementById('agent-login-status');
 const collapsibleToggles = document.querySelectorAll('.collapsible-toggle');
 let bootSequenceId = 0;
-const messageFeed = document.getElementById('message-feed');
 const messageForm = document.getElementById('message-form');
 const messageFromInput = document.getElementById('message-from');
 const messageToSelect = document.getElementById('message-to');
@@ -139,6 +138,8 @@ const commandLog = document.getElementById('command-log');
 const commandMapBtn = document.getElementById('command-map');
 const commandInboxBtn = document.getElementById('command-inbox');
 const tickerTrack = document.getElementById('ticker-track');
+const logoutButton = document.getElementById('logout-button');
+const mobileNav = document.getElementById('mobile-nav');
 const footerMembraneStatus = document.getElementById('footer-membrane-status');
 const footerTime = document.getElementById('footer-time');
 const sidebarPanel = document.querySelector('.control-panel');
@@ -152,11 +153,12 @@ const focalPoiContent = document.getElementById('focal-poi-content');
 const focalPoiContentDm = document.getElementById('dm-focal-poi-content');
 const messageList = document.getElementById('message-list');
 const messageReader = document.getElementById('message-reader');
+const messageListDm = document.getElementById('message-list-dm');
+const messageReaderDm = document.getElementById('message-reader-dm');
 const missionBriefText = document.getElementById('mission-brief-text');
 const journalPublicInput = document.getElementById('journal-public');
 const journalDmInput = document.getElementById('journal-dm');
 const journalSaveBtn = document.getElementById('journal-save');
-const mobileNav = document.getElementById('mobile-nav');
 const dmFormOpenBtn = document.getElementById('dm-form-open');
 const msgPrevBtn = document.getElementById('msg-prev');
 const msgNextBtn = document.getElementById('msg-next');
@@ -172,6 +174,11 @@ const replySendBtn = document.getElementById('reply-send');
 const replyLabel = document.getElementById('reply-label');
 const msgBoxLabel = document.getElementById('msg-box-label');
 const radarRow = document.getElementById('radar-row');
+const replyPaneDm = document.getElementById('mailbox-reply-dm');
+const replyBodyInputDm = document.getElementById('reply-body-dm');
+const replyCancelBtnDm = document.getElementById('reply-cancel-dm');
+const replySendBtnDm = document.getElementById('reply-send-dm');
+const replyLabelDm = document.getElementById('reply-label-dm');
 let tickerSavedOffset = 0;
 let tickerAnimationStart = 0;
 let tickerAnimationDuration = 0;
@@ -197,9 +204,6 @@ const entityStatusInput = document.getElementById('entity-status');
 const entityAlignmentInput = document.getElementById('entity-alignment');
 const entityThreatInput = document.getElementById('entity-threat');
 const entityImageInput = document.getElementById('entity-image');
-const entitySessionFirstInput = document.getElementById('entity-session-first');
-const entitySessionLastInput = document.getElementById('entity-session-last');
-const entitySessionsInput = document.getElementById('entity-sessions');
 const entityPoisInput = document.getElementById('entity-pois');
 const entityLinksInput = document.getElementById('entity-links');
 const entityLinksSearch = document.getElementById('entity-links-search');
@@ -220,7 +224,6 @@ const dmFilterTypeButtons = document.querySelectorAll('.dm-filter-type');
 const dmEntityList = document.getElementById('dm-entity-list');
 const dmEntitySearch = document.getElementById('dm-entity-search');
 const dmEntitiesContext = document.getElementById('dm-entities-context');
-const dmEntitiesMapContainer = document.getElementById('dm-entities-map');
 const dmEntitiesDetail = document.getElementById('dm-entities-detail');
 const agentDossierList = document.getElementById('dossier-list');
 const agentDossierDetail = document.getElementById('dossier-detail');
@@ -268,7 +271,6 @@ async function init() {
   setWorkspaceView('map');
   loadMissionNotes();
   loadJournalDm();
-  setMobileTab('map');
   // collapse POI list by default
   const defaultPoiToggle = document.querySelector('.poi-list-section .collapsible-toggle');
   const defaultPoiBody = document.querySelector('.poi-list-section .collapsible-body');
@@ -290,7 +292,7 @@ async function init() {
   window.addEventListener('beforeunload', saveTickerProgress);
   window.addEventListener('resize', () => {
     updateViewportMode();
-    if (state.mobileTab === 'map' && state.map && isMobileView()) {
+    if (state.workspaceView === 'map' && state.map && isMobileView()) {
       scheduleMapResize();
     }
   });
@@ -373,7 +375,9 @@ function bindEvents() {
     startReply(state.activeMessage);
   });
   replyCancelBtn?.addEventListener('click', cancelReply);
+  replyCancelBtnDm?.addEventListener('click', cancelReply);
   replySendBtn?.addEventListener('click', submitReply);
+  replySendBtnDm?.addEventListener('click', submitReply);
   if (inboxCloseBtn) {
     inboxCloseBtn.addEventListener('click', hideInboxView);
   }
@@ -383,13 +387,6 @@ function bindEvents() {
       saveMissionNotes(journalPublicInput?.value || '');
       saveJournalDm(journalDmInput?.value || '');
       showMessage('Journal actualizado.');
-    });
-  }
-  if (mobileNav) {
-    mobileNav.addEventListener('click', (event) => {
-      const target = event.target.closest('[data-mobile-tab]');
-      if (!target) return;
-      setMobileTab(target.getAttribute('data-mobile-tab'));
     });
   }
   if (msgBoxInboxBtn) {
@@ -422,6 +419,17 @@ function bindEvents() {
       handleAgentLogin();
     }
   });
+  logoutButton?.addEventListener('click', () => {
+    showBootScreen();
+  });
+  if (mobileNav) {
+    mobileNav.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-mobile-tab]');
+      if (!target) return;
+      const tab = target.getAttribute('data-mobile-tab');
+      if (tab) setMobileTab(tab);
+    });
+  }
 
   document.addEventListener('click', (event) => {
     const target = event.target.closest('[data-entity-jump]');
@@ -546,15 +554,17 @@ async function setupMap() {
     logDebug('Modo depuración activo');
   }
   const baseStyle = config.mapStyle || 'mapbox://styles/mapbox/dark-v11';
-  const decimalStyle = 'mapbox://styles/mapbox-map-design/ck4014y110wt61ctt07egsel6';
-  const styleUrl = decimalStyle;
+  const styleUrl = DECIMAL_STYLE;
   state.currentMapStyle = styleUrl;
   const mapPanelEl = document.getElementById('map-panel');
   state.map = new mapboxgl.Map({
     container: 'map',
     style: styleUrl,
     center: mapCenter,
-    zoom: 9
+    zoom: 9,
+    pitch: 55,
+    bearing: -17.6,
+    antialias: true
   });
 
   bindStyleSwitcher(baseStyle);
@@ -580,6 +590,38 @@ async function setupMap() {
       disablePickMode();
     }
   });
+  state.map.on('style.load', () => {
+    update3DBuildings();
+  });
+}
+
+function update3DBuildings() {
+  if (!state.map) return;
+  const style = state.map.getStyle();
+  if (!style || !style.layers) return;
+  if (state.map.getLayer('3d-buildings')) {
+    state.map.removeLayer('3d-buildings');
+  }
+  if (state.currentMapStyle !== DECIMAL_STYLE) return;
+  const labelLayer = style.layers.find((layer) => layer.type === 'symbol' && layer.layout && layer.layout['text-field']);
+  const labelLayerId = labelLayer ? labelLayer.id : undefined;
+  state.map.addLayer(
+    {
+      id: '3d-buildings',
+      source: 'composite',
+      'source-layer': 'building',
+      filter: ['==', ['get', 'extrude'], 'true'],
+      type: 'fill-extrusion',
+      minzoom: 15,
+      paint: {
+        'fill-extrusion-color': '#00ff88',
+        'fill-extrusion-height': ['get', 'height'],
+        'fill-extrusion-base': ['get', 'min_height'],
+        'fill-extrusion-opacity': 0.9
+      }
+    },
+    labelLayerId
+  );
 }
 
 function bindStyleSwitcher(defaultStyle) {
@@ -624,6 +666,7 @@ function bindStyleSwitcher(defaultStyle) {
       clearTimeout(timeout);
       state.map.off('error', onError);
       state.currentMapStyle = style;
+      update3DBuildings();
       setActive(style);
       renderMarkers();
       if (state.poiFocal) focusMapOnPois();
@@ -748,9 +791,9 @@ function buildPopupImage(poi) {
 
 function renderPoiList() {
   const filtered = getFilteredPois();
-  renderPoiListInto(poiList, { mobileGrouping: isMobileView() && state.mobileTab === 'pois', items: filtered });
+  renderPoiListInto(poiList, { items: filtered });
   if (poiListDm) {
-    renderPoiListInto(poiListDm, { mobileGrouping: false, items: filtered });
+    renderPoiListInto(poiListDm, { items: filtered });
   }
 }
 
@@ -956,8 +999,12 @@ function renderPoiItem(poi, target) {
     </div>
   `;
   accordion.appendChild(summary);
-  summary.addEventListener('click', () => setFocalPoi(poi));
-
+      summary.addEventListener('click', () => {
+        setFocalPoi(poi);
+        if (isMobileView()) {
+          setMobileTab('pois');
+        }
+      });
   const body = document.createElement('div');
   body.className = 'poi-body';
   body.innerHTML = `
@@ -1383,7 +1430,6 @@ async function startBootSequence() {
 }
 
 async function loadMessages() {
-  if (!messageFeed) return;
   try {
     const params = new URLSearchParams();
     const { recipient, session_tag, since, box, unread_only } = state.messageFilters;
@@ -1405,21 +1451,53 @@ async function loadMessages() {
   }
 }
 
+function filterMessagesForViewer(messages, viewer, box) {
+  if (!Array.isArray(messages)) return [];
+  if (state.dmMode) return messages;
+  const trimmedViewer = (viewer || '').trim();
+  if (!trimmedViewer) return messages;
+  const preferredPublic = new Set([
+    'All agents',
+    'all agents',
+    'Todos los agentes',
+    'todos los agentes'
+  ]);
+  return messages.filter((msg) => {
+    const recipient = (msg.recipient || '').trim();
+    if (box === 'sent') {
+      return (msg.created_by || '').trim() === trimmedViewer;
+    }
+    if (recipient === trimmedViewer) return true;
+    if (preferredPublic.has(recipient)) return true;
+    return false;
+  });
+}
+
 function renderMessages(messages) {
-  state.messages = messages;
-  state.activeMessageIndex = Math.min(state.activeMessageIndex, Math.max(messages.length - 1, 0));
-  if (!messageList || !messageReader) return;
-  messageList.innerHTML = '';
+  const viewer = state.dmMode ? 'Sr. Verdad' : state.agent?.display || '';
+  const filtered = filterMessagesForViewer(messages, viewer, state.messageFilters.box);
+  state.messages = filtered;
+  state.activeMessageIndex = Math.min(
+    state.activeMessageIndex,
+    Math.max(filtered.length - 1, 0)
+  );
+  updateMessageList(messageList, filtered, viewer);
+  updateMessageList(messageListDm, filtered, viewer);
+  state.activeMessage = filtered[state.activeMessageIndex] || null;
+  renderActiveMessageCard();
+  updateMessageBoxLabel();
+}
+
+function updateMessageList(container, messages, viewer) {
+  if (!container) return;
+  container.innerHTML = '';
   if (!messages.length) {
     const empty = document.createElement('div');
     empty.className = 'message-list-item';
     empty.textContent = 'No hay despachos disponibles.';
-    messageList.appendChild(empty);
-    state.activeMessage = null;
-    renderActiveMessageCard();
+    container.appendChild(empty);
     return;
   }
-  const viewer = state.dmMode ? 'Sr. Verdad' : state.agent?.display || '';
   messages.forEach((msg, idx) => {
     const isRead = viewer ? Array.isArray(msg.read_by) && msg.read_by.includes(viewer) : true;
     const item = document.createElement('div');
@@ -1438,11 +1516,8 @@ function renderMessages(messages) {
       state.activeMessage = msg;
       renderMessages(messages);
     });
-    messageList.appendChild(item);
+    container.appendChild(item);
   });
-  state.activeMessage = messages[state.activeMessageIndex] || messages[0] || null;
-  renderActiveMessageCard();
-  updateMessageBoxLabel();
 }
 
 async function markMessageAsRead(id, viewer) {
@@ -1504,28 +1579,29 @@ function updateMessageBoxLabel() {
 }
 
 function startReply(message) {
-  if (!replyPane || !replyBodyInput) return;
+  const { pane, body, label } = getReplyElements();
+  if (!pane || !body) return;
   state.replyTarget = message;
-  replyPane.classList.remove('hidden');
-  if (replyLabel) {
-    replyLabel.textContent = `Respondiendo a ${message.sender}`;
+  pane.classList.remove('hidden');
+  if (label) {
+    label.textContent = `Respondiendo a ${message.sender}`;
   }
-  replyBodyInput.value = `\n\n---\n${message.body}`;
-  replyBodyInput.focus();
+  body.value = `\n\n---\n${message.body}`;
+  body.focus();
 }
 
 function cancelReply() {
-  if (!replyPane) return;
-  replyPane.classList.add('hidden');
+  [replyPane, replyPaneDm].forEach((pane) => pane?.classList.add('hidden'));
+  [replyBodyInput, replyBodyInputDm].forEach((input) => {
+    if (input) input.value = '';
+  });
   state.replyTarget = null;
-  if (replyBodyInput) {
-    replyBodyInput.value = '';
-  }
 }
 
 async function submitReply() {
-  if (!state.replyTarget || !replyBodyInput) return;
-  const text = replyBodyInput.value.trim();
+  const { body } = getReplyElements();
+  if (!state.replyTarget || !body) return;
+  const text = body.value.trim();
   if (!text) return;
   const recipient = state.replyTarget.sender;
   const viewer = state.dmMode ? (messageFromInput?.value || 'Sr. Verdad') : state.agent?.display;
@@ -1548,6 +1624,13 @@ async function submitReply() {
   } catch (err) {
     showMessage(err.message || 'Fallo al responder.', true);
   }
+}
+
+function getReplyElements() {
+  if (state.dmMode && replyPaneDm && replyBodyInputDm) {
+    return { pane: replyPaneDm, body: replyBodyInputDm, label: replyLabelDm };
+  }
+  return { pane: replyPane, body: replyBodyInput, label: replyLabel };
 }
 
 async function sendDmMessage(payload) {
@@ -1895,11 +1978,13 @@ function filterEntities(filters = {}, options = {}) {
 
   const fuse = new Fuse(base, {
     keys: [
-      { name: 'code_name', weight: 0.35 },
+      { name: 'code_name', weight: 0.3 },
       { name: 'name', weight: 0.2 },
-      { name: 'real_name', weight: 0.15 },
+      { name: 'real_name', weight: 0.1 },
       { name: 'role', weight: 0.15 },
-      { name: 'public_summary', weight: 0.1 },
+      { name: 'status', weight: 0.1 },
+      { name: 'alignment', weight: 0.05 },
+      { name: 'public_summary', weight: 0.05 },
       { name: 'sessions', weight: 0.05 }
     ],
     threshold: 0.34,
@@ -1983,8 +2068,14 @@ function renderAgentDossiers() {
     state.activeEntityAgent = entities[0];
   }
 
+  const compactList = isMobileView() && state.mobileTab === 'database';
   entities.forEach((entity) => {
-    const card = buildDossierCard(entity, false, state.activeEntityAgent && state.activeEntityAgent.id === entity.id);
+    const card = buildDossierCard(
+      entity,
+      false,
+      state.activeEntityAgent && state.activeEntityAgent.id === entity.id,
+      compactList
+    );
     card.addEventListener('click', () => {
       state.activeEntityAgent = entity;
       renderAgentDossiers();
@@ -2050,27 +2141,22 @@ function renderAdminDossiers() {
   }
 }
 
-function buildDossierCard(entity, dmView = false, active = false) {
+function buildDossierCard(entity, dmView = false, active = false, compact = false) {
   const card = document.createElement('div');
   const locked = entity.visibility === 'locked' && !dmView;
   card.className = `dossier-card-row ${active ? 'active' : ''} ${locked ? 'locked' : ''}`;
   const badge = `<span class="badge">${getEntityTypeLabel(entity.type)}</span>`;
-  const sessionTags = renderSessionChips(entity.sessions || entity.session_tag || '');
   const role = entity.type === 'poi' ? categoryLabels[entity.category] || entity.role : entity.role;
-  const status = entity.type === 'poi' ? `Amenaza ${entity.threat_level || '¿?'}` : entity.status || 'estado desconocido';
-  const align = entity.type === 'poi' ? `Velo ${entity.alignment || entity.veil_status || '?'}` : entity.alignment || 'afinidad desconocida';
   if (locked) {
     card.innerHTML = `
       <div class="dossier-row-header">${badge} <strong>${sanitize(entity.code_name || entity.name)}</strong></div>
       <div class="dossier-row-note">LOCKED — requiere clave</div>
     `;
   } else {
+    const roleLine = sanitize(role || 'Sin rol');
     card.innerHTML = `
       <div class="dossier-row-header">${badge} <strong>${sanitize(entity.code_name || entity.name)}</strong></div>
-      <div class="dossier-row-meta">${sanitize(role || 'Sin rol')} · ${sanitize(status)}</div>
-      <div class="dossier-row-meta">${sanitize(align)}</div>
-      <div class="dossier-row-note">${sanitize(shortenText(entity.public_summary || 'Sin notas públicas', 140))}</div>
-      <div class="dossier-row-sessions">${sessionTags}</div>
+      <div class="dossier-row-meta">${roleLine}</div>
     `;
   }
   if (dmView && entity.archived) {
@@ -2400,6 +2486,14 @@ function setWorkspaceView(view) {
       }
     }
   }
+  if (isMobileView()) {
+    document.body?.classList.toggle('map-view', view === 'map');
+  } else {
+    document.body?.classList.remove('map-view');
+  }
+  if (view === 'map' && isMobileView()) {
+    scheduleMapResize();
+  }
   if (view === 'entities') {
     renderAgentDossiers();
     renderAdminDossiers();
@@ -2432,7 +2526,6 @@ async function loadDmContext(id) {
 function renderDmContext(ctx) {
   if (!dmEntitiesContext || !ctx || !ctx.entity) return;
   const entity = ctx.entity;
-  const sessions = renderSessionChips(ctx.sessions || entity.sessions || []);
   const poiLinks = (ctx.pois || [])
     .map(
       (p) => `<div class="dossier-related"><span class="badge">PdI</span>${sanitize(p.name)}${
@@ -2444,7 +2537,7 @@ function renderDmContext(ctx) {
     .map(
       (r) => `<div class="dossier-related"><span class="badge">${sanitize(
         r.relation_type || 'Vínculo'
-      )}</span>${sanitize(r.to_code_name || r.to_entity_id)}</div>`
+      )}</span>${sanitize(r.to_code_name || r.to_real_name || r.to_entity_id)}</div>`
     )
     .join('');
 
@@ -2457,7 +2550,6 @@ function renderDmContext(ctx) {
         <span class="badge">${sanitize(entity.alignment || 'afinidad?')}</span>
         ${entity.visibility === 'locked' ? '<span class="badge-soft">Bloqueada</span>' : ''}
       </div>
-      <div class="dossier-sessions">${sessions || '<span class="muted">Sin sesiones</span>'}</div>
       <div class="dossier-section">
         <div class="section-title">PdIs vinculados</div>
         <div class="dossier-related-list">${poiLinks || '<span class="muted">Ninguno</span>'}</div>
@@ -2472,16 +2564,30 @@ function renderDmContext(ctx) {
 }
 
 function renderEntitiesMap(ctx) {
-  if (!dmEntitiesMapContainer || !state.mapboxConfig) return;
+  if (!dmEntitiesMapContainer) return;
   if (!state.entitiesMap) {
     state.entitiesMap = new mapboxgl.Map({
       container: 'dm-entities-map',
-      style: state.mapboxConfig.mapStyle,
+      style: DECIMAL_STYLE,
       center: mapCenter,
-      zoom: 9
+      zoom: 12,
+      pitch: 55,
+      bearing: -17.6,
+      antialias: true
     });
+    state.entitiesMap.addControl(new mapboxgl.NavigationControl());
+  } else {
+    state.entitiesMap.setStyle(DECIMAL_STYLE);
+    state.entitiesMap.setCenter(mapCenter);
+    state.entitiesMap.setZoom(9);
+    state.entitiesMap.setPitch(55);
+    state.entitiesMap.setBearing(-17.6);
   }
-  if (!ctx || !ctx.pois || !ctx.pois.length) return;
+  if (!ctx || !ctx.pois || !ctx.pois.length) {
+    state.entitiesMap.setCenter(mapCenter);
+    state.entitiesMap.setZoom(9);
+    return;
+  }
   const map = state.entitiesMap;
   // limpiar markers previos
   if (!state.entityMarkers) state.entityMarkers = [];
@@ -2511,89 +2617,50 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
     return;
   }
 
-  const sessions = renderSessionChips((ctx && ctx.sessions) || entity.sessions || entity.session_tag || '');
-  const img = entity.image_url || entity.photo || '';
-  const renderHero = (title, subtitle) => {
-    const locked = entity.visibility === 'locked' && !isDmViewer();
-    hero.innerHTML = `
-      <div class="dm-entity-hero-body">
-        ${
-          locked
-            ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
-            : img
-            ? `<div class="hero-wrapper">
-                 <img src="${sanitize(img)}" alt="${sanitize(title)}" />
-               </div>`
-            : '<div class="muted">Sin imagen disponible.</div>'
-        }
-      </div>
-    `;
-  };
-
-  if (entity.type === 'poi') {
-    const lat = Number(entity.latitude || entity.poi_latitude);
-    const lng = Number(entity.longitude || entity.poi_longitude);
-    const hasCoords = !Number.isNaN(lat) && !Number.isNaN(lng);
-    const staticStyle =
-      state.mapboxConfig && state.mapboxConfig.mapStyle
-        ? state.mapboxConfig.mapStyle
-        : 'mapbox://styles/mapbox/dark-v11';
-
-    const staticBaseFromStyle = (styleUrl) => {
-      if (!styleUrl) return null;
-      if (styleUrl.startsWith('mapbox://styles/')) {
-        const [, user, style] = styleUrl.replace('mapbox://styles/', '').split('/');
-        return user && style ? `https://api.mapbox.com/styles/v1/${user}/${style}` : null;
-      }
-      const match = styleUrl.match(/api\.mapbox\.com\/styles\/v1\/([^/]+\/[^/?]+)/);
-      if (match && match[1]) return `https://api.mapbox.com/styles/v1/${match[1]}`;
-      return null;
-    };
-
-    const staticBase = staticBaseFromStyle(staticStyle) || 'https://api.mapbox.com/styles/v1/mapbox/dark-v11';
-    const token = state.mapboxConfig?.mapboxToken || '';
-    const staticUrl =
-      hasCoords && token
-        ? `${staticBase}/static/pin-s+00ff88(${lng},${lat})/${lng},${lat},12/800x520?access_token=${token}`
-        : '';
-    detail.innerHTML = `
-      <div class="card-title">PdI seleccionado</div>
-      <div class="dm-entity-detail-body">
-        ${
-          hasCoords
-            ? `<div class="dm-entity-map"><img src="${staticUrl}" alt="Mapa de ${sanitize(entity.name || entity.code_name || 'PdI')}" /></div>`
-            : '<div class="muted">Sin coordenadas registradas.</div>'
-        }
-        <div class="dm-entity-meta">
-          <span class="badge">${categoryLabels[entity.category] || 'PdI'}</span>
-          <span class="badge">Amenaza ${sanitize(entity.threat_level || '?')}</span>
-          <span class="badge">Velo ${sanitize(entity.veil_status || entity.alignment || '?')}</span>
-          ${sessions || ''}
-        </div>
-        <div>${sanitize(entity.public_note || entity.public_summary || 'Sin nota pública')}</div>
-      </div>
-    `;
-    renderHero(entity.name || entity.code_name || 'PdI', entity.session_tag || '');
-    return;
-  }
+  const summary = sanitize(entity.public_summary || entity.public_note || 'Sin notas públicas');
+  const callsign = sanitize(entity.code_name || entity.name || '');
+  const badgeRow = `
+    <span class="badge">${sanitize(entity.status || 'estado?')}</span>
+    <span class="badge">${sanitize(entity.alignment || 'afinidad?')}</span>
+    ${entity.visibility === 'locked' ? '<span class="badge-soft">Bloqueada</span>' : ''}
+  `;
 
   detail.innerHTML = `
     <div class="card-title">Dossier</div>
     <div class="dm-entity-detail-body">
-      <div class="dm-entity-meta">
-        <span class="badge">${getEntityTypeLabel(entity.type)}</span>
-        ${entity.status ? `<span class="badge">${sanitize(entity.status)}</span>` : ''}
-        ${entity.alignment ? `<span class="badge">${sanitize(entity.alignment)}</span>` : ''}
-        ${sessions || ''}
+      <div class="dm-entity-detail-grid">
+        <div class="dm-entity-map-container">
+          <div id="dm-entities-map" class="dm-entities-map" aria-label="Mapa de ${callsign || 'entidad'}"></div>
+        </div>
+        <div class="dm-entity-detail-pane">
+          <div class="dm-detail-badges">${badgeRow}</div>
+          <div class="dm-detail-callsign">${callsign || 'Sin callsign'}</div>
+          <div class="dm-detail-notes">${summary}</div>
+        </div>
       </div>
-      <div>
-        <div><strong>${sanitize(entity.code_name || entity.name || '')}</strong></div>
-        <div class="muted">${sanitize(entity.role || 'Sin rol')}</div>
-      </div>
-      <div>${sanitize(entity.public_summary || 'Sin resumen público')}</div>
     </div>
   `;
-  renderHero(entity.code_name || entity.name || 'Entidad', entity.role || '');
+
+  const img = entity.image_url || entity.photo || '';
+  const locked = entity.visibility === 'locked' && !isDmViewer();
+  hero.innerHTML = `
+    <div class="dm-entity-hero-body">
+      <div class="dm-entity-hero-media">
+        ${
+          locked
+            ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
+            : img
+            ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
+            : '<div class="muted">Sin imagen disponible.</div>'
+        }
+      </div>
+      <div class="dm-entity-hero-info">
+        <div class="dm-entity-hero-title">${callsign || 'Sin callsign'}</div>
+        <div class="dm-entity-public-note">${summary}</div>
+      </div>
+    </div>
+  `;
+  renderEntitiesMap(ctx);
 }
 
 function showMessage(text, isError = false) {
@@ -2709,13 +2776,18 @@ function renderFocalPoiCard() {
 }
 
 function renderActiveMessageCard() {
-  if (!messageReader) return;
   const msg = state.activeMessage;
+  const viewer = state.dmMode ? 'Sr. Verdad' : state.agent?.display || '';
+  renderMessageReader(messageReader, msg, viewer);
+  renderMessageReader(messageReaderDm, msg, viewer);
+}
+
+function renderMessageReader(reader, msg, viewer) {
+  if (!reader) return;
   if (!msg) {
-    messageReader.textContent = 'No hay despachos.';
+    reader.textContent = 'No hay despachos.';
     return;
   }
-  const viewer = state.dmMode ? 'Sr. Verdad' : state.agent?.display || '';
   const isRead = viewer ? Array.isArray(msg.read_by) && msg.read_by.includes(viewer) : true;
   const html = `
     <div class="message-reader-header">
@@ -2731,10 +2803,10 @@ function renderActiveMessageCard() {
       <button type="button" class="ghost small danger" data-delete="${msg.id}">Eliminar</button>
     </div>
   `;
-  messageReader.innerHTML = html;
-  const markBtn = messageReader.querySelector('[data-mark-read]');
-  const replyBtn = messageReader.querySelector('[data-reply]');
-  const deleteBtn = messageReader.querySelector('[data-delete]');
+  reader.innerHTML = html;
+  const markBtn = reader.querySelector('[data-mark-read]');
+  const replyBtn = reader.querySelector('[data-reply]');
+  const deleteBtn = reader.querySelector('[data-delete]');
   if (markBtn && viewer) {
     markBtn.addEventListener('click', () => markMessageAsRead(Number(markBtn.dataset.markRead), viewer));
   }
@@ -2771,6 +2843,9 @@ function setDmBlade(blade) {
   document.querySelectorAll('[data-blade-panel]').forEach((panel) => {
     panel.classList.toggle('active', panel.getAttribute('data-blade-panel') === normalized);
   });
+  if (document.body) {
+    document.body.setAttribute('data-dm-blade', normalized);
+  }
   if (normalized === 'entities' && state.dmMode && state.poiFocal) {
     populateFormForEdit(state.poiFocal);
   }
@@ -2839,6 +2914,20 @@ function renderMissionCards() {
   }
 }
 
+function highlightPoiInList(id) {
+  document.querySelectorAll('#poi-list .poi-item').forEach((item) => {
+    if (!id) {
+      item.classList.remove('active');
+      return;
+    }
+    item.classList.toggle('active', Number(item.dataset.poiId) === Number(id));
+  });
+}
+
+function isMobileView() {
+  return window.innerWidth <= 900;
+}
+
 function setMobileTab(tab) {
   updateViewportMode();
   state.mobileTab = tab;
@@ -2857,45 +2946,20 @@ function setMobileTab(tab) {
     scheduleMapResize();
   } else if (tab === 'console') {
     setWorkspaceView('console');
+  } else if (tab === 'database') {
+    setWorkspaceView('database');
   } else if (tab === 'pois') {
     // Reuse el focal PdI sin mapa en móvil
     setWorkspaceView('map');
     state.showOlderMobilePois = false;
     if (isMobileView()) {
-      // collapse poi list by default for compact view on mobile
       const poiToggle = document.querySelector('.poi-list-section .collapsible-toggle');
       const poiBody = document.querySelector('.poi-list-section .collapsible-body');
       if (poiBody && poiToggle && !poiBody.classList.contains('collapsed')) {
         toggleCollapsible(poiToggle);
       }
     }
-    if (sidebarPanel?.classList.contains('closed')) {
-      sidebarPanel.classList.remove('closed');
-      panelToggleBtn?.setAttribute('aria-expanded', 'true');
-      floatingPanelToggleBtn?.setAttribute('aria-expanded', 'true');
-      floatingPanelToggleBtn?.classList.remove('collapsed');
-    }
-    renderPoiList();
   }
-  if (mapShell && isMobileView()) {
-    const showMap = tab === 'map';
-    mapShell.classList.toggle('active', showMap);
-    mapShell.style.display = showMap ? 'block' : 'none';
-  }
-}
-
-function highlightPoiInList(id) {
-  document.querySelectorAll('#poi-list .poi-item').forEach((item) => {
-    if (!id) {
-      item.classList.remove('active');
-      return;
-    }
-    item.classList.toggle('active', Number(item.dataset.poiId) === Number(id));
-  });
-}
-
-function isMobileView() {
-  return window.innerWidth <= 900;
 }
 
 function updateViewportMode() {
@@ -2949,14 +3013,6 @@ function updateMessageFromField() {
   messageFromInput.readOnly = true;
 }
 
-function parseSessionInput(value) {
-  return value
-    .split(',')
-    .map((v) => v.trim())
-    .filter(Boolean)
-    .map((tag) => ({ session_tag: tag }));
-}
-
 function parsePoiLinksInput(value) {
   if (!value) return [];
   return value
@@ -2964,7 +3020,7 @@ function parsePoiLinksInput(value) {
     .map((v) => v.trim())
     .filter(Boolean)
     .map((token) => {
-      const [idPart, extras] = token.split('|');
+      const [idPart, extras, visibility] = token.split('|');
       const [rolePart, sessionPart] = (extras || '').split(':');
       const poiId = Number(idPart);
       if (!poiId || Number.isNaN(poiId)) return null;
@@ -2972,7 +3028,7 @@ function parsePoiLinksInput(value) {
         poi_id: poiId,
         role_at_poi: rolePart ? rolePart.trim() : null,
         session_tag: sessionPart ? sessionPart.trim() : null,
-        is_public: true
+        is_public: visibility !== 'dm'
       };
     })
     .filter(Boolean);
@@ -2985,10 +3041,10 @@ function parseEntityLinksInput(value) {
     .map((v) => v.trim())
     .filter(Boolean)
     .map((token) => {
-      const [idPart, relationPart] = token.split('|');
+      const [idPart, relationPart, visibility] = token.split('|');
       const targetId = Number(idPart);
       if (!targetId || Number.isNaN(targetId) || !relationPart) return null;
-      return { to_entity_id: targetId, relation_type: relationPart.trim(), is_public: true };
+      return { to_entity_id: targetId, relation_type: relationPart.trim(), is_public: visibility !== 'dm' };
     })
     .filter(Boolean);
 }
@@ -3000,13 +3056,30 @@ function parseMultiSelect(raw, kind = 'entity') {
     .map((v) => v.trim())
     .filter(Boolean)
     .map((item) => {
-      const [id, extra] = item.split('|');
+      const parts = item.split('|');
+      const id = parts[0];
+      const extra = parts[1] || '';
+      const visibility = parts[2] || 'public';
       if (kind === 'poi') {
-        const [role_at_poi, session_tag] = (extra || '').split(':');
-        return { poi_id: Number(id), role_at_poi: role_at_poi || '', session_tag: session_tag || '' };
+        const [role_at_poi, session_tag] = extra.split(':');
+        const poiId = Number(id);
+        if (!poiId || Number.isNaN(poiId)) return null;
+        return {
+          poi_id: poiId,
+          role_at_poi: role_at_poi || '',
+          session_tag: session_tag || '',
+          is_public: visibility !== 'dm'
+        };
       }
-      return { to_entity_id: Number(id), relation_type: extra || 'relacion' };
-    });
+      const targetId = Number(id);
+      if (!targetId || Number.isNaN(targetId)) return null;
+      return {
+        to_entity_id: targetId,
+        relation_type: extra || 'relacion',
+        is_public: visibility !== 'dm'
+      };
+    })
+    .filter(Boolean);
 }
 
 function buildMultiTokens(items, kind = 'entity') {
@@ -3018,25 +3091,27 @@ function buildMultiTokens(items, kind = 'entity') {
         if (!id) return null;
         const role = item.role_at_poi || '';
         const session = item.session_tag || item.session || '';
-        return `${id}|${role}:${session}`;
+        const vis = item.is_public === false ? 'dm' : 'public';
+        return `${id}|${role}:${session}|${vis}`;
       }
       const id = item.to_entity_id || item.target_id || item.id;
       if (!id) return null;
       const rel = item.relation_type || item.relation || '';
-      return `${id}|${rel}`;
+      const vis = item.is_public === false ? 'dm' : 'public';
+      return `${id}|${rel}|${vis}`;
     })
     .filter(Boolean);
 }
 
 function getTokenLabel(item, kind = 'entity') {
   if (kind === 'poi') {
-    const name = item.name || item.code_name || item.title || `PdI #${item.id || item.poi_id}`;
-    const session = item.session_tag || item.session || '';
-    return `${name}${session ? ` · ${session}` : ''}`;
+    const name = item.code_name || item.name || item.title || `PdI #${item.id || item.poi_id}`;
+    const vis = item.is_public === false ? 'solo DM' : 'agentes';
+    return vis ? `${name} · ${vis}` : name;
   }
   const name = item.code_name || item.name || item.title || `Entidad #${item.id || item.to_entity_id}`;
-  const rel = item.relation_type || item.relation || '';
-  return rel ? `${name} · ${rel}` : name;
+  const vis = item.is_public === false ? 'solo DM' : 'agentes';
+  return vis ? `${name} · ${vis}` : name;
 }
 
 function tokensFromHidden(hidden) {
@@ -3077,9 +3152,12 @@ function setupMultiSelect(config, dataFn, mode = 'entity') {
 
   function addToken(item) {
     const tokens = tokensFromHidden(hidden);
+    const role = item.role_at_poi || '';
+    const session = item.session_tag || item.session || '';
+    const visToken = item.is_public === false ? 'dm' : 'public';
     const token = mode === 'poi'
-      ? `${item.id || item.poi_id}|${(item.role_at_poi || '')}:${item.session_tag || item.session || ''}`
-      : `${item.id || item.to_entity_id || item.target_id}|${item.relation_type || item.relation || ''}`;
+      ? `${item.id || item.poi_id}|${role}:${session}|${visToken}`
+      : `${item.id || item.to_entity_id || item.target_id}|${item.relation_type || item.relation || ''}|${visToken}`;
     if (tokens.includes(token)) return;
     tokens.push(token);
     writeTokens(hidden, tokens);
@@ -3096,17 +3174,52 @@ function setupMultiSelect(config, dataFn, mode = 'entity') {
     chips.innerHTML = '';
     const dataList = dataFn() || [];
     tokens.forEach((token) => {
-      const [id, extra] = token.split('|');
+      const [id, extra, visibility = 'public'] = token.split('|');
       const match = dataList.find((item) => String(item.id || item.poi_id || item.to_entity_id || item.target_id) === id);
-      const label = match ? getTokenLabel({ ...match, relation_type: extra, role_at_poi: extra?.split(':')?.[0] }, mode) : token;
+      const roleParts = (extra || '').split(':');
+      const label = match
+        ? getTokenLabel(
+            {
+              ...match,
+              relation_type: extra,
+              role_at_poi: roleParts[0] || '',
+              session_tag: roleParts[1] || match.session_tag,
+              is_public: visibility !== 'dm'
+            },
+            mode
+          )
+        : token;
       const chip = document.createElement('span');
       chip.className = 'chip';
-      chip.textContent = label;
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'chip-label';
+      labelSpan.textContent = label;
+      chip.appendChild(labelSpan);
+      const actions = document.createElement('div');
+      actions.className = 'chip-actions';
+      if (mode === 'entity' || mode === 'poi') {
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.textContent = visibility === 'dm' ? 'DM' : 'AG';
+        toggle.title = visibility === 'dm' ? 'Solo DM' : 'Visible agentes';
+        toggle.addEventListener('click', () => {
+          const tokensCurrent = tokensFromHidden(hidden);
+          const nextVis = visibility === 'dm' ? 'public' : 'dm';
+          const idx = tokensCurrent.indexOf(token);
+          if (idx >= 0) {
+            tokensCurrent.splice(idx, 1, `${id}|${extra}|${nextVis}`);
+            writeTokens(hidden, tokensCurrent);
+            renderChips(tokensCurrent);
+          }
+        });
+        actions.appendChild(toggle);
+      }
       const close = document.createElement('button');
       close.type = 'button';
       close.textContent = '×';
       close.addEventListener('click', () => removeToken(token));
-      chip.appendChild(close);
+      actions.appendChild(close);
+      chip.appendChild(actions);
       chips.appendChild(chip);
     });
   }
@@ -3207,18 +3320,12 @@ function populateEntityForm(entity) {
   entityAlignmentInput.value = entity.alignment || '';
   entityThreatInput.value = entity.threat_level || '';
   entityImageInput.value = entity.image_url || '';
-  entitySessionFirstInput.value = entity.first_session || '';
-  entitySessionLastInput.value = entity.last_session || '';
   entityPublicNoteInput.value = entity.public_summary || entity.public_note || '';
   entityDmNoteInput.value = entity.dm_notes || entity.dm_note || '';
   entityVisibilityInput.value = entity.visibility || 'agent_public';
   entityUnlockInput.value = entity.unlock_code || '';
   entityLockedHintInput.value = entity.locked_hint || '';
   entityArchivedInput.checked = !!entity.archived;
-  const sessions = Array.isArray(entity.sessions)
-    ? entity.sessions.map((s) => s.session_tag).join(',')
-    : entity.sessions || entity.session_tag || '';
-  entitySessionsInput.value = sessions;
   entityPoisInput.value = (entity.pois || entity.poi_links || [])
     .map((p) => `${p.poi_id}:${p.role_at_poi || ''}:${p.session_tag || ''}`)
     .join(',');
@@ -3304,16 +3411,12 @@ async function handleEntitySubmit(event) {
       alignment: entityAlignmentInput.value.trim(),
       threat_level: entityThreatInput.value ? Number(entityThreatInput.value) : null,
       image_url: entityImageInput.value.trim(),
-      first_session: entitySessionFirstInput.value.trim(),
-      last_session: entitySessionLastInput.value.trim(),
-      sessions: entitySessionsInput.value.trim(),
       public_summary: entityPublicNoteInput.value.trim(),
       dm_notes: entityDmNoteInput.value.trim(),
       visibility: entityVisibilityInput.value,
       unlock_code: entityUnlockInput.value.trim(),
       locked_hint: entityLockedHintInput.value.trim(),
       archived: !!entityArchivedInput.checked,
-      session_links: parseSessionInput(entitySessionsInput.value),
       poi_links: parseMultiSelect(entityPoisInput.value, 'poi'),
       relations: parseMultiSelect(entityLinksInput.value, 'entity')
     };
