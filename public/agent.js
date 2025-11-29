@@ -162,9 +162,18 @@ async function initializeMap() {
             zoom: 9
         });
         
-        state.map.on('load', () => {
-            // Add some sample POIs for demonstration
-            addSamplePois();
+        state.map.on('load', async () => {
+            try {
+                const pois = await fetch('/api/pois').then(res => {
+                    if (!res.ok) throw new Error('Failed to fetch POIs');
+                    return res.json();
+                });
+                addRealPois(pois);
+            } catch (e) {
+                console.error("Failed to load real POIs:", e);
+                // Fallback to sample POIs if API fails
+                addSamplePois();
+            }
         });
 
     } catch (e) {
@@ -173,11 +182,30 @@ async function initializeMap() {
     }
 }
 
+function addRealPois(pois = []) {
+    if (!pois.length) {
+        console.warn("No POIs loaded from the database.");
+        return;
+    }
+    pois.forEach(poi => {
+        const el = document.createElement('div');
+        el.className = 'poi-marker';
+        el.dataset.poiId = poi.id; // Use the actual ID from the DB
+
+        const marker = new mapboxgl.Marker(el)
+            .setLngLat([poi.longitude, poi.latitude])
+            .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(poi.name))
+            .addTo(state.map);
+        
+        state.pois.set(poi.id, marker);
+    });
+}
+
 function addSamplePois() {
     const samplePois = [
-        { id: 'poi-1', lng: -76.20956, lat: 40.683987, name: 'Safehouse' },
-        { id: 'poi-2', lng: -76.26391, lat: 40.70682, name: 'Culvert' },
-        { id: 'poi-3', lng: -76.3779, lat: 40.6262, name: 'Red Barn' }
+        { id: 'poi-1', lng: -76.20956, lat: 40.683987, name: 'Safehouse (Sample)' },
+        { id: 'poi-2', lng: -76.26391, lat: 40.70682, name: 'Culvert (Sample)' },
+        { id: 'poi-3', lng: -76.3779, lat: 40.6262, name: 'Red Barn (Sample)' }
     ];
 
     samplePois.forEach(poi => {
