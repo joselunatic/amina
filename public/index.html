@@ -71,6 +71,9 @@
               <span class="ticker-placeholder">Esperando despachos de membrana…</span>
             </div>
           </div>
+          <button id="logout-button" class="logout-button" aria-label="Cambiar el modo de sesión">
+            ⏻
+          </button>
         </div>
       </header>
       <main class="app-shell">
@@ -123,17 +126,17 @@
                       </div>
                     </div>
                     <div class="mail-layout">
-                      <div class="mail-list" id="message-list"></div>
+                      <div class="mail-list" id="message-list-dm"></div>
                       <div class="mail-reader">
-                        <div id="message-reader">Sin despachos.</div>
-                        <div class="reply-pane" id="mailbox-reply">
+                        <div id="message-reader-dm">Sin despachos.</div>
+                        <div class="reply-pane" id="mailbox-reply-dm">
                           <div class="reply-header">
-                            <span class="reply-label" id="reply-label">Responder</span>
-                            <button type="button" id="reply-cancel" class="small ghost">Cancelar</button>
+                            <span class="reply-label" id="reply-label-dm">Responder</span>
+                            <button type="button" id="reply-cancel-dm" class="small ghost">Cancelar</button>
                           </div>
-                          <textarea id="reply-body" rows="3" placeholder="Compón tu respuesta…"></textarea>
+                          <textarea id="reply-body-dm" rows="3" placeholder="Compón tu respuesta…"></textarea>
                           <div class="form-actions">
-                            <button type="button" id="reply-send" class="ghost">Enviar</button>
+                            <button type="button" id="reply-send-dm" class="ghost">Enviar</button>
                           </div>
                         </div>
                       </div>
@@ -214,58 +217,76 @@
               </div>
               <div class="workspace-view dm-view" data-view="journal">
                 <div class="dm-journal-grid">
-                  <div class="console-card">
+                  <div class="console-card inbox-card" id="dm-inbox-card">
                     <div class="card-title">Despachos a agentes</div>
-                    <div class="dispatch-layout">
-                      <form id="message-form" class="message-form dm-only">
-                        <label for="message-from">De</label>
-                        <input type="text" id="message-from" value="Sr. Verdad" required />
+                    <form id="message-form" class="message-form dm-only">
+                      <label for="message-from">De</label>
+                      <input type="text" id="message-from" value="Sr. Verdad" required />
 
-                        <label for="message-to">Para</label>
-                        <select id="message-to" required>
-                          <option value="Howard Pike">Howard Pike</option>
-                          <option value="Victoria Allen">Victoria Allen</option>
-                          <option value="Billy Bob">Billy Bob</option>
-                          <option value="Agent Local">Agente Local</option>
-                        </select>
+                      <label for="message-to">Para</label>
+                      <select id="message-to" required>
+                        <option value="Howard Pike">Howard Pike</option>
+                        <option value="Victoria Allen">Victoria Allen</option>
+                        <option value="Billy Bob">Billy Bob</option>
+                        <option value="Agent Local">Agente Local</option>
+                      </select>
 
-                        <label for="message-subject">Asunto</label>
-                        <input type="text" id="message-subject" placeholder="Asunto..." required />
+                      <label for="message-subject">Asunto</label>
+                      <input type="text" id="message-subject" placeholder="Asunto..." required />
 
-                        <label for="message-session">Etiqueta de sesión</label>
-                        <input type="text" id="message-session" placeholder="1x02" />
+                      <label for="message-body">Cuerpo</label>
+                      <textarea id="message-body" rows="4" required></textarea>
 
-                        <label for="message-body">Cuerpo</label>
-                        <textarea id="message-body" rows="4" required></textarea>
-
-                        <div class="form-actions">
-                          <button type="submit" id="message-submit">Emitir</button>
-                          <button type="button" id="message-clear" class="ghost small">Limpiar</button>
-                        </div>
-                      </form>
-                      <div class="message-feed-wrapper">
-                        <div class="message-filters">
+                      <div class="form-actions">
+                        <button type="submit" id="message-submit">Emitir</button>
+                        <button type="button" id="message-clear" class="ghost small">Limpiar</button>
+                      </div>
+                    </form>
+                    <div class="mail-toolbar">
+                      <div class="mail-filters">
+                        <div class="filter-group">
                           <label for="filter-box">Ver</label>
                           <select id="filter-box">
                             <option value="">Entrada</option>
                             <option value="sent">Enviados</option>
                           </select>
-
+                        </div>
+                        <div class="filter-group">
                           <label for="filter-recipient">Destinatario</label>
                           <select id="filter-recipient">
                             <option value="">Todos los agentes</option>
                           </select>
-                          <label for="filter-session">Sesión</label>
-                          <input type="text" id="filter-session" placeholder="1x02" />
-                          <label for="filter-since">Desde</label>
-                          <input type="date" id="filter-since" />
-                          <label for="filter-unread" class="checkbox-inline">
-                            <input type="checkbox" id="filter-unread" />
-                            No leídos
-                          </label>
-                          <button type="button" id="filter-apply">Aplicar Filtros</button>
                         </div>
-                        <div id="message-feed" class="message-feed"></div>
+                      </div>
+                      <div class="mail-actions">
+                        <button type="button" id="msg-prev" class="small ghost">Ant</button>
+                        <button type="button" id="msg-next" class="small ghost">Sig</button>
+                        <button type="button" id="msg-reply" class="small ghost">Responder</button>
+                      </div>
+                    </div>
+                    <div class="message-filters">
+                      <input type="text" id="filter-session" placeholder="1x02" aria-label="Sesión" />
+                      <input type="date" id="filter-since" aria-label="Desde" />
+                      <label for="filter-unread" class="checkbox-inline">
+                        <input type="checkbox" id="filter-unread" />
+                        No leídos
+                      </label>
+                      <button type="button" id="filter-apply" class="ghost">Aplicar Filtros</button>
+                    </div>
+                    <div class="mail-layout">
+                      <div class="mail-list" id="message-list"></div>
+                      <div class="mail-reader">
+                        <div id="message-reader">Sin despachos.</div>
+                        <div class="reply-pane" id="mailbox-reply">
+                          <div class="reply-header">
+                            <span class="reply-label" id="reply-label">Responder</span>
+                            <button type="button" id="reply-cancel" class="small ghost">Cancelar</button>
+                          </div>
+                          <textarea id="reply-body" rows="3" placeholder="Compón tu respuesta…"></textarea>
+                          <div class="form-actions">
+                            <button type="button" id="reply-send" class="ghost">Enviar</button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -293,7 +314,17 @@
                 <div class="dm-entities-top">
                   <div class="console-card dm-entity-detail-card" id="dm-entity-detail-card">
                     <div class="card-title">Detalle de entidad</div>
-                    <div class="dm-entity-detail-body">Selecciona un dossier para ver su ficha.</div>
+                    <div class="dm-entity-detail-body">
+                      <div class="dm-entity-detail-grid">
+                        <div class="dm-entity-map-container">
+                          <div id="dm-entities-map" class="dm-entities-map" aria-label="Mapa de entidad"></div>
+                        </div>
+                        <div class="dm-entity-detail-pane">
+                          <div class="dm-detail-badge-row"></div>
+                          <div class="dm-detail-notes">Selecciona un dossier para ver su ficha.</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div class="console-card dm-entity-hero-card" id="dm-entity-hero-card">
                     <div class="dm-entity-hero-body muted">Sin imagen disponible.</div>
@@ -371,18 +402,6 @@
                           </div>
                           <div class="form-section entity-only">
                             <div class="section-title">Actividad</div>
-                            <div class="coord-row">
-                              <div>
-                                <label for="entity-session-first">Primera sesión</label>
-                                <input type="text" id="entity-session-first" placeholder="1x00" />
-                              </div>
-                              <div>
-                                <label for="entity-session-last">Última sesión</label>
-                                <input type="text" id="entity-session-last" placeholder="1x03" />
-                              </div>
-                            </div>
-                            <label for="entity-sessions">Sesiones (coma)</label>
-                            <input type="text" id="entity-sessions" placeholder="1x00,1x01" />
                             <label for="entity-pois-search">PdIs vinculados</label>
                             <div class="multi-select" id="entity-pois-select">
                               <input type="search" id="entity-pois-search" placeholder="Buscar PdI…" autocomplete="off" />
@@ -464,9 +483,10 @@
                       </div>
                     </form>
                   </div>
+                  <div class="console-card dm-context-card" id="dm-entities-context"></div>
                 </div>
               </div>
-              </div>
+            </div>
               <div class="workspace-view dm-view" data-view="relations">
                 <div class="console-stack">
                   <div class="console-card" id="dm-relations-card">
@@ -482,6 +502,7 @@
       <nav class="mobile-nav" id="mobile-nav">
         <button type="button" class="mobile-tab active" data-mobile-tab="map">Mapa</button>
         <button type="button" class="mobile-tab" data-mobile-tab="pois">PdI</button>
+        <button type="button" class="mobile-tab" data-mobile-tab="database">Base</button>
         <button type="button" class="mobile-tab" data-mobile-tab="console">Consola</button>
       </nav>
       <footer class="app-footer">

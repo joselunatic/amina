@@ -280,6 +280,27 @@ body.crt::after {
   white-space: pre-wrap;
 }
 
+.workspace-top.agent-top .inbox-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.workspace-top.agent-top .inbox-card .mail-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.workspace-top.agent-top .inbox-card .mail-layout {
+  grid-template-columns: minmax(180px, 0.45fr) minmax(250px, 0.55fr);
+  gap: 0.85rem;
+}
+
+.workspace-top.agent-top .inbox-card .mail-list,
+.workspace-top.agent-top .inbox-card .mail-reader {
+  min-height: 380px;
+}
+
 .reply-pane {
   border-top: 1px solid rgba(0, 255, 136, 0.25);
   padding-top: 0.5rem;
@@ -407,6 +428,84 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   grid-template-rows: minmax(360px, 2fr) minmax(240px, 1fr);
   gap: 0.75rem;
   width: 100%;
+}
+
+@media (max-width: 900px) {
+  body.is-mobile:not(.map-view) .view-left {
+    display: none;
+  }
+  body.is-mobile.map-view .view-left {
+    display: block;
+  }
+  body.is-mobile .view-right {
+    width: 100%;
+    margin-left: 0;
+  }
+  body.is-mobile .dm-journal-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  body.is-mobile .mail-layout,
+  body.is-mobile .mail-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  body.is-mobile .mail-toolbar .mail-actions {
+    justify-content: space-between;
+  }
+  body.is-mobile:not([data-workspace-view="map"]) .console-card,
+  body.is-mobile:not([data-workspace-view="map"]) .dm-journal-grid .console-card {
+    width: 100%;
+  }
+  body.is-mobile .message-filters {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  body.is-mobile[data-mobile-tab='map'] #workspace,
+  body.is-mobile[data-mobile-tab='map'] .workspace,
+  body.is-mobile[data-mobile-tab='pois'] #workspace,
+  body.is-mobile[data-mobile-tab='pois'] .workspace {
+    display: none;
+  }
+
+  body.is-mobile[data-mobile-tab='console'] #workspace,
+  body.is-mobile[data-mobile-tab='console'] .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.is-mobile[data-mobile-tab='database'] #workspace,
+  body.is-mobile[data-mobile-tab='database'] .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  body.is-mobile[data-mobile-tab='map'] .radar-row {
+    display: flex;
+  }
+
+  body.is-mobile[data-mobile-tab='map'] .control-panel {
+    display: none;
+  }
+
+  body.is-mobile[data-mobile-tab='pois'] .radar-row {
+    display: flex;
+  }
+
+  body.is-mobile[data-mobile-tab='pois'] .map-panel {
+    display: none;
+  }
+
+  body.is-mobile[data-mobile-tab='pois'] .control-panel {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    padding: 1.2rem;
+  }
+
+  body.is-mobile[data-mobile-tab='console'] .console-row {
+    display: flex;
+  }
 }
 
 .map-shell {
@@ -905,22 +1004,52 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
 
 .chip {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
-  gap: 0.25rem;
-  background: rgba(0, 255, 136, 0.12);
-  border: 1px solid rgba(0, 255, 136, 0.35);
-  border-radius: 999px;
-  padding: 0.08rem 0.4rem;
-  font-size: 0.8rem;
+  gap: 0.2rem;
+  background: rgba(0, 255, 136, 0.05);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  border-radius: 6px;
+  padding: 0.1rem 0.2rem;
+  font-size: 0.7rem;
+  min-width: 80px;
+  max-width: 220px;
+  white-space: nowrap;
 }
 
-.chip button {
-  background: transparent;
-  border: none;
+.chip-label {
+  font-size: 0.72rem;
+  color: #e0ffe9;
+  line-height: 1.1;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.chip-actions button {
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid rgba(0, 255, 136, 0.3);
   color: #9ae6c1;
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.55rem;
   cursor: pointer;
-  padding: 0;
   line-height: 1;
+  min-width: 0;
+}
+
+.chip-actions button:hover {
+  background: rgba(0, 255, 136, 0.25);
+}
+
+.chip-actions button:hover {
+  background: rgba(0, 255, 136, 0.2);
 }
 
 .dm-entities-left {
@@ -930,7 +1059,16 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
 }
 
 #dm-entities-context {
-  display: none;
+  display: block;
+  background: rgba(0, 12, 8, 0.7);
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  margin-top: 1rem;
+}
+
+.dm-context-card .dossier-section {
+  margin-top: 0.75rem;
 }
 
 .dm-context-card {
@@ -1001,7 +1139,16 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
     display: none;
   }
   .workspace-nav {
-    display: none;
+    position: fixed;
+    left: 1rem;
+    right: 1rem;
+    bottom: calc(3rem + env(safe-area-inset-bottom, 0px));
+    padding: 0.25rem 0.35rem;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.65);
+    border-radius: 1.5rem;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    z-index: 15;
   }
   .map-panel {
     height: 320px;
@@ -1038,6 +1185,20 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   }
   .dm-entities-left .dossier-list {
     max-height: none;
+  }
+  .workspace-tabs {
+    width: 100%;
+    gap: 0.35rem;
+  }
+  .workspace-tab {
+    flex: 1;
+    padding: 0.7rem 0.3rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    white-space: normal;
+  }
+  .main-column {
+    padding-bottom: 220px;
   }
 }
 
@@ -1407,11 +1568,25 @@ body.booting .crt-screen {
   border-radius: 1rem 1rem 0 0;
 }
 
+.mobile-nav {
+  display: none;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  position: relative;
+  z-index: 5;
+}
+
+@media (min-width: 901px) {
+  .mobile-nav {
+    display: none;
+  }
+}
+
 .top-ticker {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   overflow: hidden;
 }
 
@@ -1424,6 +1599,7 @@ body.booting .crt-screen {
 
 .top-ticker-track {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   border-radius: 1rem;
   background: rgba(0, 0, 0, 0.25);
@@ -1432,6 +1608,33 @@ body.booting .crt-screen {
   min-height: 32px;
   display: flex;
   align-items: center;
+}
+
+.logout-button {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  border-radius: 999px;
+  color: rgba(0, 255, 136, 0.9);
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Fira Code', 'Segoe UI Symbol', 'Noto Sans Symbols', sans-serif;
+  line-height: 1;
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.logout-button:hover {
+  background: rgba(0, 0, 0, 0.6);
+  transform: translateY(-1px);
+}
+
+.logout-button:focus-visible {
+  outline: 2px solid rgba(0, 255, 136, 0.7);
+  outline-offset: 2px;
 }
 
 .control-panel {
@@ -1485,108 +1688,6 @@ body.mode-agent .control-panel {
 
 body.mode-dm .control-panel {
   width: 33%;
-}
-
-.mobile-nav {
-  display: none;
-  gap: 0.25rem;
-  margin-top: 0.5rem;
-}
-
-.mobile-tab {
-  flex: 1;
-  padding: 0.6rem;
-  border: 1px solid rgba(0, 255, 136, 0.3);
-  background: rgba(0, 0, 0, 0.6);
-  color: rgba(0, 255, 136, 0.85);
-  text-transform: uppercase;
-  letter-spacing: 0.3em;
-}
-
-.mobile-tab.active {
-  background: rgba(0, 255, 136, 0.15);
-}
-
-@media (max-width: 900px) {
-  .radar-row,
-  .console-row {
-    display: none;
-  }
-
-  body[data-mobile-tab='map'] .radar-row {
-    display: flex;
-  }
-
-  body[data-mobile-tab='map'] .control-panel {
-    display: none;
-  }
-
-  body[data-mobile-tab='pois'] .radar-row {
-    display: flex;
-  }
-
-  body[data-mobile-tab='pois'] .map-panel {
-    display: none;
-  }
-
-  body[data-mobile-tab='pois'] .control-panel {
-    display: flex;
-    width: 100%;
-    min-width: 0;
-    padding: 1.2rem;
-  }
-
-  body[data-mobile-tab='console'] .console-row {
-    display: flex;
-  }
-
-  .mobile-nav {
-    display: flex;
-  }
-
-  .radar-row,
-  .console-row {
-    flex: 1 1 auto;
-  }
-
-  .control-panel.closed {
-    width: 0;
-    min-width: 0;
-    padding: 0;
-    border: none;
-    box-shadow: none;
-    overflow: hidden;
-  }
-
-  .control-panel.closed .panel-header,
-  .control-panel.closed .panel-section {
-    opacity: 0;
-    pointer-events: none;
-    height: 0;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-  }
-
-  .map-collapse-toggle {
-    display: none !important;
-  }
-}
-
-/* Mobile data-driven visibility */
-body.is-mobile[data-mobile-tab='map'] #map {
-  height: 65vh;
-  min-height: 55vh;
-}
-
-body.is-mobile[data-mobile-tab='pois'] [data-mobile-section='header'],
-body.is-mobile[data-mobile-tab='pois'] [data-mobile-section='clearance'],
-body.is-mobile[data-mobile-tab='pois'] [data-mobile-section='filters'] {
-  display: none !important;
-}
-
-body.is-mobile[data-mobile-tab='pois'] .control-panel {
-  margin-top: 0;
 }
 
 /* Extra mobile tightening */
