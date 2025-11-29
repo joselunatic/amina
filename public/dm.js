@@ -3,12 +3,16 @@ const state = {
     ws: null,
     agents: [],
     pois: [],
+    dmMap: null, // New: Mapbox map instance for DM view
+    dmMapMarkers: new Map(), // New: To store DM map POI markers (Map<poiId, mapboxgl.Marker>)
     selectedMarkerType: 'default', // Default marker type
 };
 
 const agentSelect = document.getElementById('agent-select');
 const poiSelect = document.getElementById('poi-select');
 const aminaMarkerSelector = document.getElementById('amina-marker-selector');
+const dmMapContainer = document.getElementById('dm-map'); // New: Reference to the DM map container
+
 
 // --- AMINA Marker Types Taxonomy ---
 const AMINA_MARKER_TYPES = [
@@ -141,6 +145,84 @@ function renderPoiSelector() {
     }
 }
 
+// New: Initialize DM Map
+async function initializeDmMap() {
+    if (!dmMapContainer) {
+        console.warn("DM map container not found.");
+        return;
+    }
+
+    try {
+        const config = await fetch('/api/config').then(res => res.json());
+        mapboxgl.accessToken = config.mapboxToken;
+
+        state.dmMap = new mapboxgl.Map({
+            container: 'dm-map',
+            style: config.mapStyle || 'mapbox://styles/mapbox/dark-v11', // Use a default style or from config
+            center: [-76.229, 40.68], // Center on Schuylkill County
+            zoom: 9
+        });
+
+        state.dmMap.on('load', () => {
+            addPoisToDmMap();
+            handlePoiSelectChange(); // Ensure map reflects current dropdown selection
+        });
+    } catch (e) {
+        console.error("Failed to initialize DM map:", e);
+        dmMapContainer.textContent = 'Error: No se pudo cargar el mapa.';
+    }
+}
+
+// New: Add POIs to DM Map
+function addPoisToDmMap() {
+    if (!state.dmMap || state.pois.length === 0) return;
+
+    // Clear existing markers
+    state.dmMapMarkers.forEach(marker => marker.remove());
+    state.dmMapMarkers.clear();
+
+    state.pois.forEach(poi => {
+        const el = document.createElement('div');
+        el.className = 'dm-poi-marker';
+        el.dataset.poiId = poi.id;
+
+        const marker = new mapboxgl.Marker(el)
+            .setLngLat([poi.longitude, poi.latitude])
+            .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(poi.name))
+            .addTo(state.dmMap);
+        
+        el.addEventListener('click', () => {
+            poiSelect.value = poi.id; // Select POI in dropdown
+            handlePoiSelectChange(); // Trigger map update and highlight
+        });
+
+        state.dmMapMarkers.set(poi.id, marker);
+    });
+}
+
+// New: Handle POI selection change (dropdown or map click)
+function handlePoiSelectChange() {
+    const selectedPoiId = poiSelect.value;
+
+    state.dmMapMarkers.forEach((marker, poiId) => {
+        const el = marker.getElement();
+        if (poiId == selectedPoiId) { // Use == for comparison with string value from select
+            el.classList.add('selected');
+            const poi = state.pois.find(p => p.id == poiId);
+            if (poi && state.dmMap) {
+                state.dmMap.flyTo({
+                    center: [poi.longitude, poi.latitude],
+                    zoom: 12,
+                    essential: true
+                });
+            }
+        } else {
+            el.classList.remove('selected');
+        }
+    });
+}
+
+
 function getTarget() {
     const selected = agentSelect.value;
     if (selected === 'all') {
@@ -199,6 +281,9 @@ function handleMarkerTypeChange(markerTypeId) {
 
 // --- Event Listeners ---
 function bindEvents() {
+    // New: Listener for POI select dropdown change
+    poiSelect.addEventListener('change', handlePoiSelectChange);
+
     // Visual Effects
     document.getElementById('effect-glitch').addEventListener('click', () => sendEffect('GLITCH'));
     document.getElementById('effect-noise').addEventListener('click', () => sendEffect('NOISE_PULSE'));
@@ -310,6 +395,7 @@ async function main() {
     renderPoiSelector();
     renderMarkerSelector(); // Render the selector on startup
     bindEvents();
+    initializeDmMap(); // New: Initialize the DM map
 }
 
 main();

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AMINA - Consola de DM</title>
     <link rel="stylesheet" href="dm.css" />
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
 </head>
 <body>
     <h1>Consola de Efectos de DM</h1>
@@ -59,7 +60,6 @@
                     <button id="effect-poi-highlight">Resaltar</button>
                     <button id="effect-poi-lock">Bloquear</button>
                     <button id="effect-poi-unlock">Desbloquear</button>
-                    <button id="request-satellite-image">Solicitar Imagen Satelital</button>
                 </div>
             </div>
 
@@ -91,6 +91,12 @@
 
         <div class="intel-column">
             <div class="control-section">
+                <h2>Mapa de Operaciones</h2>
+                <div id="dm-map"></div>
+                <!-- The static image request button and panel will now live outside the map section -->
+                <button id="request-satellite-image">Solicitar Imagen Satelital</button>
+            </div>
+            <div class="control-section">
                 <h2>Análisis de Inteligencia</h2>
                 <div id="image-analysis-panel">
                     <p>Esperando solicitud de imagen...</p>
@@ -99,6 +105,7 @@
         </div>
     </div>
 
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script src="dm.js" type="module"></script>
 </body>
 </html>

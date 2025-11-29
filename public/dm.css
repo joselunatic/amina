@@ -75,7 +75,7 @@ button:hover {
 #image-analysis-panel {
     background-color: #000;
     border: 1px solid #444;
-    min-height: 400px;
+    min-height: 200px; /* Adjusted height */
     padding: 10px;
     text-align: center;
 }
@@ -126,4 +126,30 @@ button:hover {
 .marker-selector button .description {
     font-size: 0.8em;
     color: #bbb;
+}
+
+/* DM Map Styles */
+#dm-map {
+    width: 100%;
+    height: 400px; /* Fixed height for the map */
+    background-color: #000;
+    border: 1px solid #00ff88;
+    margin-bottom: 10px;
+}
+
+/* POI Marker styles for DM map */
+.dm-poi-marker {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: #00ff88; /* Green for existing POIs */
+    border: 2px solid #fff;
+    cursor: pointer;
+}
+
+.dm-poi-marker.selected {
+    background-color: #ff00ff; /* Magenta when selected */
+    border-color: #fff;
+    box-shadow: 0 0 10px #ff00ff;
+    transform: scale(1.2);
 }
