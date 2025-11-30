@@ -1,12 +1,13 @@
-const categoryIcons = {
-  OV_BASE: '🛰️',
+console.log('APP JS LOADED');
+
+OV_BASE: '🛰️',
   CRIME_SCENE: '☠️',
-  ESOTERROR_CELL: '🔺',
-  MUNDANE_TOWN: '🏙️',
-  INDUSTRIAL_SITE: '🏭',
-  NATURAL_SITE: '🌲',
-  NPC: '👤',
-  RUMOR: '❓'
+    ESOTERROR_CELL: '🔺',
+      MUNDANE_TOWN: '🏙️',
+        INDUSTRIAL_SITE: '🏭',
+          NATURAL_SITE: '🌲',
+            NPC: '👤',
+              RUMOR: '❓'
 };
 
 const categoryLabels = {
@@ -18,6 +19,17 @@ const categoryLabels = {
   NATURAL_SITE: 'Sitio Natural',
   NPC: 'PNJ Clave',
   RUMOR: 'Rumor'
+};
+console.log('APP JS LOADED');
+
+OV_BASE: 'Base OV',
+  CRIME_SCENE: 'Escena del Crimen',
+    ESOTERROR_CELL: 'Célula Esoterrorista',
+      MUNDANE_TOWN: 'Pueblo Mundano',
+        INDUSTRIAL_SITE: 'Sitio Industrial',
+          NATURAL_SITE: 'Sitio Natural',
+            NPC: 'PNJ Clave',
+              RUMOR: 'Rumor'
 };
 
 const state = {
@@ -262,40 +274,47 @@ const unlockClose = document.getElementById('unlock-close');
 const unlockConfirm = document.getElementById('unlock-confirm');
 
 async function init() {
-  populateCategoryOptions();
-  bindEvents();
-  renderFocalPoiCard();
-  renderActiveMessageCard();
-  updateRoleLayoutClasses();
-  setDmBlade('journal');
-  setWorkspaceView('map');
-  loadMissionNotes();
-  loadJournalDm();
-  // collapse POI list by default
-  const defaultPoiToggle = document.querySelector('.poi-list-section .collapsible-toggle');
-  const defaultPoiBody = document.querySelector('.poi-list-section .collapsible-body');
-  if (defaultPoiToggle && defaultPoiBody && !defaultPoiBody.classList.contains('collapsed')) {
-    toggleCollapsible(defaultPoiToggle);
-  }
-  updateViewportMode();
-  await setupMap();
-  await loadPois();
-  showMessage('AMINA en línea. Vigilancia de la membrana nominal.');
-  await loadAgentList();
-  hydrateFromCookies();
-  applyAgentStatus();
-  await loadEntities();
-  updateMessageBoxLabel();
-  initFooterTicker();
-  initFooterMembrane();
-  startFooterClock();
-  window.addEventListener('beforeunload', saveTickerProgress);
-  window.addEventListener('resize', () => {
-    updateViewportMode();
-    if (state.workspaceView === 'map' && state.map && isMobileView()) {
-      scheduleMapResize();
+  try {
+    console.log('DEBUG: init started');
+    populateCategoryOptions();
+    bindEvents();
+    renderFocalPoiCard();
+    renderActiveMessageCard();
+    updateRoleLayoutClasses();
+    setDmBlade('journal');
+    setWorkspaceView('map');
+    loadMissionNotes();
+    loadJournalDm();
+    // collapse POI list by default
+    const defaultPoiToggle = document.querySelector('.poi-list-section .collapsible-toggle');
+    const defaultPoiBody = document.querySelector('.poi-list-section .collapsible-body');
+    if (defaultPoiToggle && defaultPoiBody && !defaultPoiBody.classList.contains('collapsed')) {
+      toggleCollapsible(defaultPoiToggle);
     }
-  });
+    updateViewportMode();
+    await setupMap();
+    console.log('DEBUG: setupMap done');
+    await loadPois();
+    showMessage('AMINA en línea. Vigilancia de la membrana nominal.');
+    await loadAgentList();
+    console.log('DEBUG: loadAgentList done');
+    hydrateFromCookies();
+    applyAgentStatus();
+    await loadEntities();
+    updateMessageBoxLabel();
+    initFooterTicker();
+    initFooterMembrane();
+    startFooterClock();
+    window.addEventListener('beforeunload', saveTickerProgress);
+    window.addEventListener('resize', () => {
+      updateViewportMode();
+      if (state.workspaceView === 'map' && state.map && isMobileView()) {
+        scheduleMapResize();
+      }
+    });
+  } catch (e) {
+    console.error('DEBUG: init failed', e);
+  }
 }
 
 function populateCategoryOptions() {
@@ -545,7 +564,9 @@ const bootLines = [
 ];
 
 async function setupMap() {
+  console.log('DEBUG: setupMap started');
   const config = await fetch('/api/config').then((res) => res.json());
+  console.log('DEBUG: config loaded', config);
   state.mapboxConfig = config;
   mapboxgl.accessToken = config.mapboxToken;
   debugMode = config.debug;
@@ -999,12 +1020,12 @@ function renderPoiItem(poi, target) {
     </div>
   `;
   accordion.appendChild(summary);
-      summary.addEventListener('click', () => {
-        setFocalPoi(poi);
-        if (isMobileView()) {
-          setMobileTab('pois');
-        }
-      });
+  summary.addEventListener('click', () => {
+    setFocalPoi(poi);
+    if (isMobileView()) {
+      setMobileTab('pois');
+    }
+  });
   const body = document.createElement('div');
   body.className = 'poi-body';
   body.innerHTML = `
@@ -1408,13 +1429,17 @@ async function handleBootDmSubmit(event) {
 }
 
 async function startBootSequence() {
-  if (!bootOutput || !bootMenu) return;
+  if (!bootOutput || !bootMenu) {
+    console.error('Boot elements not found');
+    return;
+  }
   bootSequenceId += 1;
   const runId = bootSequenceId;
   bootOutput.textContent = '';
   bootMenu.classList.add('hidden');
   bootDmForm.classList.remove('visible');
   try {
+    console.log('Starting boot sequence...');
     for (const line of bootLines) {
       await typeLine(line, runId);
       if (runId !== bootSequenceId) return;
@@ -1422,9 +1447,11 @@ async function startBootSequence() {
     }
     bootOutput.textContent += '\n>> Esperando selección de autorización...\n';
   } catch (err) {
+    console.error('Error in boot sequence:', err);
     logDebug('Error en secuencia de arranque: ' + err.message);
-    bootOutput.textContent = '>> Esperando selección de autorización...\n';
+    bootOutput.textContent += '\n>> Error en secuencia. Esperando input...\n';
   } finally {
+    console.log('Boot sequence finished, showing menu');
     bootMenu.classList.remove('hidden');
   }
 }
@@ -1841,44 +1868,6 @@ function typeLine(text, token, speed = 30) {
   });
 }
 
-function togglePickMode() {
-  if (!state.pickMode) {
-    if (!state.dmSecret) {
-      if (dmWarning) dmWarning.textContent = 'Introduce el código de autorización antes de elegir ubicaciones.';
-      return;
-    }
-    state.pickMode = true;
-    pickButton.textContent = 'Haz clic en el mapa para fijar la ubicación';
-    showMessage('Modo selección: haz clic en el mapa para fijar coordenadas.');
-  } else {
-    disablePickMode();
-  }
-}
-
-function disablePickMode() {
-  state.pickMode = false;
-  pickButton.textContent = 'Elegir del mapa';
-  if (state.pickMarker) {
-    state.pickMarker.remove();
-    state.pickMarker = null;
-  }
-}
-
-function setPickedLocation(lat, lng) {
-  formIds.latitude.value = lat.toFixed(6);
-  formIds.longitude.value = lng.toFixed(6);
-
-  if (state.pickMarker) {
-    state.pickMarker.remove();
-  }
-
-  const marker = new mapboxgl.Marker({ color: '#00ff88' })
-    .setLngLat([lng, lat])
-    .addTo(state.map);
-  state.pickMarker = marker;
-  showMessage('Coordenadas capturadas del mapa.');
-}
-
 function setAgent(agent) {
   state.agent = agent;
   setCookie('amina_agent', agent.username);
@@ -2211,8 +2200,8 @@ function renderDossierDetailView(target, entity, options = {}) {
         <div class="locked-placeholder">LOCKED</div>
         <div class="dossier-title">${sanitize(entity.code_name || entity.name)}</div>
         <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
-          entity.locked_hint || ''
-        )}">Desbloquear</button>
+      entity.locked_hint || ''
+    )}">Desbloquear</button>
       </div>
     `;
     return;
@@ -2237,8 +2226,8 @@ function renderDossierDetailView(target, entity, options = {}) {
 
   const imageBlock = entity.image_url
     ? `<div class="dossier-image"><img src="${sanitizeUrlValue(entity.image_url)}" alt="Retrato de ${sanitize(
-        entity.code_name || entity.name
-      )}"/></div>`
+      entity.code_name || entity.name
+    )}"/></div>`
     : '';
 
   target.innerHTML = `
@@ -2283,9 +2272,9 @@ function renderSessionChips(sessions) {
   const list = Array.isArray(sessions)
     ? sessions.map((s) => (typeof s === 'string' ? s : s.session_tag))
     : String(sessions)
-        .split(',')
-        .map((v) => v.trim())
-        .filter(Boolean);
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
   if (!list.length) return '';
   return list.map((tag) => `<span class="badge-soft">${sanitize(tag)}</span>`).join(' ');
 }
@@ -2528,9 +2517,8 @@ function renderDmContext(ctx) {
   const entity = ctx.entity;
   const poiLinks = (ctx.pois || [])
     .map(
-      (p) => `<div class="dossier-related"><span class="badge">PdI</span>${sanitize(p.name)}${
-        p.session_tag ? ` <span class="badge-soft">${sanitize(p.session_tag)}</span>` : ''
-      }${p.role_at_poi ? ` <span class="badge-soft">${sanitize(p.role_at_poi)}</span>` : ''}</div>`
+      (p) => `<div class="dossier-related"><span class="badge">PdI</span>${sanitize(p.name)}${p.session_tag ? ` <span class="badge-soft">${sanitize(p.session_tag)}</span>` : ''
+        }${p.role_at_poi ? ` <span class="badge-soft">${sanitize(p.role_at_poi)}</span>` : ''}</div>`
     )
     .join('');
   const relations = (ctx.relations || [])
@@ -2646,13 +2634,12 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   hero.innerHTML = `
     <div class="dm-entity-hero-body">
       <div class="dm-entity-hero-media">
-        ${
-          locked
-            ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
-            : img
-            ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
-            : '<div class="muted">Sin imagen disponible.</div>'
-        }
+        ${locked
+      ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
+      : img
+        ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
+        : '<div class="muted">Sin imagen disponible.</div>'
+    }
       </div>
       <div class="dm-entity-hero-info">
         <div class="dm-entity-hero-title">${callsign || 'Sin callsign'}</div>
@@ -2753,11 +2740,11 @@ function renderFocalPoiCard() {
     ? `<div class="poi-related">
         <div class="poi-meta-label">Entidades en este PdI</div>
         <div class="poi-related-chips">${relatedEntities
-          .map(
-            (ent) =>
-              `<button class="chip" data-entity-jump="${ent.id}">${sanitize(ent.name)}</button>`
-          )
-          .join('')}</div>
+      .map(
+        (ent) =>
+          `<button class="chip" data-entity-jump="${ent.id}">${sanitize(ent.name)}</button>`
+      )
+      .join('')}</div>
       </div>`
     : '';
   focalPoiContent.innerHTML = `
@@ -2793,8 +2780,8 @@ function renderMessageReader(reader, msg, viewer) {
     <div class="message-reader-header">
       <div class="title">${sanitize(msg.subject || '(Sin asunto)')}</div>
       <div class="meta">De: ${sanitize(msg.sender)} → ${sanitize(msg.recipient)} · ${new Date(
-        msg.created_at
-      ).toLocaleString()}</div>
+    msg.created_at
+  ).toLocaleString()}</div>
     </div>
     <div class="message-body">${sanitize(msg.body || '')}</div>
     <div class="message-actions">
@@ -2830,23 +2817,6 @@ function setFocalPoi(poi) {
   highlightPoiInList(poi?.id);
   if (state.dmMode && state.activeDmBlade === 'entities') {
     populateFormForEdit(poi);
-  }
-}
-
-function setDmBlade(blade) {
-  const normalized =
-    blade === 'dispatch' ? 'journal' : blade === 'poi' || blade === 'dossiers' || blade === 'mission' ? 'entities' : blade;
-  state.activeDmBlade = normalized;
-  document.querySelectorAll('.blade-tab').forEach((tab) => {
-    tab.classList.toggle('active', tab.dataset.blade === normalized);
-  });
-  document.querySelectorAll('[data-blade-panel]').forEach((panel) => {
-    panel.classList.toggle('active', panel.getAttribute('data-blade-panel') === normalized);
-  });
-  if (document.body) {
-    document.body.setAttribute('data-dm-blade', normalized);
-  }
-  if (normalized === 'entities' && state.dmMode && state.poiFocal) {
     populateFormForEdit(state.poiFocal);
   }
   if (normalized === 'journal') {
@@ -3179,15 +3149,15 @@ function setupMultiSelect(config, dataFn, mode = 'entity') {
       const roleParts = (extra || '').split(':');
       const label = match
         ? getTokenLabel(
-            {
-              ...match,
-              relation_type: extra,
-              role_at_poi: roleParts[0] || '',
-              session_tag: roleParts[1] || match.session_tag,
-              is_public: visibility !== 'dm'
-            },
-            mode
-          )
+          {
+            ...match,
+            relation_type: extra,
+            role_at_poi: roleParts[0] || '',
+            session_tag: roleParts[1] || match.session_tag,
+            is_public: visibility !== 'dm'
+          },
+          mode
+        )
         : token;
       const chip = document.createElement('span');
       chip.className = 'chip';
@@ -3248,21 +3218,6 @@ function setupMultiSelect(config, dataFn, mode = 'entity') {
   });
 
   config.renderChips = renderChips;
-}
-
-function hydrateMultiSelect(config, items, mode = 'entity') {
-  if (!config || !config.hidden || !config.chips) return;
-  const tokens = buildMultiTokens(items, mode);
-  writeTokens(config.hidden, tokens);
-  if (config.renderChips) {
-    config.renderChips(tokens);
-  } else if (config.chips) {
-    config.chips.innerHTML = '';
-  }
-}
-
-function toggleUnlockFields() {
-  const locked = entityVisibilityInput && entityVisibilityInput.value === 'locked';
   if (unlockFields) {
     unlockFields.style.display = locked ? 'block' : 'none';
   }
@@ -3346,45 +3301,7 @@ function populateEntityForm(entity) {
     formIds.dmNote.value = entity.dm_note || entity.dm_notes || '';
     entityThreatInput.value = entity.threat_level || '';
     state.editingPoiId = entity.id;
-  } else {
-    state.editingPoiId = null;
   }
-  updateEntityFormMode(kind === 'poi' ? 'poi' : entity.type);
-  hydrateMultiSelect(entityPoisSelect, entity.pois || entity.poi_links || [], 'poi');
-  hydrateMultiSelect(
-    {
-      input: entityLinksSearch,
-      suggestions: entityLinksSuggestions,
-      chips: entityLinksChips,
-      hidden: entityLinksInput
-    },
-    entity.relations || entity.links || [],
-    'entity'
-  );
-  toggleUnlockFields();
-}
-
-function resetEntityForm() {
-  if (!entityForm) return;
-  entityForm.reset();
-  entityIdInput.value = '';
-  entityArchivedInput.checked = false;
-  entityKindInput.value = 'entity';
-  updateEntityFormMode('entity');
-  state.activeEntityAdmin = null;
-  renderDmEntityDetailCard(null);
-  hydrateMultiSelect(entityPoisSelect, [], 'poi');
-  hydrateMultiSelect(
-    {
-      input: entityLinksSearch,
-      suggestions: entityLinksSuggestions,
-      chips: entityLinksChips,
-      hidden: entityLinksInput
-    },
-    [],
-    'entity'
-  );
-  toggleUnlockFields();
 }
 
 async function handleEntitySubmit(event) {
@@ -3564,14 +3481,14 @@ function renderInboxCards(messages) {
   const data = messages.length
     ? messages
     : [
-        {
-          sender: 'Sr. Verdad',
-          recipient: 'Agente de Campo',
-          subject: 'No hay despachos',
-          body: 'Esperar nuevas instrucciones.',
-          created_at: new Date().toISOString()
-        }
-      ];
+      {
+        sender: 'Sr. Verdad',
+        recipient: 'Agente de Campo',
+        subject: 'No hay despachos',
+        body: 'Esperar nuevas instrucciones.',
+        created_at: new Date().toISOString()
+      }
+    ];
   data.forEach((msg) => {
     const card = document.createElement('div');
     card.className = 'inbox-card';
@@ -3704,6 +3621,58 @@ function persistTickerState(fraction, signature) {
     // ignore storage errors
   }
 }
+
+function togglePickMode() {
+  state.pickMode = !state.pickMode;
+  if (state.pickMode) {
+    if (state.map) state.map.getCanvas().style.cursor = 'crosshair';
+    if (pickButton) {
+      pickButton.textContent = 'Cancelar selección';
+      pickButton.classList.add('active');
+    }
+    showMessage('Haz clic en el mapa para seleccionar coordenadas.');
+  } else {
+    disablePickMode();
+  }
+}
+
+function disablePickMode() {
+  state.pickMode = false;
+  if (state.map) {
+    state.map.getCanvas().style.cursor = '';
+  }
+  if (pickButton) {
+    pickButton.textContent = 'Elegir del mapa';
+    pickButton.classList.remove('active');
+  }
+}
+
+function setPickedLocation(lat, lng) {
+  if (formIds.latitude) formIds.latitude.value = lat.toFixed(6);
+  if (formIds.longitude) formIds.longitude.value = lng.toFixed(6);
+  showMessage(`Coordenadas actualizadas: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+}
+
+
+function resetEntityForm() { console.log('resetEntityForm stub'); }
+function setupMultiSelect() { console.log('setupMultiSelect stub'); }
+function toggleUnlockFields() { console.log('toggleUnlockFields stub'); }
+function hideUnlockOverlay() {
+  if (unlockOverlay) unlockOverlay.classList.add('hidden');
+}
+function openUnlockOverlay(id, hint) {
+  if (unlockOverlay) {
+    unlockOverlay.dataset.targetId = id;
+    unlockOverlay.classList.remove('hidden');
+    if (unlockHint) unlockHint.textContent = hint || 'Protegido. Introduce la clave.';
+    if (unlockInput) {
+      unlockInput.value = '';
+      unlockInput.focus();
+    }
+  }
+}
+function setActiveEntityAgentById(id) { console.log('setActiveEntityAgentById stub', id); }
+function handleEntitySubmit(e) { e.preventDefault(); console.log('handleEntitySubmit stub'); }
 
 function saveTickerProgress() {
   if (!tickerAnimationDuration || !tickerDatasetSignature) return;

@@ -23,7 +23,8 @@ const {
   getEntityContext,
   unlockEntity,
   ENTITY_TYPES,
-  deleteMessageForViewer
+  deleteMessageForViewer,
+  deleteEntity
 } = require('./db');
 const crypto = require('crypto');
 
@@ -121,8 +122,8 @@ app.get('/api/messages', async (req, res, next) => {
       box: req.query.box,
       unread_only: req.query.unread_only === 'true',
       viewer: req.query.viewer,
-    agentDisplays
-  };
+      agentDisplays
+    };
     filters.enforceDmInbox =
       req.query.viewer === 'Mr. Truth' &&
       !req.query.recipient &&
@@ -290,6 +291,17 @@ app.post('/api/dm/entities/:id/archive', dmSecretRequired, async (req, res, next
     if (!exists) return res.status(404).json({ error: 'Entidad no encontrada.' });
     const archived = await archiveEntity(req.params.id);
     res.json(archived);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
+  try {
+    const exists = await getEntityForDm(req.params.id);
+    if (!exists) return res.status(404).json({ error: 'Entidad no encontrada.' });
+    await deleteEntity(req.params.id);
+    res.status(204).send();
   } catch (err) {
     next(err);
   }
@@ -616,28 +628,28 @@ app.delete('/api/pois/:id', dmSecretRequired, async (req, res, next) => {
 });
 
 app.get('/api/dm/generate_static_map/:poiId', async (req, res, next) => {
-    try {
-        const poi = await getPoiById(req.params.poiId);
-        if (!poi) {
-            return res.status(404).json({ error: 'POI not found.' });
-        }
-
-        const lon = poi.longitude;
-        const lat = poi.latitude;
-        const zoom = 15;
-        const width = 800;
-        const height = 600;
-        const style = 'mapbox/satellite-v9'; // Satellite style
-
-        // Custom red marker overlay
-        const marker = `pin-s-star+ff0000(${lon},${lat})`;
-
-        const staticImageUrl = `https://api.mapbox.com/styles/v1/${style}/static/${marker}/${lon},${lat},${zoom},0/${width}x${height}?access_token=${MAPBOX_TOKEN}`;
-
-        res.json({ imageUrl: staticImageUrl });
-    } catch (err) {
-        next(err);
+  try {
+    const poi = await getPoiById(req.params.poiId);
+    if (!poi) {
+      return res.status(404).json({ error: 'POI not found.' });
     }
+
+    const lon = poi.longitude;
+    const lat = poi.latitude;
+    const zoom = 15;
+    const width = 800;
+    const height = 600;
+    const style = 'mapbox/satellite-v9'; // Satellite style
+
+    // Custom red marker overlay
+    const marker = `pin-s-star+ff0000(${lon},${lat})`;
+
+    const staticImageUrl = `https://api.mapbox.com/styles/v1/${style}/static/${marker}/${lon},${lat},${zoom},0/${width}x${height}?access_token=${MAPBOX_TOKEN}`;
+
+    res.json({ imageUrl: staticImageUrl });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.use((err, req, res, next) => {

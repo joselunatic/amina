@@ -3301,3 +3301,18 @@ body.mode-dm .agent-tabs {
     align-items: stretch;
   }
 }
+
+.dm-entities-map {
+  width: 100%;
+  height: 300px;
+  background: #000;
+  margin-top: 0.5rem;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  display: none;
+}
+
+.dm-entities-map:not(:empty) {
+  display: block;
+}

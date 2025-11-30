@@ -362,7 +362,7 @@ async function seedEntitiesIfEmpty() {
       poi_id: l.poi_id,
       role_at_poi: l.role,
       session_tag: entity.session_last || entity.session_first || null,
-      is_public: l.visibility !== 'dm' 
+      is_public: l.visibility !== 'dm'
     }));
     const rels = buildSeedEntityLinks(entity.name).map((l) => ({
       to_entity_name: l.target,
@@ -1090,10 +1090,20 @@ async function unlockEntity(id, code) {
   if (entity.unlock_code && code && entity.unlock_code === code) {
     await run('UPDATE entities SET visibility = ? WHERE id = ?', ['agent_public', id]);
     const updated = await get('SELECT * FROM entities WHERE id = ?', [id]);
-    const mapped = { ...mapRow(updated), visibility: 'agent_public' };
+    const mapped = mapRow(updated);
     return { status: 'ok', public_summary: mapped.public_summary || '', entity: filterAgentEntity(mapped) };
   }
   return { status: 'invalid_code' };
+}
+
+async function deleteEntity(id) {
+  // Delete relations first to maintain referential integrity
+  await run('DELETE FROM entity_poi_links WHERE entity_id = ?', [id]);
+  await run('DELETE FROM entity_session_links WHERE entity_id = ?', [id]);
+  await run('DELETE FROM entity_relations WHERE from_entity_id = ? OR to_entity_id = ?', [id, id]);
+
+  const result = await run('DELETE FROM entities WHERE id = ?', [id]);
+  return result.changes > 0;
 }
 
 module.exports = {
@@ -1104,18 +1114,19 @@ module.exports = {
   updatePoi,
   deletePoi,
   CATEGORY_VALUES,
-  VEIL_VALUES
-  , getMessages,
+  VEIL_VALUES,
+  getMessages,
   createMessage,
   markMessageRead,
-  deleteMessageForViewer
-  , getEntitiesForDm,
+  deleteMessageForViewer,
+  getEntitiesForDm,
   getEntityForDm,
   getEntitiesForAgent,
   getEntityForAgent,
   createEntity,
   updateEntity,
   archiveEntity,
+  deleteEntity,
   getEntityContext,
   unlockEntity,
   ENTITY_TYPES
@@ -1125,3 +1136,4 @@ initialize().catch((err) => {
   console.error('Failed to initialize database', err);
   process.exit(1);
 });
+
