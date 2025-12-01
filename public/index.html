@@ -25,7 +25,7 @@
           <span>DIV. DE OPERACIONES DE MEMBRANA</span>
         </div>
         <div class="boot-console-body">
-          <div id="boot-menu" class="boot-menu hidden">
+          <div id="boot-menu" class="boot-menu">
             <button id="boot-player">CANAL DE AGENTE DE CAMPO</button>
             <button id="boot-dm">ACCESO SR. VERDAD</button>
           </div>
@@ -57,6 +57,22 @@
             </div>
             <p id="boot-status" class="boot-status"></p>
           </form>
+        </div>
+      </div>
+    </div>
+    <div id="entity-delete-overlay" class="entity-delete-overlay hidden">
+      <div class="entity-delete-panel">
+        <header class="entity-delete-header">
+          <div>
+            <h3>Confirmar eliminación</h3>
+            <p class="muted">Esta acción no se puede deshacer.</p>
+          </div>
+          <button type="button" id="entity-delete-close" class="ghost small">Cerrar</button>
+        </header>
+        <p id="entity-delete-message">¿Estás seguro de eliminar esta entidad?</p>
+        <div class="form-actions">
+          <button type="button" id="entity-delete-confirm" class="danger">Eliminar</button>
+          <button type="button" id="entity-delete-cancel" class="ghost small">Cancelar</button>
         </div>
       </div>
     </div>
@@ -321,7 +337,7 @@
                   <div class="dm-entity-detail-body">
                     <div class="dm-entity-detail-grid">
                       <div class="dm-entity-map-container">
-                        <div id="dm-entities-map" class="dm-entities-map" aria-label="Mapa de entidad"></div>
+                        <div id="dm-entity-detail-map" class="dm-entities-map" aria-label="Mapa de entidad"></div>
                       </div>
                       <div class="dm-entity-detail-pane">
                         <div class="dm-detail-badge-row"></div>
@@ -330,8 +346,55 @@
                     </div>
                   </div>
                 </div>
-                <div class="console-card dm-entity-hero-card" id="dm-entity-hero-card">
-                  <div class="dm-entity-hero-body muted">Sin imagen disponible.</div>
+                <div class="dm-entity-hero-stack">
+                  <div class="console-card dm-entity-hero-card" id="dm-entity-hero-card">
+                    <div class="dm-entity-hero-body muted">Sin imagen disponible.</div>
+                  </div>
+                  <div class="console-card bestiary-card" id="dm-bestiary-card" data-variant="dm">
+                    <div class="bestiary-folder">
+                      <div class="bestiary-tab">
+                        <span class="bestiary-logo">ORDO</span>
+                        <span class="bestiary-code" id="bestiary-code">OV-ESK-XXX</span>
+                      </div>
+                      <div class="bestiary-body">
+                        <div class="bestiary-visual">
+                          <div class="bestiary-photo-frame">
+                            <img id="bestiary-image" src="/creature.png" alt="Bestiary portrait" />
+                            <div class="bestiary-photo-overlay"></div>
+                            <div class="bestiary-photo-band"></div>
+                          </div>
+                          <div class="bestiary-meta">
+                            <div class="bestiary-callsign" id="bestiary-callsign">Selecciona un dossier</div>
+                            <div class="bestiary-line" id="bestiary-classification">Clasificación: —</div>
+                            <div class="bestiary-line" id="bestiary-threat">Nivel de amenaza: ?</div>
+                            <div class="bestiary-line" id="bestiary-status">Estado: —</div>
+                            <div class="bestiary-line" id="bestiary-alignment">Alineación: —</div>
+                          </div>
+                        </div>
+                        <div class="bestiary-section">
+                          <div class="bestiary-section-title">Resumen público</div>
+                          <p id="bestiary-summary" class="muted">Sin entidad seleccionada.</p>
+                        </div>
+                        <div class="bestiary-section bestiary-dm-only">
+                          <div class="bestiary-section-title">Comportamiento observado</div>
+                          <p id="bestiary-behaviour">—</p>
+                        </div>
+                        <div class="bestiary-section bestiary-dm-only">
+                          <div class="bestiary-section-title">Origen teórico</div>
+                          <p id="bestiary-origin">—</p>
+                        </div>
+                        <div class="bestiary-section">
+                          <div class="bestiary-section-title">Protocolos</div>
+                          <ul class="bestiary-protocols" id="bestiary-protocols">
+                            <li>—</li>
+                          </ul>
+                        </div>
+                      </div>
+                      <div class="bestiary-drawer">
+                        <span class="bestiary-drawer-label">Fichero de expediente</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <nav class="workspace-nav journal-nav dm-only" aria-label="Modo de consola">
@@ -347,13 +410,14 @@
                   <div class="console-card">
                     <div class="card-title">Dossiers</div>
                     <div class="dossier-controls">
-                      <div class="dossier-filter-group">
-                        <button type="button" class="small ghost dm-filter-type" data-type="">Todos</button>
-                        <button type="button" class="small ghost dm-filter-type" data-type="pc">PJ</button>
-                        <button type="button" class="small ghost dm-filter-type" data-type="npc">PNJ</button>
-                        <button type="button" class="small ghost dm-filter-type" data-type="org">Orgs</button>
-                        <button type="button" class="small ghost dm-filter-type" data-type="poi">PdI</button>
-                      </div>
+                    <div class="dossier-filter-group">
+                      <button type="button" class="small ghost dm-filter-type" data-type="">Todos</button>
+                      <button type="button" class="small ghost dm-filter-type" data-type="pc">PJ</button>
+                      <button type="button" class="small ghost dm-filter-type" data-type="npc">PNJ</button>
+                      <button type="button" class="small ghost dm-filter-type" data-type="org">Orgs</button>
+                      <button type="button" class="small ghost dm-filter-type" data-type="poi">PdI</button>
+                      <button type="button" class="small ghost dm-filter-type" data-type="criatura">Criaturas</button>
+                    </div>
                       <input type="search" id="dm-entity-search" placeholder="Buscar por nombre o rol" />
                     </div>
                     <div class="dossier-list" id="dm-entity-list"></div>
@@ -366,8 +430,13 @@
                         <div class="dm-form-title">Dossier editable</div>
                         <p class="text-xs muted">Actualiza identidad, actividad y control de visibilidad.</p>
                       </div>
-                      <button type="button" id="entity-reset" class="ghost small">Reiniciar</button>
+                    <div class="entity-editor-actions">
+                      <button type="button" id="entity-new" class="ghost small">Nueva entidad</button>
+                      <button type="button" id="entity-cancel" class="ghost small hidden">Cancelar</button>
+                      <button type="button" id="entity-delete" class="danger small hidden">Eliminar entidad</button>
+                      <button type="button" id="entity-reset" class="hidden" aria-hidden="true">Reset</button>
                     </div>
+                  </div>
                     <form id="entity-form" class="entity-form">
                       <input type="hidden" id="entity-id" />
                       <input type="hidden" id="entity-kind" value="entity" />
@@ -380,6 +449,7 @@
                               <option value="pc">PJ</option>
                               <option value="npc">PNJ</option>
                               <option value="org">Organización</option>
+                              <option value="criatura">Criatura</option>
                               <option value="poi">PdI</option>
                             </select>
                             <label for="entity-code-name">Code name / callsign</label>
@@ -470,7 +540,7 @@
                               </div>
                             </div>
                             <button type="button" id="pick-location">Elegir del mapa</button>
-                            <div id="dm-entities-map-container" class="dm-entities-map"></div>
+                            <div id="dm-entities-map-inline" class="dm-entities-map"></div>
                             <label for="poi-threat">Nivel de amenaza (1-5)</label>
                             <input type="number" id="poi-threat" min="1" max="5" />
                             <label for="poi-veil">Estado del velo</label>
@@ -491,7 +561,6 @@
                         </div>
                       </div>
                     </form>
-                  </div>
                   <div class="console-card dm-context-card" id="dm-entities-context"></div>
                 </div>
               </div>
@@ -555,7 +624,7 @@
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <script src="https://unpkg.com/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"></script>
-  <script src="app.js" type="module"></script>
+  <script src="app.v2.js" type="module"></script>
 </body>
 
 </html>

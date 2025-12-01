@@ -3,7 +3,7 @@ const http = require('http');
 
 const SECRET = ''; // Assuming empty secret based on previous checks
 const HOST = 'localhost';
-const PORT = 3001;
+const PORT = 3002;
 
 function request(method, path, body = null) {
     return new Promise((resolve, reject) => {

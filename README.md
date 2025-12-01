@@ -28,7 +28,7 @@ AMINA is a retro-futuristic surveillance console for Ordo Veritatis DMs running 
    - Optional legacy fallback: `MAPBOX_ACCESS_TOKEN=YOUR_MAPBOX_ACCESS_TOKEN_HERE`
    - `MAPBOX_STYLE_URL=mapbox://styles/joselun/cmi3ezivh00gi01s98tef234h` (or your own Mapbox Studio style)
    - `DM_SECRET=someStrongSharedSecret`
-   - Optional `PORT=3000`
+   - Optional `PORT=3000` (this branch defaults to `3002` so it can run alongside the production console on `3001`)
    - Optional `DEBUG=true` to stream backend and UI debug logs (shows a debug console panel)
 
 > **Important:** Never commit your real token or DM secret.
@@ -42,7 +42,9 @@ AMINA is a retro-futuristic surveillance console for Ordo Veritatis DMs running 
 ```bash
 npm start
 ```
-Visit [http://localhost:3001](http://localhost:3001) to access the AMINA console. The CRT boot terminal greets you with two modes:
+> **Branch note:** This feature branch defaults to port `3002` to avoid colliding with the production console running on `3001`.
+
+Visit [http://localhost:3002](http://localhost:3002) to access the AMINA console. The CRT boot terminal greets you with two modes:
 - **Field Operative** (player view)
 - **DM Command Access** (requires the DM clearance code)
 
@@ -107,6 +109,6 @@ AMINA now includes a real-time effects system that allows a Game Master (DM) to 
     ```bash
     npm start
     ```
-2.  **DM View**: The Game Master should open the control panel by navigating to [http://localhost:3001/dm.html](http://localhost:3001/dm.html). This page provides a list of connected agents and controls for all available effects.
-3.  **Agent View**: Each player should open the agent view by navigating to [http://localhost:3001/agent.html](http://localhost:3001/agent.html). The page will automatically connect to the server and be ready to receive effects. Each agent is assigned a unique, persistent ID stored in a cookie.
+2.  **DM View**: The Game Master should open the control panel by navigating to [http://localhost:3002/dm.html](http://localhost:3002/dm.html). This page provides a list of connected agents and controls for all available effects.
+3.  **Agent View**: Each player should open the agent view by navigating to [http://localhost:3002/agent.html](http://localhost:3002/agent.html). The page will automatically connect to the server and be ready to receive effects. Each agent is assigned a unique, persistent ID stored in a cookie.
 # amina

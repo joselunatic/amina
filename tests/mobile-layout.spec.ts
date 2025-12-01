@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3002';
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
 const AGENT_USERNAME = 'pike';
 const AGENT_PASSWORD = '123456';

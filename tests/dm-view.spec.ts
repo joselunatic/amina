@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://172.17.0.1:3001'; // Using the Docker IP as determined earlier
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://172.17.0.1:3002'; // Using the Docker IP as determined earlier
 
 test.describe('DM View - POI Selector Debug', () => {
   let dmPage: Page;

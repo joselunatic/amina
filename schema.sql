@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS messages (
 -- Entidades (PJ/PNJ/Organizaciones) y relaciones
 CREATE TABLE IF NOT EXISTS entities (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  type TEXT NOT NULL CHECK(type IN ('pc','npc','org')),
+  type TEXT NOT NULL CHECK(type IN ('pc','npc','org','criatura')),
   code_name TEXT,
   real_name TEXT,
   role TEXT,
