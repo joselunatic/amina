@@ -222,7 +222,7 @@ const entityArchivedInput = document.getElementById('entity-archived');
 const entityNewBtn = document.getElementById('entity-new');
 const entityCancelBtn = document.getElementById('entity-cancel');
 const entitySubmitBtn = document.getElementById('entity-submit');
-const entityDeleteBtn = document.getElementById('entity-delete');
+const entityDeleteBtns = document.querySelectorAll('#entity-delete'); // buttons in layout
 const bestiaryCard = document.getElementById('dm-bestiary-card');
 const bestiaryImage = document.getElementById('bestiary-image');
 const bestiaryCode = document.getElementById('bestiary-code');
@@ -541,12 +541,27 @@ function bindEvents() {
     renderAdminDossiers();
   });
 
+  entityNewBtn?.addEventListener('click', enterNewEntityMode);
   if (entityForm) {
     entityForm.addEventListener('submit', handleEntitySubmit);
   }
   entityResetBtn?.addEventListener('click', enterNewEntityMode);
   entityCancelBtn?.addEventListener('click', enterNewEntityMode);
-  entityDeleteBtn?.addEventListener('click', () => openEntityDeleteOverlay(state.activeEntityAdmin));
+  // delegate delete buttons (there are duplicates in layout)
+  document.addEventListener('click', (event) => {
+    const deleteBtn = event.target.closest('#entity-delete');
+    if (deleteBtn) {
+      event.preventDefault();
+      const idAttr = deleteBtn.dataset ? deleteBtn.dataset.entityId : null;
+      let entity = state.activeEntityAdmin;
+      if (idAttr) {
+        const byId = state.entities.find((e) => Number(e.id) === Number(idAttr));
+        if (byId) entity = byId;
+      }
+      console.log('DEBUG delete click', { idAttr, entityId: entity ? entity.id : null });
+      openEntityDeleteOverlay(entity);
+    }
+  });
   entityDeleteConfirmBtn?.addEventListener('click', handleEntityDelete);
   entityDeleteCancelBtn?.addEventListener('click', closeEntityDeleteOverlay);
   entityDeleteCloseBtn?.addEventListener('click', closeEntityDeleteOverlay);
@@ -2581,26 +2596,27 @@ function renderDmContext(ctx) {
 }
 
 function renderEntitiesMap(ctx) {
-  const dmEntitiesMapContainer = document.getElementById('dm-entities-map');
+  const dmEntitiesMapContainer = document.getElementById('dm-entity-detail-map');
   if (!dmEntitiesMapContainer) return;
-  if (!state.entitiesMap) {
-    state.entitiesMap = new mapboxgl.Map({
-      container: 'dm-entities-map',
-      style: DECIMAL_STYLE,
-      center: mapCenter,
-      zoom: 12,
-      pitch: 55,
-      bearing: -17.6,
-      antialias: true
-    });
-    state.entitiesMap.addControl(new mapboxgl.NavigationControl());
-  } else {
-    state.entitiesMap.setStyle(DECIMAL_STYLE);
-    state.entitiesMap.setCenter(mapCenter);
-    state.entitiesMap.setZoom(9);
-    state.entitiesMap.setPitch(55);
-    state.entitiesMap.setBearing(-17.6);
+
+  // recreate map fresh to avoid stale container references
+  if (state.entitiesMap) {
+    state.entitiesMap.remove();
+    state.entitiesMap = null;
+    state.entityMarkers = [];
   }
+
+  state.entitiesMap = new mapboxgl.Map({
+    container: dmEntitiesMapContainer,
+    style: DECIMAL_STYLE,
+    center: mapCenter,
+    zoom: 12,
+    pitch: 55,
+    bearing: -17.6,
+    antialias: true
+  });
+  state.entitiesMap.addControl(new mapboxgl.NavigationControl());
+
   if (!ctx || !ctx.pois || !ctx.pois.length) {
     state.entitiesMap.setCenter(mapCenter);
     state.entitiesMap.setZoom(9);
@@ -2615,6 +2631,7 @@ function renderEntitiesMap(ctx) {
   ctx.pois.forEach((p) => {
     const el = document.createElement('div');
     el.className = 'marker-dot';
+    el.textContent = categoryIcons[p.category] || '⬤';
     const marker = new mapboxgl.Marker(el).setLngLat([p.poi_longitude || p.longitude || 0, p.poi_latitude || p.latitude || 0]).addTo(map);
     state.entityMarkers.push(marker);
     if (p.longitude && p.latitude) bounds.extend([p.longitude, p.latitude]);
@@ -2628,74 +2645,132 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   const detail = document.getElementById('dm-entity-detail-card');
   const hero = document.getElementById('dm-entity-hero-card');
   if (!detail || !hero) return;
-  if (state.entitiesMap) {
+  const isPoi = entity && (entity.kind === 'poi' || entity.type === 'poi');
+  const isCreature = entity && entity.type === 'criatura';
+  const hasEntity = !!entity;
+
+  // reset map when switching away from PdI
+  if (!isPoi && state.entitiesMap) {
     state.entitiesMap.remove();
     state.entitiesMap = null;
     state.entityMarkers = [];
   }
-  if (!entity) {
+
+  if (!hasEntity) {
     detail.innerHTML =
       '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista de la izquierda. Podrás editarlo en el panel inferior y, si es un PdI, verlo en el mapa.</div>';
+    hero.classList.remove('map-only');
     hero.innerHTML = '<div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
+    renderBestiary(null);
     return;
   }
 
   const summary = sanitize(entity.public_summary || entity.public_note || 'Sin notas públicas');
+  const dmNotes = isDmViewer() ? sanitize(entity.dm_note || entity.private_note || '—') : '';
   const callsign = sanitize(entity.code_name || entity.name || '');
+  const role = sanitize(entity.role || 'Sin rol');
+  const realName = sanitize(entity.real_name || '');
+  const threat = sanitize(entity.threat_level || entity.threat || '—');
+  const status = sanitize(entity.status || 'estado?');
+  const alignment = sanitize(entity.alignment || 'afinidad?');
   const badgeRow = `
-    <span class="badge">${sanitize(entity.status || 'estado?')}</span>
-    <span class="badge">${sanitize(entity.alignment || 'afinidad?')}</span>
+    <span class="badge">${status}</span>
+    <span class="badge">${alignment}</span>
     ${entity.visibility === 'locked' ? '<span class="badge-soft">Bloqueada</span>' : ''}
   `;
 
+  // 2/3 pane: solo texto
   detail.innerHTML = `
     <div class="card-title">Dossier</div>
-    <div class="dm-entity-detail-body">
-      <div class="dm-entity-detail-grid">
-        <div class="dm-entity-map-container">
-          <div id="dm-entities-map" class="dm-entities-map" aria-label="Mapa de ${callsign || 'entidad'}"></div>
-        </div>
-        <div class="dm-entity-detail-pane">
-          <div class="dm-detail-badges">${badgeRow}</div>
-          <div class="dm-detail-callsign">${callsign || 'Sin callsign'}</div>
-          <div class="dm-detail-notes">${summary}</div>
-        </div>
+    <div class="dm-detail-grid">
+      <div class="dm-detail-box wide">
+        <div class="dm-detail-label">Callsign</div>
+        <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
+        ${isDmViewer() ? `<div class="dm-detail-label">Nombre real</div><div class="dm-detail-value">${realName || '—'}</div>` : ''}
+        <div class="dm-detail-label">Rol / función</div>
+        <div class="dm-detail-value">${role}</div>
+      </div>
+      <div class="dm-detail-box medium">
+        <div class="dm-detail-label">Estado</div>
+        <div class="dm-detail-value">${status}</div>
+        <div class="dm-detail-label">Alineación</div>
+        <div class="dm-detail-value">${alignment}</div>
+        <div class="dm-detail-label">Amenaza</div>
+        <div class="dm-detail-value">${threat}</div>
+        <div class="dm-detail-badges">${badgeRow}</div>
+      </div>
+      <div class="dm-detail-box scroll full">
+        <div class="dm-detail-label">Resumen público</div>
+        <div class="dm-detail-value multiline">${summary}</div>
+        ${isDmViewer()
+          ? `<div class="dm-detail-label">Notas DM</div><div class="dm-detail-value multiline">${dmNotes}</div>`
+          : ''
+        }
       </div>
     </div>
   `;
 
   const img = entity.image_url || entity.photo || '';
   const locked = entity.visibility === 'locked' && !isDmViewer();
-  hero.innerHTML = `
-    <div class="dm-entity-hero-body">
-      <div class="dm-entity-hero-media">
-        ${locked
-      ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
-      : img
-        ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
-        : '<div class="muted">Sin imagen disponible.</div>'
-    }
+
+  if (isPoi) {
+    hero.classList.add('map-only');
+    hero.innerHTML = `
+      <div class="dm-entity-map-standalone">
+        <div id="dm-entity-detail-map" class="dm-entities-map" aria-label="Mapa de ${callsign || 'entidad'}"></div>
       </div>
-      <div class="dm-entity-hero-info">
-        <div class="dm-entity-hero-title">${callsign || 'Sin callsign'}</div>
-        <div class="dm-entity-public-note">${summary}</div>
-      </div>
-    </div>
-  `;
-  const isPoi = entity.kind === 'poi' || entity.type === 'poi';
-  const poiMapPayload = isPoi
-    ? {
-        pois: [
-          {
-            ...entity,
-            poi_latitude: entity.poi_latitude || entity.latitude,
-            poi_longitude: entity.poi_longitude || entity.longitude
+    `;
+    const poiMapPayload = {
+      pois: [
+        {
+          ...entity,
+          poi_latitude: entity.poi_latitude || entity.latitude,
+          poi_longitude: entity.poi_longitude || entity.longitude
+        }
+      ]
+    };
+    renderEntitiesMap(poiMapPayload);
+    renderBestiary(null);
+  } else if (isCreature) {
+    hero.classList.remove('map-only');
+    hero.innerHTML = `
+      <div class="dm-creature-hero">
+        <div class="creature-photo-frame">
+          ${locked
+            ? '<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>'
+            : img
+              ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
+              : '<div class="muted">Sin imagen disponible.</div>'
           }
-        ]
-      }
-    : ctx;
-  renderEntitiesMap(poiMapPayload);
-  renderBestiary(entity);
+          <div class="folder-overlay"></div>
+        </div>
+        <div class="dm-entity-hero-meta">
+          <div class="dm-entity-hero-title">${callsign || 'Sin callsign'}</div>
+          <div class="dm-entity-hero-role">${role}</div>
+        </div>
+      </div>
+    `;
+    renderBestiary(entity);
+  } else {
+    hero.classList.remove('map-only');
+    hero.innerHTML = `
+      <div class="dm-entity-hero-body">
+        <div class="dm-entity-hero-media">
+          ${locked
+            ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
+            : img
+              ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
+              : '<div class="muted">Sin imagen disponible.</div>'
+          }
+        </div>
+        <div class="dm-entity-hero-info">
+          <div class="dm-entity-hero-title">${callsign || 'Sin callsign'}</div>
+          <div class="dm-entity-hero-role">${role}</div>
+        </div>
+      </div>
+    `;
+    renderBestiary(null);
+  }
 }
 
 function parseBestiaryExtras(notes = '') {
@@ -2737,8 +2812,10 @@ function parseBestiaryExtras(notes = '') {
 
 function renderBestiary(entity = null, variant = state.dmMode ? 'dm' : 'agent') {
   if (!bestiaryCard) return;
+  const isCreature = !!entity && entity.type === 'criatura';
+  bestiaryCard.classList.toggle('hidden', !isCreature);
   bestiaryCard.dataset.variant = variant;
-  const hasSelection = !!entity;
+  const hasSelection = !!entity && isCreature;
   bestiaryCard.dataset.empty = hasSelection ? 'false' : 'true';
   if (!hasSelection) {
     bestiaryCallsign && (bestiaryCallsign.textContent = 'Sin entidad seleccionada');
@@ -2812,16 +2889,33 @@ function renderBestiary(entity = null, variant = state.dmMode ? 'dm' : 'agent') 
   }
 }
 
-function openEntityDeleteOverlay(entity) {
-  if (!entity || !entityDeleteOverlay || !entityDeleteMessage) return;
+function openEntityDeleteOverlay(entityOrId) {
+  if (!entityDeleteOverlay || !entityDeleteMessage) return;
+  // ensure overlay is attached to body (boot screen may be hidden)
+  if (entityDeleteOverlay.parentElement !== document.body) {
+    document.body.appendChild(entityDeleteOverlay);
+  }
+
+  let entity = null;
+  if (entityOrId && typeof entityOrId === 'object') {
+    entity = entityOrId;
+  } else if (entityOrId && !Number.isNaN(Number(entityOrId))) {
+    entity = state.entities.find((e) => Number(e.id) === Number(entityOrId)) || null;
+  }
+  if (!entity) entity = state.activeEntityAdmin;
+  console.log('DEBUG open delete overlay', { input: entityOrId, resolvedId: entity ? entity.id : null });
+  if (!entity) return;
+
   const label = sanitize(entity.code_name || entity.name || `Entidad ${entity.id}`);
   entityDeleteMessage.textContent = `¿Estás seguro de eliminar la entidad ${label}?`;
   entityDeleteOverlay.dataset.entityId = String(entity.id);
   entityDeleteOverlay.classList.remove('hidden');
+  entityDeleteOverlay.style.display = 'flex';
 }
 
 function closeEntityDeleteOverlay() {
   if (!entityDeleteOverlay) return;
+  entityDeleteOverlay.style.display = '';
   entityDeleteOverlay.classList.add('hidden');
   entityDeleteOverlay.dataset.entityId = '';
 }
@@ -2851,7 +2945,7 @@ async function handleEntityDelete() {
     }
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Fallo al eliminar la entidad.');
+      throw new Error(error.error || `Fallo al eliminar la entidad. (${response.status})`);
     }
     showMessage('Entidad eliminada.');
     closeEntityDeleteOverlay();
@@ -3539,7 +3633,7 @@ function enterEditEntityMode(entity) {
 
 function updateEntityEditorButtons() {
   const editMode = state.entityEditorMode === 'edit' && !!state.activeEntityAdmin;
-  entityDeleteBtn?.classList.toggle('hidden', !editMode);
+  entityDeleteBtns?.forEach((btn) => btn.classList.toggle('hidden', !editMode));
   entityCancelBtn?.classList.toggle('hidden', !editMode);
   if (entitySubmitBtn) {
     entitySubmitBtn.textContent = editMode ? 'Guardar cambios' : 'Guardar entidad';
@@ -3547,15 +3641,16 @@ function updateEntityEditorButtons() {
 }
 
 function updateEntityDeleteButtonState(entity = state.activeEntityAdmin) {
-  if (!entityDeleteBtn) return;
-  const isPoi = entity && (entity.kind === 'poi' || entity.type === 'poi');
-  const show = state.dmMode && entity && !isPoi && entity.id;
-  entityDeleteBtn.classList.toggle('hidden', !show);
-  if (show) {
-    entityDeleteBtn.dataset.entityId = String(entity.id);
-  } else {
-    entityDeleteBtn.removeAttribute('data-entity-id');
-  }
+  if (!entityDeleteBtns || !entityDeleteBtns.length) return;
+  const show = state.dmMode && entity && entity.id;
+  entityDeleteBtns.forEach((btn) => {
+    btn.classList.toggle('hidden', !show);
+    if (show) {
+      btn.dataset.entityId = String(entity.id);
+    } else {
+      btn.removeAttribute('data-entity-id');
+    }
+  });
 }
 
 function showEntityDeleteModal(entity) {

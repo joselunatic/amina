@@ -24,7 +24,7 @@ const CATEGORY_VALUES = [
 
 const VEIL_VALUES = ['intact', 'frayed', 'torn'];
 
-const ENTITY_TYPES = ['pc', 'npc', 'org'];
+const ENTITY_TYPES = ['pc', 'npc', 'org', 'criatura'];
 const REL_VISIBILITY = ['public', 'dm'];
 
 const seedData = [
@@ -301,6 +301,18 @@ function get(sql, params = []) {
       }
     });
   });
+}
+
+async function withTransaction(task) {
+  await run('BEGIN TRANSACTION');
+  try {
+    const result = await task();
+    await run('COMMIT');
+    return result;
+  } catch (err) {
+    await run('ROLLBACK');
+    throw err;
+  }
 }
 
 async function initialize() {
@@ -650,7 +662,7 @@ async function ensureEntitiesTables() {
   await run(`
     CREATE TABLE IF NOT EXISTS entities (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL CHECK(type IN ('pc','npc','org')),
+      type TEXT NOT NULL CHECK(type IN ('pc','npc','org','criatura')),
       name TEXT,
       role TEXT,
       status TEXT,
@@ -829,6 +841,7 @@ function mapRow(row) {
   if (!row) return null;
   return {
     ...row,
+    kind: 'entity',
     code_name: row.code_name || row.name,
     real_name: row.real_name || '',
     alignment: row.alignment || row.allegiance || '',
@@ -837,14 +850,58 @@ function mapRow(row) {
   };
 }
 
+function mapPoiToEntity(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    type: 'poi',
+    kind: 'poi',
+    code_name: row.name,
+    name: row.name,
+    role: row.category,
+    status: row.veil_status,
+    alignment: '',
+    threat_level: row.threat_level,
+    image_url: row.image_url,
+    public_summary: row.public_note || '',
+    dm_notes: row.dm_note || '',
+    visibility: 'agent_public',
+    locked_hint: '',
+    poi_latitude: row.latitude,
+    poi_longitude: row.longitude,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    category: row.category,
+    session_tag: row.session_tag,
+    archived: 0,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+
 async function getEntitiesForDm(filters = {}) {
-  const rows = await queryEntities(filters, { includeArchived: filters.includeArchived });
-  return rows.map(mapRow);
+  const wantsPois = !filters.type || filters.type === 'poi';
+  const wantsEntities = !filters.type || filters.type !== 'poi';
+
+  let entities = [];
+  if (wantsEntities) {
+    const rows = await queryEntities(filters, { includeArchived: filters.includeArchived });
+    entities = rows.map(mapRow);
+  }
+  if (wantsPois) {
+    const poiFilters = {};
+    if (filters.session) poiFilters.session_tag = filters.session;
+    const pois = await getAllPois(poiFilters);
+    entities = entities.concat(pois.map(mapPoiToEntity));
+  }
+  return entities;
 }
 
 async function getEntityForDm(id) {
   const row = await get('SELECT * FROM entities WHERE id = ?', [id]);
-  return mapRow(row);
+  if (row) return mapRow(row);
+  const poi = await getPoiById(id);
+  return poi ? mapPoiToEntity(poi) : null;
 }
 
 async function getEntitiesForAgent(filters = {}) {
@@ -964,84 +1021,88 @@ async function getEntityContext(entityId, options = {}) {
 }
 
 async function createEntity(entity, relations = {}) {
-  const result = await run(
-    `INSERT INTO entities
-      (type, code_name, name, real_name, role, status, alignment, threat_level, image_url, first_session, last_session, sessions, public_summary, dm_notes, visibility, unlock_code, locked_hint, archived)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    , [
-      entity.type,
-      entity.code_name || entity.name,
-      entity.code_name || entity.name,
-      entity.real_name || null,
-      entity.role || null,
-      entity.status || null,
-      entity.alignment || null,
-      entity.threat_level || null,
-      entity.image_url || null,
-      entity.first_session || null,
-      entity.last_session || null,
-      entity.sessions || null,
-      entity.public_summary || null,
-      entity.dm_notes || null,
-      normalizeVisibility(entity.visibility),
-      entity.unlock_code || null,
-      entity.locked_hint || null,
-      entity.archived ? 1 : 0
-    ]
-  );
+  return withTransaction(async () => {
+    const result = await run(
+      `INSERT INTO entities
+        (type, code_name, name, real_name, role, status, alignment, threat_level, image_url, first_session, last_session, sessions, public_summary, dm_notes, visibility, unlock_code, locked_hint, archived)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      , [
+        entity.type,
+        entity.code_name || entity.name,
+        entity.code_name || entity.name,
+        entity.real_name || null,
+        entity.role || null,
+        entity.status || null,
+        entity.alignment || null,
+        entity.threat_level || null,
+        entity.image_url || null,
+        entity.first_session || null,
+        entity.last_session || null,
+        entity.sessions || null,
+        entity.public_summary || null,
+        entity.dm_notes || null,
+        normalizeVisibility(entity.visibility),
+        entity.unlock_code || null,
+        entity.locked_hint || null,
+        entity.archived ? 1 : 0
+      ]
+    );
 
-  await replaceEntityLinks(result.lastID, relations);
-  return getEntityForDm(result.lastID);
+    await replaceEntityLinks(result.lastID, relations);
+    return getEntityForDm(result.lastID);
+  });
 }
 
 async function updateEntity(id, entity, relations = {}) {
-  await run(
-    `UPDATE entities SET
-      type = ?,
-      code_name = ?,
-      name = ?,
-      real_name = ?,
-      role = ?,
-      status = ?,
-      alignment = ?,
-      threat_level = ?,
-      image_url = ?,
-      first_session = ?,
-      last_session = ?,
-      sessions = ?,
-      public_summary = ?,
-      dm_notes = ?,
-      visibility = ?,
-      unlock_code = ?,
-      locked_hint = ?,
-      archived = ?,
-      updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?`
-    , [
-      entity.type,
-      entity.code_name || entity.name,
-      entity.code_name || entity.name,
-      entity.real_name || null,
-      entity.role || null,
-      entity.status || null,
-      entity.alignment || null,
-      entity.threat_level || null,
-      entity.image_url || null,
-      entity.first_session || null,
-      entity.last_session || null,
-      entity.sessions || null,
-      entity.public_summary || null,
-      entity.dm_notes || null,
-      normalizeVisibility(entity.visibility),
-      entity.unlock_code || null,
-      entity.locked_hint || null,
-      entity.archived ? 1 : 0,
-      id
-    ]
-  );
+  return withTransaction(async () => {
+    await run(
+      `UPDATE entities SET
+        type = ?,
+        code_name = ?,
+        name = ?,
+        real_name = ?,
+        role = ?,
+        status = ?,
+        alignment = ?,
+        threat_level = ?,
+        image_url = ?,
+        first_session = ?,
+        last_session = ?,
+        sessions = ?,
+        public_summary = ?,
+        dm_notes = ?,
+        visibility = ?,
+        unlock_code = ?,
+        locked_hint = ?,
+        archived = ?,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`
+      , [
+        entity.type,
+        entity.code_name || entity.name,
+        entity.code_name || entity.name,
+        entity.real_name || null,
+        entity.role || null,
+        entity.status || null,
+        entity.alignment || null,
+        entity.threat_level || null,
+        entity.image_url || null,
+        entity.first_session || null,
+        entity.last_session || null,
+        entity.sessions || null,
+        entity.public_summary || null,
+        entity.dm_notes || null,
+        normalizeVisibility(entity.visibility),
+        entity.unlock_code || null,
+        entity.locked_hint || null,
+        entity.archived ? 1 : 0,
+        id
+      ]
+    );
 
-  await replaceEntityLinks(id, relations);
-  return getEntityForDm(id);
+    await replaceEntityLinks(id, relations);
+    return getEntityForDm(id);
+  });
 }
 
 async function archiveEntity(id) {
@@ -1097,13 +1158,15 @@ async function unlockEntity(id, code) {
 }
 
 async function deleteEntity(id) {
-  // Delete relations first to maintain referential integrity
-  await run('DELETE FROM entity_poi_links WHERE entity_id = ?', [id]);
-  await run('DELETE FROM entity_session_links WHERE entity_id = ?', [id]);
-  await run('DELETE FROM entity_relations WHERE from_entity_id = ? OR to_entity_id = ?', [id, id]);
+  return withTransaction(async () => {
+    // Delete relations first to maintain referential integrity
+    await run('DELETE FROM entity_poi_links WHERE entity_id = ?', [id]);
+    await run('DELETE FROM entity_session_links WHERE entity_id = ?', [id]);
+    await run('DELETE FROM entity_relations WHERE from_entity_id = ? OR to_entity_id = ?', [id, id]);
 
-  const result = await run('DELETE FROM entities WHERE id = ?', [id]);
-  return result.changes > 0;
+    const result = await run('DELETE FROM entities WHERE id = ?', [id]);
+    return result.changes > 0;
+  });
 }
 
 module.exports = {
@@ -1127,6 +1190,7 @@ module.exports = {
   updateEntity,
   archiveEntity,
   deleteEntity,
+  mapPoiToEntity,
   getEntityContext,
   unlockEntity,
   ENTITY_TYPES
@@ -1136,4 +1200,3 @@ initialize().catch((err) => {
   console.error('Failed to initialize database', err);
   process.exit(1);
 });
-

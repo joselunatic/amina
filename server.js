@@ -21,6 +21,7 @@ const {
   updateEntity,
   archiveEntity,
   getEntityContext,
+  mapPoiToEntity,
   unlockEntity,
   ENTITY_TYPES,
   deleteMessageForViewer,
@@ -29,7 +30,8 @@ const {
 const crypto = require('crypto');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const DEFAULT_PORT = 3002;
+const PORT = parseInt(process.env.PORT, 10) || DEFAULT_PORT;
 const HOST = process.env.HOST || '127.0.0.1';
 const DM_SECRET = process.env.DM_SECRET || '';
 const MAPBOX_TOKEN =
@@ -265,7 +267,13 @@ app.get('/api/dm/entities/:id/context', dmSecretRequired, async (req, res, next)
 
 app.post('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
   try {
-    const payload = validateEntity(req.body || {});
+    const raw = req.body || {};
+    if (raw.type === 'poi') {
+      const data = validatePoi(raw);
+      const createdPoi = await createPoi(data);
+      return res.status(201).json(mapPoiToEntity(createdPoi));
+    }
+    const payload = validateEntity(raw);
     const created = await createEntity(payload.cleaned, payload.relations);
     res.status(201).json(created);
   } catch (err) {
@@ -275,8 +283,15 @@ app.post('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
 
 app.put('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
   try {
-    const exists = await getEntityForDm(req.params.id);
-    if (!exists) return res.status(404).json({ error: 'Entidad no encontrada.' });
+    const existing = await getEntityForDm(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Entidad no encontrada.' });
+
+    if (existing.type === 'poi' || req.body?.type === 'poi') {
+      const data = validatePoi(req.body || {});
+      const updatedPoi = await updatePoi(req.params.id, data);
+      return res.json(mapPoiToEntity(updatedPoi));
+    }
+
     const payload = validateEntity(req.body || {});
     const updated = await updateEntity(req.params.id, payload.cleaned, payload.relations);
     res.json(updated);
@@ -298,9 +313,13 @@ app.post('/api/dm/entities/:id/archive', dmSecretRequired, async (req, res, next
 
 app.delete('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
   try {
-    const exists = await getEntityForDm(req.params.id);
-    if (!exists) return res.status(404).json({ error: 'Entidad no encontrada.' });
-    await deleteEntity(req.params.id);
+    const existing = await getEntityForDm(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Entidad no encontrada.' });
+    if (existing.type === 'poi') {
+      await deletePoi(req.params.id);
+    } else {
+      await deleteEntity(req.params.id);
+    }
     res.status(204).send();
   } catch (err) {
     next(err);
