@@ -997,6 +997,9 @@ function updateEntityFormMode(kind) {
   if (entityKindInput) {
     entityKindInput.value = isPoi ? 'poi' : 'entity';
   }
+  if (state.entityEditorMode === 'new' && !state.activeEntityAdmin) {
+    renderDmEntityDetailCard(null);
+  }
 }
 
 function renderPoiItem(poi, target) {
@@ -2740,10 +2743,15 @@ function renderEntitiesMap(ctx, options = {}) {
 function renderDmEntityDetailCard(entity, ctx = {}) {
   const detail = document.getElementById('dm-entity-detail-card');
   const hero = document.getElementById('dm-entity-hero-card');
+  const bestiaryRoot = document.getElementById('dm-bestiary-card');
   if (!detail || !hero) return;
   const isPoi = entity && (entity.kind === 'poi' || entity.type === 'poi');
   const isCreature = entity && entity.type === 'criatura';
   const hasEntity = !!entity;
+  const wantsNewPoiPreview =
+    !hasEntity &&
+    state.entityEditorMode === 'new' &&
+    (entityTypeInput?.value === 'poi' || entityKindInput?.value === 'poi');
   hero.classList.remove('hidden');
   hero.classList.remove('map-only');
 
@@ -2755,10 +2763,23 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   }
 
   if (!hasEntity) {
-    detail.innerHTML =
-      '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista de la izquierda. Podrás editarlo en el panel inferior y, si es un PdI, verlo en el mapa.</div>';
-    hero.classList.remove('map-only');
-    hero.innerHTML = '<div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
+    if (wantsNewPoiPreview) {
+      detail.innerHTML =
+        '<div class="card-title">Nuevo PdI</div><div class="muted">Usa el mapa de la izquierda para centrar Schuylkill y el botón “Elegir del mapa”.</div>';
+      hero.classList.add('map-only');
+      hero.innerHTML = `
+        <div class="dm-entity-map-standalone">
+          <div id="dm-entity-detail-map" class="dm-entities-map" aria-label="Mapa de nuevo PdI"></div>
+        </div>
+      `;
+      const seedCtx = { pois: [{ poi_longitude: mapCenter[0], poi_latitude: mapCenter[1] }] };
+      renderEntitiesMap(seedCtx);
+    } else {
+      detail.innerHTML =
+        '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista de la izquierda. Podrás editarlo en el panel inferior y, si es un PdI, verlo en el mapa.</div>';
+      hero.classList.remove('map-only');
+      hero.innerHTML = '<div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
+    }
     if (bestiaryRoot) {
       bestiaryRoot.classList.add('hidden');
       bestiaryRoot.classList.remove('bestiary-promoted');
