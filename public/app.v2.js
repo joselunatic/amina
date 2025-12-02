@@ -1326,10 +1326,10 @@ async function submitPoiFromEntityForm() {
   if (!entitySubmitBtn) return;
   setSavingButton(entitySubmitBtn, true, 'Guardando…');
   const threatValue = (formIds.threat || entityThreatInput)?.value || '1';
-  const veilValue = formIds.veil.value || 'intact';
+  const veilValue = (formIds.veil && formIds.veil.value) || 'intact';
   const errors = [];
-  const latNum = Number(formIds.latitude.value);
-  const lonNum = Number(formIds.longitude.value);
+  const latNum = Number(formIds.latitude?.value);
+  const lonNum = Number(formIds.longitude?.value);
   const threatNum = Number(threatValue);
   const allowedVeil = ['intact', 'frayed', 'torn'];
 
@@ -1350,12 +1350,12 @@ async function submitPoiFromEntityForm() {
     category: poiCategorySelect.value,
     latitude: latNum,
     longitude: lonNum,
-    image_url: (formIds.imageUrl || entityImageInput)?.value.trim(),
+    image_url: (formIds.imageUrl || entityImageInput)?.value?.trim() || '',
     threat_level: threatNum,
     veil_status: veilValue,
-    session_tag: formIds.session.value.trim(),
-    public_note: (formIds.publicNote || entityPublicNoteInput)?.value.trim(),
-    dm_note: (formIds.dmNote || entityDmNoteInput)?.value.trim()
+    session_tag: formIds.session ? formIds.session.value.trim() : '',
+    public_note: (formIds.publicNote || entityPublicNoteInput)?.value?.trim() || '',
+    dm_note: (formIds.dmNote || entityDmNoteInput)?.value?.trim() || ''
   };
 
   const isEdit = !!entityIdInput.value;
