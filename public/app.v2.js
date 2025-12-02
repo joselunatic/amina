@@ -995,6 +995,10 @@ function updateEntityFormMode(kind) {
   if (state.entityEditorMode === 'new' && !state.activeEntityAdmin) {
     renderDmEntityDetailCard(null);
   }
+  if (isPoi) {
+    if (formIds.threat && !formIds.threat.value) formIds.threat.value = '1';
+    if (formIds.veil && !formIds.veil.value) formIds.veil.value = 'intact';
+  }
 }
 
 function renderPoiItem(poi, target) {
@@ -1316,14 +1320,16 @@ async function submitPoiFromEntityForm() {
     return;
   }
   setSavingButton(entitySubmitBtn, true, 'Guardando…');
+  const threatValue = formIds.threat.value || '1';
+  const veilValue = formIds.veil.value || 'intact';
   const payload = {
     name: entityCodeNameInput.value.trim(),
     category: poiCategorySelect.value,
     latitude: formIds.latitude.value,
     longitude: formIds.longitude.value,
     image_url: formIds.imageUrl.value.trim(),
-    threat_level: formIds.threat.value,
-    veil_status: formIds.veil.value,
+    threat_level: threatValue,
+    veil_status: veilValue,
     session_tag: formIds.session.value.trim(),
     public_note: formIds.publicNote.value.trim(),
     dm_note: formIds.dmNote.value.trim()
