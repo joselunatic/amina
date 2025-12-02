@@ -680,7 +680,7 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
 
 .inline-fields .flex-col.equal {
   flex: 1 1 0;
-  min-width: 140px;
+  min-width: 180px;
 }
 
 .inline-fields .coord-row input {
