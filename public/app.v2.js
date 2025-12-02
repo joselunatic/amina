@@ -3777,6 +3777,7 @@ function enterEditEntityMode(entity) {
   state.entityEditorMode = 'edit';
   state.activeEntityAdmin = { ...entity, kind: entity.kind || 'entity' };
   populateEntityForm(state.activeEntityAdmin);
+  updateEntityFormMode(state.activeEntityAdmin.type === 'poi' ? 'poi' : 'entity');
   updateEntityEditorButtons();
   updateEntityDeleteButtonState(state.activeEntityAdmin);
   renderBestiary(state.activeEntityAdmin, 'dm');
