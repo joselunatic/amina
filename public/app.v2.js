@@ -1363,6 +1363,7 @@ async function submitPoiFromEntityForm() {
   const method = isEdit ? 'PUT' : 'POST';
 
   try {
+    console.debug('[DM] Guardando PdI', payload);
     const response = await fetch(endpoint, {
       method,
       headers: {
@@ -1379,11 +1380,13 @@ async function submitPoiFromEntityForm() {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
+      console.error('[DM] Error API guardando PdI', error);
       showMessage(error.error || 'Fallo al guardar el PdI.', true);
       return;
     }
 
     const saved = await response.json();
+    console.debug('[DM] PdI guardado OK', saved);
     await loadPois();
     const mapped = mapPoiToAdminItem(saved);
     state.activeEntityAdmin = mapped;
@@ -1396,6 +1399,7 @@ async function submitPoiFromEntityForm() {
     resetEntityForm();
   } catch (err) {
     logDebug(`Error guardando PdI: ${err.message}`);
+    console.error('[DM] Error guardando PdI', err);
     showMessage('No se pudo guardar el PdI.', true);
   } finally {
     setSavingButton(entitySubmitBtn, false);
