@@ -1323,6 +1323,7 @@ async function submitPoiFromEntityForm() {
     if (dmWarning) dmWarning.textContent = 'Introduce un código de autorización válido para crear o editar PdIs.';
     return;
   }
+  if (!entitySubmitBtn) return;
   setSavingButton(entitySubmitBtn, true, 'Guardando…');
   const threatValue = (formIds.threat || entityThreatInput)?.value || '1';
   const veilValue = formIds.veil.value || 'intact';
@@ -1361,38 +1362,44 @@ async function submitPoiFromEntityForm() {
   const endpoint = isEdit ? `/api/pois/${entityIdInput.value}` : '/api/pois';
   const method = isEdit ? 'PUT' : 'POST';
 
-  const response = await fetch(endpoint, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-dm-secret': state.dmSecret
-    },
-    body: JSON.stringify(payload)
-  });
+  try {
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-dm-secret': state.dmSecret
+      },
+      body: JSON.stringify(payload)
+    });
 
-  if (response.status === 401) {
-    handleUnauthorized();
-    return;
+    if (response.status === 401) {
+      handleUnauthorized();
+      return;
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      showMessage(error.error || 'Fallo al guardar el PdI.', true);
+      return;
+    }
+
+    const saved = await response.json();
+    await loadPois();
+    const mapped = mapPoiToAdminItem(saved);
+    state.activeEntityAdmin = mapped;
+    entityIdInput.value = saved.id;
+    entityKindInput.value = 'poi';
+    updateEntityFormMode('poi');
+    populateEntityForm(mapped);
+    showMessage(isEdit ? 'PdI actualizado.' : 'PdI creado.');
+    pulseSavedButton();
+    resetEntityForm();
+  } catch (err) {
+    logDebug(`Error guardando PdI: ${err.message}`);
+    showMessage('No se pudo guardar el PdI.', true);
+  } finally {
+    setSavingButton(entitySubmitBtn, false);
   }
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    showMessage(error.error || 'Fallo al guardar el PdI.', true);
-    return;
-  }
-
-  const saved = await response.json();
-  await loadPois();
-  const mapped = mapPoiToAdminItem(saved);
-  state.activeEntityAdmin = mapped;
-  entityIdInput.value = saved.id;
-  entityKindInput.value = 'poi';
-  updateEntityFormMode('poi');
-  populateEntityForm(mapped);
-  showMessage(isEdit ? 'PdI actualizado.' : 'PdI creado.');
-  pulseSavedButton();
-  resetEntityForm();
-  setSavingButton(entitySubmitBtn, false);
 }
 
 async function handleDeletePoi(poi) {
