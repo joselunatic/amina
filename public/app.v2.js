@@ -2614,6 +2614,11 @@ function renderEntitiesMap(ctx, options = {}) {
   if (!target) return;
 
   const hadMap = !!state[mapKey];
+  const existingContainer = state[mapKey]?.getContainer?.();
+  if (reuse && existingContainer && existingContainer.id !== containerId) {
+    state[mapKey].remove();
+    state[mapKey] = null;
+  }
   if (state[mapKey] && !reuse) {
     state[mapKey].remove();
     state[mapKey] = null;
@@ -2654,11 +2659,20 @@ function renderEntitiesMap(ctx, options = {}) {
   if (!bounds.isEmpty()) {
     const cameraOptions = { padding: 40, maxZoom: 12 };
     if (reuse && flyTo && hadMap) {
-      map.fitBounds(bounds, { ...cameraOptions, duration: 1200 });
+      if (ctx.pois.length === 1 && ctx.pois[0].longitude && ctx.pois[0].latitude) {
+        map.flyTo({
+          center: [ctx.pois[0].poi_longitude || ctx.pois[0].longitude, ctx.pois[0].poi_latitude || ctx.pois[0].latitude],
+          zoom: 12,
+          duration: 900
+        });
+      } else {
+        map.fitBounds(bounds, { ...cameraOptions, duration: 1200 });
+      }
     } else {
       map.fitBounds(bounds, cameraOptions);
     }
   }
+  map.resize();
 }
 
 function renderDmEntityDetailCard(entity, ctx = {}) {
@@ -4043,15 +4057,17 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
           </div>
         `;
       }
-      if (idx === 0 && poiMapPayload) {
-        renderEntitiesMap(poiMapPayload, {
-          containerId: mapContainerId,
-          mapKey: 'agentEntitiesMap',
-          markersKey: 'agentEntityMarkers',
-          reuse: reuseMap,
-          flyTo: true
-        });
-      }
+    if (idx === 0 && poiMapPayload) {
+      renderEntitiesMap(poiMapPayload, {
+        containerId: mapContainerId,
+        mapKey: 'agentEntitiesMap',
+        markersKey: 'agentEntityMarkers',
+        reuse: reuseMap,
+        flyTo: true
+      });
+      // ensure map paints after reusing container
+      setTimeout(() => state.agentEntitiesMap?.resize(), 50);
+    }
       if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
       renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
       return;
