@@ -948,6 +948,7 @@ body.agent-creature-view #agent-entity-hero-card {
   border: 2px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
   animation: agent-poi-pulse 1.4s ease-in-out infinite;
+  display: block;
 }
 
 @keyframes agent-poi-pulse {
