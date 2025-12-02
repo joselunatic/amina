@@ -2713,11 +2713,13 @@ function renderEntitiesMap(ctx, options = {}) {
       const cameraOptions = { padding: 40, maxZoom: 13.5 };
       const single = coords.length === 1 ? coords[0] : null;
       if (single) {
-        map.easeTo({
-          center: single,
-          zoom: 13.5,
-          duration: reuse && flyTo && hadMap ? 900 : 0
-        });
+        const camera = { center: single, zoom: 13.5 };
+        if (reuse && flyTo && hadMap) {
+          map.easeTo({ ...camera, duration: 900 });
+          setTimeout(() => map.jumpTo(camera), 950);
+        } else {
+          map.jumpTo(camera);
+        }
       } else {
         map.fitBounds(bounds, { ...cameraOptions, duration: reuse && flyTo && hadMap ? 1200 : 0 });
       }
