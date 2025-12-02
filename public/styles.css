@@ -696,7 +696,6 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
 .poi-extra {
   display: none;
 }
-
 /* Ocultar campos que no aplican a PdI en editor DM */
 .entity-form.is-poi label[for="entity-real-name"],
 .entity-form.is-poi #entity-real-name,
