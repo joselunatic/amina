@@ -2736,10 +2736,11 @@ function renderEntitiesMap(ctx, options = {}) {
       coords.push([lon, lat]);
     });
     if (coords.length) {
-      const cameraOptions = { padding: 40, maxZoom: 13.5 };
+      const singleZoom = options.singleZoom || 12.5;
+      const cameraOptions = { padding: 40, maxZoom: singleZoom };
       const single = coords.length === 1 ? coords[0] : null;
       if (single) {
-        const camera = { center: single, zoom: 13.5 };
+        const camera = { center: single, zoom: singleZoom };
         if (reuse && flyTo && hadMap) {
           map.easeTo({ ...camera, duration: 900 });
           setTimeout(() => map.jumpTo(camera), 950);
