@@ -442,9 +442,11 @@ function bindEvents() {
   }
   panelToggleBtn?.addEventListener('click', () => toggleSidebar());
   if (journalSaveBtn) {
-    journalSaveBtn.addEventListener('click', () => {
-      saveMissionNotes(journalPublicInput?.value || '');
-      saveJournalDm(journalDmInput?.value || '');
+    journalSaveBtn.addEventListener('click', async () => {
+      await saveMissionNotes(journalPublicInput?.value || '');
+      if (state.dmMode) {
+        saveJournalDm(journalDmInput?.value || '');
+      }
       showMessage('Journal actualizado.');
     });
   }
@@ -3366,6 +3368,9 @@ async function loadJournalEntry() {
   if (journalDmInput && state.dmMode && document.activeElement !== journalDmInput) {
     journalDmInput.value = state.journalDm || '';
   }
+  if (journalPublicInput && document.activeElement !== journalPublicInput) {
+    journalPublicInput.value = state.missionNotes || '';
+  }
 }
 
 async function saveMissionNotes(text) {
@@ -3377,7 +3382,7 @@ async function saveMissionNotes(text) {
   };
   const url = state.dmMode ? '/api/dm/journal' : '/api/agent/journal';
   try {
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -3385,6 +3390,10 @@ async function saveMissionNotes(text) {
       },
       body: JSON.stringify({ ...payload, dm_note: state.dmMode ? state.journalDm : undefined })
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudo guardar el journal.');
+    }
     renderMissionCards();
   } catch (err) {
     logDebug(`No se pudo guardar journal: ${err.message}`);
