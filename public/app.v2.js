@@ -4112,17 +4112,17 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
           </div>
         `;
       }
-    if (idx === 0 && poiMapPayload) {
-      renderEntitiesMap(poiMapPayload, {
-        containerId: mapContainerId,
-        mapKey: 'agentEntitiesMap',
-        markersKey: 'agentEntityMarkers',
-        reuse: reuseMap,
-        flyTo: true,
-        variant: 'agent'
-      });
-      // ensure map paints after reusing container
-      setTimeout(() => state.agentEntitiesMap?.resize(), 50);
+      if (idx === 0 && poiMapPayload) {
+        renderEntitiesMap(poiMapPayload, {
+          containerId: mapContainerId,
+          mapKey: 'agentEntitiesMap',
+          markersKey: 'agentEntityMarkers',
+          reuse: false,
+          flyTo: true,
+          variant: 'agent'
+        });
+        // ensure map paints after reusing container
+        setTimeout(() => state.agentEntitiesMap?.resize(), 50);
     }
       if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
       renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
