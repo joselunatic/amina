@@ -2648,10 +2648,13 @@ function renderEntitiesMap(ctx, options = {}) {
   state[markersKey].forEach((m) => m.remove());
   state[markersKey] = [];
   const bounds = new mapboxgl.LngLatBounds();
-  ctx.pois.forEach((p) => {
+  ctx.pois.forEach((p, idx) => {
     const el = document.createElement('div');
-    el.className = 'marker-dot';
-    el.textContent = categoryIcons[p.category] || '⬤';
+    const isAgentPoi = options.variant === 'agent';
+    el.className = isAgentPoi ? 'agent-poi-marker' : 'marker-dot';
+    if (!isAgentPoi) {
+      el.textContent = categoryIcons[p.category] || '⬤';
+    }
     const marker = new mapboxgl.Marker(el).setLngLat([p.poi_longitude || p.longitude || 0, p.poi_latitude || p.latitude || 0]).addTo(map);
     state[markersKey].push(marker);
     if (p.longitude && p.latitude) bounds.extend([p.longitude, p.latitude]);
@@ -4063,7 +4066,8 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
         mapKey: 'agentEntitiesMap',
         markersKey: 'agentEntityMarkers',
         reuse: reuseMap,
-        flyTo: true
+        flyTo: true,
+        variant: 'agent'
       });
       // ensure map paints after reusing container
       setTimeout(() => state.agentEntitiesMap?.resize(), 50);
