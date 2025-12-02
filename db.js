@@ -330,6 +330,7 @@ async function initialize() {
   await ensureMessageSessionColumn();
   await ensureMessageReadByColumn();
   await ensureMessageDeletedByColumn();
+  await ensureJournalTable();
 
   await ensureEntitiesTables();
   await seedPoisIfEmpty();
@@ -657,6 +658,20 @@ async function ensureMessageDeletedByColumn() {
   }
 }
 
+async function ensureJournalTable() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS journal_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      season INTEGER NOT NULL DEFAULT 1,
+      session INTEGER NOT NULL DEFAULT 0,
+      public_note TEXT DEFAULT '',
+      dm_note TEXT DEFAULT '',
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(season, session)
+    )
+  `);
+}
+
 async function ensureEntitiesTables() {
   // Tabla principal de entidades. Incluye campos nuevos para modo bloqueado, hints y visibilidad.
   await run(`
@@ -805,6 +820,35 @@ function parseDeletedBy(value) {
       .map((v) => v.trim())
       .filter(Boolean);
   }
+}
+
+async function upsertJournalEntry(entry) {
+  const season = Number(entry.season) || 1;
+  const session = Number(entry.session) || 0;
+  const publicNote = entry.public_note || entry.public_summary || '';
+  const dmNote = entry.dm_note || entry.dm_notes || '';
+  await run(
+    `
+    INSERT INTO journal_entries (season, session, public_note, dm_note)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(season, session) DO UPDATE SET
+      public_note = excluded.public_note,
+      dm_note = excluded.dm_note,
+      updated_at = CURRENT_TIMESTAMP
+  `,
+    [season, session, publicNote, dmNote]
+  );
+  return get('SELECT * FROM journal_entries WHERE season = ? AND session = ?', [season, session]);
+}
+
+async function getJournalEntry({ season, session }) {
+  const s = Number(season) || 1;
+  const sess = Number(session) || 0;
+  return get('SELECT * FROM journal_entries WHERE season = ? AND session = ?', [s, sess]);
+}
+
+async function listJournalEntries() {
+  return all('SELECT * FROM journal_entries ORDER BY season DESC, session DESC');
 }
 
 async function deleteMessageForViewer(id, viewer, box) {
@@ -1242,7 +1286,10 @@ module.exports = {
   getEntityContext,
   filterAgentEntity,
   unlockEntity,
-  ENTITY_TYPES
+  ENTITY_TYPES,
+  upsertJournalEntry,
+  getJournalEntry,
+  listJournalEntries
 };
 
 initialize().catch((err) => {
