@@ -2651,23 +2651,29 @@ function renderEntitiesMap(ctx, options = {}) {
   state[markersKey].forEach((m) => m.remove());
   state[markersKey] = [];
   const bounds = new mapboxgl.LngLatBounds();
-  ctx.pois.forEach((p, idx) => {
+  ctx.pois.forEach((p) => {
+    const lon = Number(p.poi_longitude ?? p.longitude);
+    const lat = Number(p.poi_latitude ?? p.latitude);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
     const el = document.createElement('div');
     const isAgentPoi = options.variant === 'agent';
     el.className = isAgentPoi ? 'agent-poi-marker' : 'marker-dot';
     if (!isAgentPoi) {
       el.textContent = categoryIcons[p.category] || '⬤';
     }
-    const marker = new mapboxgl.Marker(el).setLngLat([p.poi_longitude || p.longitude || 0, p.poi_latitude || p.latitude || 0]).addTo(map);
+    const marker = new mapboxgl.Marker(el, { anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
     state[markersKey].push(marker);
-    if (p.longitude && p.latitude) bounds.extend([p.longitude, p.latitude]);
+    bounds.extend([lon, lat]);
   });
   if (!bounds.isEmpty()) {
     const cameraOptions = { padding: 40, maxZoom: 12 };
     if (reuse && flyTo && hadMap) {
       if (ctx.pois.length === 1 && ctx.pois[0].longitude && ctx.pois[0].latitude) {
         map.flyTo({
-          center: [ctx.pois[0].poi_longitude || ctx.pois[0].longitude, ctx.pois[0].poi_latitude || ctx.pois[0].latitude],
+          center: [
+            Number(ctx.pois[0].poi_longitude ?? ctx.pois[0].longitude),
+            Number(ctx.pois[0].poi_latitude ?? ctx.pois[0].latitude)
+          ],
           zoom: 12,
           duration: 900
         });
