@@ -213,6 +213,7 @@ const entityThreatInput = document.getElementById('entity-threat');
 const entityImageInput = document.getElementById('entity-image');
 const entityPoisInput = document.getElementById('entity-pois');
 const entityLinksInput = document.getElementById('entity-links');
+const entityResetBtn = document.getElementById('entity-reset');
 const entityLinksSearch = document.getElementById('entity-links-search');
 const entityLinksSuggestions = document.getElementById('entity-links-suggestions');
 const entityLinksChips = document.getElementById('entity-links-chips');
@@ -553,16 +554,8 @@ function bindEvents() {
   if (entityForm) {
     entityForm.addEventListener('submit', handleEntitySubmit);
   }
-  entityCancelBtn?.addEventListener('click', () => {
-    const dirty = isEntityFormDirty();
-    if (dirty && !confirm('Descartar cambios?')) return;
-    if (state.activeEntityAdmin) {
-      populateEntityForm(state.activeEntityAdmin);
-      updateEntityEditorButtons();
-    } else {
-      enterNewEntityMode();
-    }
-  });
+  entityResetBtn?.addEventListener('click', enterNewEntityMode);
+  entityCancelBtn?.addEventListener('click', enterNewEntityMode);
   // delegate delete buttons (there are duplicates in layout)
   document.addEventListener('click', (event) => {
     const deleteBtn = event.target.closest('#entity-delete');
@@ -3749,7 +3742,6 @@ function setSavingButton(button, saving, savingText = 'Guardando…') {
 
 function populateEntityForm(entity) {
   if (!entityForm || !entity) return;
-  markEntityFormPristine();
   const kind = entity.kind || (entity.type === 'poi' ? 'poi' : 'entity');
   entityKindInput.value = kind;
   entityForm.classList.toggle('is-poi', kind === 'poi');
@@ -3806,7 +3798,6 @@ function resetEntityForm() {
   entityPoisInput.value = '';
   entityLinksInput.value = '';
   state.editingPoiId = null;
-  markEntityFormPristine();
   updateEntityFormMode('entity');
   updateEntityDeleteButtonState();
 }
@@ -3843,7 +3834,6 @@ function enterEditEntityMode(entity) {
   state.activeEntityAdmin = { ...entity, kind: entity.kind || 'entity' };
   populateEntityForm(state.activeEntityAdmin);
   updateEntityFormMode(state.activeEntityAdmin.type === 'poi' ? 'poi' : 'entity');
-  markEntityFormPristine();
   updateEntityEditorButtons();
   updateEntityDeleteButtonState(state.activeEntityAdmin);
   renderBestiary(state.activeEntityAdmin, 'dm');
