@@ -77,6 +77,7 @@ const state = {
 
 const mapCenter = [-76.229, 40.68];
 const BESTIARY_FALLBACK_IMAGE = '/creature.png';
+const HERO_FALLBACK_IMAGE = '/noimage.png';
 const DECIMAL_STYLE = 'mapbox://styles/mapbox-map-design/ck4014y110wt61ctt07egsel6';
 const MISSION_NOTES_KEY = 'amina_mission_notes';
 const JOURNAL_DM_KEY = 'amina_journal_dm';
@@ -4086,15 +4087,14 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
       return;
     }
 
+    const heroImage = sanitizeUrlValue(img || HERO_FALLBACK_IMAGE) || HERO_FALLBACK_IMAGE;
     hero.classList.remove('map-only', 'hidden');
     hero.innerHTML = `
       <div class="dm-entity-hero-body">
         <div class="dm-entity-hero-media">
           ${locked
             ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
-            : img
-              ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
-              : '<div class="muted">Sin imagen disponible.</div>'
+            : `<div class="hero-wrapper"><img src="${heroImage}" alt="${callsign || 'Entidad'}" /></div>`
           }
         </div>
         <div class="dm-entity-hero-info">
