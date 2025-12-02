@@ -691,6 +691,7 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
 .inline-fields input {
   width: 100%;
   box-sizing: border-box;
+  height: 38px;
 }
 
 .poi-extra {
