@@ -667,6 +667,10 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   display: block;
 }
 
+.entity-form:not(.is-poi) .poi-only {
+  display: none;
+}
+
 .inline-fields .flex-row {
   display: flex;
   gap: 0.5rem;
