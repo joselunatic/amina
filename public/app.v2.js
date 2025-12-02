@@ -71,7 +71,8 @@ const state = {
     agent: null,
     dm: null
   },
-  entityEditorMode: 'new'
+  entityEditorMode: 'new',
+  lastAgentGraphic: { type: null, id: null }
 };
 
 const mapCenter = [-76.229, 40.68];
@@ -235,6 +236,7 @@ const bestiarySummary = document.getElementById('bestiary-summary');
 const bestiaryBehaviour = document.getElementById('bestiary-behaviour');
 const bestiaryOrigin = document.getElementById('bestiary-origin');
 const bestiaryProtocols = document.getElementById('bestiary-protocols');
+const agentBestiaryCard = document.getElementById('agent-bestiary-card');
 const entityDeleteOverlay = document.getElementById('entity-delete-overlay');
 const entityDeleteMessage = document.getElementById('entity-delete-message');
 const entityDeleteCloseBtn = document.getElementById('entity-delete-close');
@@ -325,15 +327,18 @@ async function init() {
     await loadAgentList();
     console.log('DEBUG: loadAgentList done');
     hydrateFromCookies();
+    if (bootScreen && !bootScreen.classList.contains('hidden') && !bootOutput.textContent) {
+      startBootSequence();
+    }
     applyAgentStatus();
     await loadEntities();
     updateMessageBoxLabel();
     initFooterTicker();
-    initFooterMembrane();
-    startFooterClock();
-    window.addEventListener('beforeunload', saveTickerProgress);
-    window.addEventListener('resize', () => {
-      updateViewportMode();
+  initFooterMembrane();
+  startFooterClock();
+  window.addEventListener('beforeunload', saveTickerProgress);
+  window.addEventListener('resize', () => {
+    updateViewportMode();
       if (state.workspaceView === 'map' && state.map && isMobileView()) {
         scheduleMapResize();
       }
@@ -602,6 +607,11 @@ function bindEvents() {
       if (id) attemptUnlock(id, code.trim());
     }
   });
+
+  // Ensure boot animation runs on first load when boot screen is visible.
+  if (bootScreen && !bootScreen.classList.contains('hidden')) {
+    startBootSequence();
+  }
 }
 
 const bootLines = [
@@ -1489,7 +1499,6 @@ async function startBootSequence() {
   bootMenu.classList.add('boot-menu--animating');
   bootDmForm.classList.remove('visible');
   try {
-    console.log('Starting boot sequence...');
     for (const line of bootLines) {
       await typeLine(line, runId);
       if (runId !== bootSequenceId) return;
@@ -2595,49 +2604,60 @@ function renderDmContext(ctx) {
   renderDmEntityDetailCard(entity, ctx);
 }
 
-function renderEntitiesMap(ctx) {
-  const dmEntitiesMapContainer = document.getElementById('dm-entity-detail-map');
-  if (!dmEntitiesMapContainer) return;
+function renderEntitiesMap(ctx, options = {}) {
+  const containerId = options.containerId || 'dm-entity-detail-map';
+  const mapKey = options.mapKey || 'entitiesMap';
+  const markersKey = options.markersKey || 'entityMarkers';
+  const target = document.getElementById(containerId);
+  const reuse = !!options.reuse;
+  const flyTo = !!options.flyTo;
+  if (!target) return;
 
-  // recreate map fresh to avoid stale container references
-  if (state.entitiesMap) {
-    state.entitiesMap.remove();
-    state.entitiesMap = null;
-    state.entityMarkers = [];
+  const hadMap = !!state[mapKey];
+  if (state[mapKey] && !reuse) {
+    state[mapKey].remove();
+    state[mapKey] = null;
+    state[markersKey] = [];
   }
 
-  state.entitiesMap = new mapboxgl.Map({
-    container: dmEntitiesMapContainer,
-    style: DECIMAL_STYLE,
-    center: mapCenter,
-    zoom: 12,
-    pitch: 55,
-    bearing: -17.6,
-    antialias: true
-  });
-  state.entitiesMap.addControl(new mapboxgl.NavigationControl());
+  if (!state[mapKey]) {
+    state[mapKey] = new mapboxgl.Map({
+      container: target,
+      style: DECIMAL_STYLE,
+      center: mapCenter,
+      zoom: 12,
+      pitch: 55,
+      bearing: -17.6,
+      antialias: true
+    });
+    state[mapKey].addControl(new mapboxgl.NavigationControl());
+  }
 
   if (!ctx || !ctx.pois || !ctx.pois.length) {
-    state.entitiesMap.setCenter(mapCenter);
-    state.entitiesMap.setZoom(9);
+    state[mapKey].setCenter(mapCenter);
+    state[mapKey].setZoom(9);
     return;
   }
-  const map = state.entitiesMap;
-  // limpiar markers previos
-  if (!state.entityMarkers) state.entityMarkers = [];
-  state.entityMarkers.forEach((m) => m.remove());
-  state.entityMarkers = [];
+  const map = state[mapKey];
+  if (!state[markersKey]) state[markersKey] = [];
+  state[markersKey].forEach((m) => m.remove());
+  state[markersKey] = [];
   const bounds = new mapboxgl.LngLatBounds();
   ctx.pois.forEach((p) => {
     const el = document.createElement('div');
     el.className = 'marker-dot';
     el.textContent = categoryIcons[p.category] || '⬤';
     const marker = new mapboxgl.Marker(el).setLngLat([p.poi_longitude || p.longitude || 0, p.poi_latitude || p.latitude || 0]).addTo(map);
-    state.entityMarkers.push(marker);
+    state[markersKey].push(marker);
     if (p.longitude && p.latitude) bounds.extend([p.longitude, p.latitude]);
   });
   if (!bounds.isEmpty()) {
-    map.fitBounds(bounds, { padding: 40, maxZoom: 12 });
+    const cameraOptions = { padding: 40, maxZoom: 12 };
+    if (reuse && flyTo && hadMap) {
+      map.fitBounds(bounds, { ...cameraOptions, duration: 1200 });
+    } else {
+      map.fitBounds(bounds, cameraOptions);
+    }
   }
 }
 
@@ -2810,29 +2830,63 @@ function parseBestiaryExtras(notes = '') {
   return extras;
 }
 
-function renderBestiary(entity = null, variant = state.dmMode ? 'dm' : 'agent') {
-  if (!bestiaryCard) return;
+function getBestiaryElements(root = null) {
+  const scope = root || document;
+  return {
+    card: root || bestiaryCard,
+    image: scope.querySelector('[data-bestiary-image]') || bestiaryImage,
+    code: scope.querySelector('[data-bestiary-code]') || bestiaryCode,
+    callsign: scope.querySelector('[data-bestiary-callsign]') || bestiaryCallsign,
+    classification: scope.querySelector('[data-bestiary-classification]') || bestiaryClassification,
+    threat: scope.querySelector('[data-bestiary-threat]') || bestiaryThreat,
+    status: scope.querySelector('[data-bestiary-status]') || bestiaryStatus,
+    alignment: scope.querySelector('[data-bestiary-alignment]') || bestiaryAlignment,
+    summary: scope.querySelector('[data-bestiary-summary]') || bestiarySummary,
+    behaviour: scope.querySelector('[data-bestiary-behaviour]') || bestiaryBehaviour,
+    origin: scope.querySelector('[data-bestiary-origin]') || bestiaryOrigin,
+    protocols: scope.querySelector('[data-bestiary-protocols]') || bestiaryProtocols,
+    dmOnly: Array.from(scope.querySelectorAll('.bestiary-dm-only'))
+  };
+}
+
+function resolveBestiaryRoot(variant, explicitRoot) {
+  if (explicitRoot) return explicitRoot;
+  if (variant === 'agent') {
+    return agentBestiaryCard || document.getElementById('agent-bestiary-card');
+  }
+  return bestiaryCard;
+}
+
+function renderBestiary(entity = null, variantOrOptions = {}) {
+  const options = typeof variantOrOptions === 'string' ? { variant: variantOrOptions } : variantOrOptions || {};
+  const variant = options.variant || (state.dmMode ? 'dm' : 'agent');
+  const root = resolveBestiaryRoot(variant, options.root);
+  const elements = getBestiaryElements(root);
+  if (!elements.card) return;
   const isCreature = !!entity && entity.type === 'criatura';
-  bestiaryCard.classList.toggle('hidden', !isCreature);
-  bestiaryCard.dataset.variant = variant;
+  elements.card.classList.toggle('hidden', !isCreature);
+  elements.card.dataset.variant = variant;
+  if (elements.dmOnly.length) {
+    elements.dmOnly.forEach((el) => el.classList.toggle('hidden', variant !== 'dm'));
+  }
   const hasSelection = !!entity && isCreature;
-  bestiaryCard.dataset.empty = hasSelection ? 'false' : 'true';
+  elements.card.dataset.empty = hasSelection ? 'false' : 'true';
   if (!hasSelection) {
-    bestiaryCallsign && (bestiaryCallsign.textContent = 'Sin entidad seleccionada');
-    bestiaryClassification && (bestiaryClassification.textContent = 'Clasificación: —');
-    bestiaryThreat && (bestiaryThreat.textContent = 'Nivel de amenaza: —');
-    bestiaryStatus && (bestiaryStatus.textContent = 'Estado: —');
-    bestiaryAlignment && (bestiaryAlignment.textContent = 'Alineación: —');
-    if (bestiarySummary) {
-      bestiarySummary.textContent = 'Selecciona un dossier para cargar el bestiario.';
+    elements.callsign && (elements.callsign.textContent = 'Sin entidad seleccionada');
+    elements.classification && (elements.classification.textContent = 'Clasificación: —');
+    elements.threat && (elements.threat.textContent = 'Nivel de amenaza: —');
+    elements.status && (elements.status.textContent = 'Estado: —');
+    elements.alignment && (elements.alignment.textContent = 'Alineación: —');
+    if (elements.summary) {
+      elements.summary.textContent = 'Selecciona un dossier para cargar el bestiario.';
     }
-    if (bestiaryBehaviour) bestiaryBehaviour.textContent = '—';
-    if (bestiaryOrigin) bestiaryOrigin.textContent = '—';
-    if (bestiaryProtocols) {
-      bestiaryProtocols.innerHTML = '<li>Sin protocolos registrados.</li>';
+    if (elements.behaviour) elements.behaviour.textContent = '—';
+    if (elements.origin) elements.origin.textContent = '—';
+    if (elements.protocols) {
+      elements.protocols.innerHTML = '<li>Sin protocolos registrados.</li>';
     }
-    if (bestiaryImage) {
-      bestiaryImage.src = BESTIARY_FALLBACK_IMAGE;
+    if (elements.image) {
+      elements.image.src = BESTIARY_FALLBACK_IMAGE;
     }
     return;
   }
@@ -2845,47 +2899,47 @@ function renderBestiary(entity = null, variant = state.dmMode ? 'dm' : 'agent') 
       : (getEntityTypeLabel(record.type || record.kind || 'entity') || 'Entidad').toUpperCase()
   );
 
-  if (bestiaryCode) {
-    bestiaryCode.textContent = record.code_name ? `OV-${record.code_name.substring(0, 5).toUpperCase()}` : 'OV-ESK-000';
+  if (elements.code) {
+    elements.code.textContent = record.code_name ? `OV-${record.code_name.substring(0, 5).toUpperCase()}` : 'OV-ESK-000';
   }
-  if (bestiaryCallsign) {
-    bestiaryCallsign.textContent = codeName;
+  if (elements.callsign) {
+    elements.callsign.textContent = codeName;
   }
-  if (bestiaryClassification) {
-    bestiaryClassification.textContent = `CLASIFICACIÓN: ${classificationLabel}`;
+  if (elements.classification) {
+    elements.classification.textContent = `CLASIFICACIÓN: ${classificationLabel}`;
   }
-  if (bestiaryThreat) {
-    bestiaryThreat.textContent = `Nivel de amenaza: ${record.threat_level || '??'}`;
+  if (elements.threat) {
+    elements.threat.textContent = `Nivel de amenaza: ${record.threat_level || '??'}`;
   }
-  if (bestiaryStatus) {
-    bestiaryStatus.textContent = `Estado: ${sanitize(record.status || '—')}`;
+  if (elements.status) {
+    elements.status.textContent = `Estado: ${sanitize(record.status || '—')}`;
   }
-  if (bestiaryAlignment) {
-    bestiaryAlignment.textContent = `Alineación: ${sanitize(record.alignment || record.allegiance || '—')}`;
+  if (elements.alignment) {
+    elements.alignment.textContent = `Alineación: ${sanitize(record.alignment || record.allegiance || '—')}`;
   }
-  if (bestiarySummary) {
-    bestiarySummary.textContent = sanitize(record.public_summary || record.public_note || 'Sin notas públicas disponibles.');
+  if (elements.summary) {
+    elements.summary.textContent = sanitize(record.public_summary || record.public_note || 'Sin notas públicas disponibles.');
   }
 
   const extras = parseBestiaryExtras(record.dm_notes || record.dm_note || '');
-  if (bestiaryBehaviour) {
-    bestiaryBehaviour.textContent = extras.behaviour || record.behaviour || '—';
+  if (elements.behaviour) {
+    elements.behaviour.textContent = extras.behaviour || record.behaviour || '—';
   }
-  if (bestiaryOrigin) {
-    bestiaryOrigin.textContent = extras.origin || record.origin || 'Expediente abierto en OV';
+  if (elements.origin) {
+    elements.origin.textContent = extras.origin || record.origin || 'Expediente abierto en OV';
   }
 
   const protocols = Array.from(
     new Set([...(Array.isArray(record.protocols) ? record.protocols : []), ...extras.protocols])
   ).filter(Boolean);
-  if (bestiaryProtocols) {
-    bestiaryProtocols.innerHTML = protocols.length
+  if (elements.protocols) {
+    elements.protocols.innerHTML = protocols.length
       ? protocols.map((protocol) => `<li>${sanitize(protocol)}</li>`).join('')
       : '<li>Sin protocolos registrados.</li>';
   }
 
-  if (bestiaryImage) {
-    bestiaryImage.src = safeImage;
+  if (elements.image) {
+    elements.image.src = safeImage;
   }
 }
 
@@ -3825,6 +3879,7 @@ function setActiveEntityAgentById(id) {
   setAgentBlade('dossiers');
   renderAgentDossiers();
   loadAgentContext(entity.id);
+  renderAgentEntityDetailCard(entity);
 }
 
 async function loadAgentContext(id) {
@@ -3834,6 +3889,8 @@ async function loadAgentContext(id) {
     const ctx = await response.json();
     if (ctx.entity && ctx.entity.visibility === 'locked') return;
     const merged = { ...ctx.entity, poi_links: ctx.pois, sessions: ctx.sessions, links: ctx.relations };
+    updateAgentCreatureLayout(merged);
+    renderAgentEntityDetailCard(merged, ctx);
     const detailTarget = agentDossierDetail || dossierDetail;
     renderDossierDetailView(detailTarget, merged, { dm: false });
     renderEntityGraph(agentGraphContainer, ctx, { focusId: id });
@@ -3878,6 +3935,158 @@ function getCookie(name) {
     }
   }
   return null;
+}
+
+function updateAgentCreatureLayout(entity) {
+  const isCreature = entity && entity.type === 'criatura';
+  document.body.classList.toggle('agent-creature-view', !!isCreature);
+}
+
+function renderAgentEntityDetailCard(entity, ctx = {}) {
+  const panels = Array.from(document.querySelectorAll('.agent-entities-top'));
+  if (!panels.length) return;
+  const isPoi = entity && (entity.kind === 'poi' || entity.type === 'poi');
+  const isCreature = entity && entity.type === 'criatura';
+  const hasEntity = !!entity;
+  const prevGraphic = state.lastAgentGraphic || { type: null, id: null };
+  updateAgentCreatureLayout(entity);
+
+  // reset map when switching away from PdI
+  if (!isPoi && state.agentEntitiesMap) {
+    state.agentEntitiesMap.remove();
+    state.agentEntitiesMap = null;
+    state.agentEntityMarkers = [];
+    const mapContainer = document.getElementById('agent-entity-detail-map');
+    if (mapContainer) {
+      mapContainer.innerHTML = '<div class="muted">Mapa disponible al seleccionar un PdI.</div>';
+    }
+  }
+
+  const summary = sanitize(entity?.public_summary || entity?.public_note || 'Sin notas públicas');
+  const callsign = sanitize(entity?.code_name || entity?.name || '');
+  const role = sanitize(entity?.role || 'Sin rol');
+  const threat = sanitize(entity?.threat_level || entity?.threat || '—');
+  const status = sanitize(entity?.status || 'estado?');
+  const alignment = sanitize(entity?.alignment || 'afinidad?');
+  const badgeRow = `
+    <span class="badge">${status}</span>
+    <span class="badge">${alignment}</span>
+    ${entity?.visibility === 'locked' ? '<span class="badge-soft">Bloqueada</span>' : ''}
+  `;
+
+  const poiMapPayload = isPoi
+    ? {
+        pois: [
+          {
+            ...entity,
+            poi_latitude: entity.poi_latitude || entity.latitude,
+            poi_longitude: entity.poi_longitude || entity.longitude
+          }
+        ]
+      }
+    : null;
+
+  panels.forEach((panel, idx) => {
+    const detail = panel.querySelector('#agent-entity-detail-card');
+    const hero = panel.querySelector('#agent-entity-hero-card');
+    const bestiaryRoot = panel.querySelector('#agent-bestiary-card');
+    if (!detail || !hero) return;
+
+    if (!hasEntity) {
+      detail.innerHTML =
+        '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista para ver sus notas.</div>';
+      hero.classList.remove('map-only', 'hidden');
+      hero.innerHTML = '<div class="dm-entity-hero-body muted">Sin imagen disponible.</div>';
+      if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
+      renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+      return;
+    }
+
+    detail.innerHTML = `
+      <div class="card-title">Dossier</div>
+      <div class="dm-detail-grid">
+        <div class="dm-detail-box wide">
+          <div class="dm-detail-label">Callsign</div>
+          <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
+          <div class="dm-detail-label">Rol / función</div>
+          <div class="dm-detail-value">${role}</div>
+        </div>
+        <div class="dm-detail-box medium">
+          <div class="dm-detail-label">Estado</div>
+          <div class="dm-detail-value">${status}</div>
+          <div class="dm-detail-label">Alineación</div>
+          <div class="dm-detail-value">${alignment}</div>
+          <div class="dm-detail-label">Amenaza</div>
+          <div class="dm-detail-value">${threat}</div>
+          <div class="dm-detail-badges">${badgeRow}</div>
+        </div>
+      <div class="dm-detail-box scroll full">
+        <div class="dm-detail-label">Resumen público</div>
+        <div class="dm-detail-value multiline">${summary}</div>
+      </div>
+    </div>
+    `;
+
+    const img = entity.image_url || entity.photo || '';
+    const locked = entity.visibility === 'locked';
+
+    if (isPoi) {
+      const mapContainerId = idx === 0 ? 'agent-entity-detail-map' : `agent-entity-detail-map-${idx}`;
+      hero.classList.remove('hidden');
+      hero.classList.add('map-only');
+      hero.innerHTML = `
+        <div class="dm-entity-map-standalone">
+          <div id="${mapContainerId}" class="dm-entities-map" aria-label="Mapa de ${callsign || 'entidad'}"></div>
+        </div>
+      `;
+      if (idx === 0 && poiMapPayload) {
+        renderEntitiesMap(poiMapPayload, {
+          containerId: mapContainerId,
+          mapKey: 'agentEntitiesMap',
+          markersKey: 'agentEntityMarkers',
+          reuse: prevGraphic.type === 'poi',
+          flyTo: true
+        });
+      }
+      if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
+      renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+      return;
+    }
+
+    if (isCreature) {
+      hero.classList.add('hidden');
+      hero.classList.remove('map-only');
+      hero.innerHTML = '';
+      if (bestiaryRoot) bestiaryRoot.classList.remove('hidden');
+      renderBestiary(entity, { variant: 'agent', root: bestiaryRoot });
+      return;
+    }
+
+    hero.classList.remove('map-only', 'hidden');
+    hero.innerHTML = `
+      <div class="dm-entity-hero-body">
+        <div class="dm-entity-hero-media">
+          ${locked
+            ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
+            : img
+              ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
+              : '<div class="muted">Sin imagen disponible.</div>'
+          }
+        </div>
+        <div class="dm-entity-hero-info">
+          <div class="dm-entity-hero-title">${callsign || 'Sin callsign'}</div>
+          <div class="dm-entity-hero-role">${role}</div>
+        </div>
+      </div>
+    `;
+    if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
+    renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+  });
+
+  state.lastAgentGraphic = {
+    type: isPoi ? 'poi' : isCreature ? 'creature' : hasEntity ? 'hero' : null,
+    id: hasEntity ? entity.id || null : null
+  };
 }
 
 function deleteCookie(name) {

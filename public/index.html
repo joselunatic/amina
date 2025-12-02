@@ -162,9 +162,68 @@
                 </div>
               </div>
               <div class="workspace-top agent-top" data-view="database">
-                <div class="console-card dossier-card">
-                  <div class="card-title">Detalle de entidad</div>
-                  <div class="dossier-detail" id="dossier-detail">Selecciona una entidad para ver su dossier.</div>
+                <div class="dm-entities-top agent-entities-top">
+                  <div class="console-card dm-entity-detail-card" id="agent-entity-detail-card">
+                    <div class="card-title">Detalle de entidad</div>
+                    <div class="dm-entity-detail-body">
+                      <div class="dm-entity-detail-grid">
+                        <div class="dm-entity-map-container">
+                          <div id="agent-entity-detail-map" class="dm-entities-map" aria-label="Mapa de entidad"></div>
+                        </div>
+                        <div class="dm-entity-detail-pane">
+                          <div class="dm-detail-badge-row"></div>
+                          <div class="dossier-detail" id="dossier-detail">Selecciona una entidad para ver su dossier.</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="dm-entity-hero-stack">
+                    <div class="console-card dm-entity-hero-card" id="agent-entity-hero-card">
+                      <div class="dm-entity-hero-body muted">Sin imagen disponible.</div>
+                    </div>
+                    <div class="console-card bestiary-card" id="agent-bestiary-card" data-variant="agent">
+                      <div class="bestiary-folder">
+                        <div class="bestiary-tab">
+                          <span class="bestiary-logo">ORDO</span>
+                          <span class="bestiary-code" id="agent-bestiary-code" data-bestiary-code>OV-ESK-XXX</span>
+                        </div>
+                        <div class="bestiary-body">
+                          <div class="bestiary-visual">
+                            <div class="bestiary-photo-frame">
+                              <img id="agent-bestiary-image" data-bestiary-image src="/creature.png" alt="Bestiary portrait" />
+                              <div class="bestiary-photo-overlay"></div>
+                              <div class="bestiary-photo-band"></div>
+                            </div>
+                            <div class="bestiary-meta">
+                              <div class="bestiary-callsign" id="agent-bestiary-callsign" data-bestiary-callsign>Selecciona un dossier</div>
+                              <div class="bestiary-line" id="agent-bestiary-classification" data-bestiary-classification>Clasificación: —</div>
+                              <div class="bestiary-line" id="agent-bestiary-threat" data-bestiary-threat>Nivel de amenaza: ?</div>
+                              <div class="bestiary-line" id="agent-bestiary-status" data-bestiary-status>Estado: —</div>
+                              <div class="bestiary-line" id="agent-bestiary-alignment" data-bestiary-alignment>Alineación: —</div>
+                            </div>
+                          </div>
+                          <div class="bestiary-section">
+                            <div class="bestiary-section-title">Resumen público</div>
+                            <p id="agent-bestiary-summary" data-bestiary-summary class="muted">Sin entidad seleccionada.</p>
+                          </div>
+                          <div class="bestiary-section bestiary-dm-only">
+                            <div class="bestiary-section-title">Comportamiento observado</div>
+                            <p id="agent-bestiary-behaviour" data-bestiary-behaviour>—</p>
+                          </div>
+                          <div class="bestiary-section bestiary-dm-only">
+                            <div class="bestiary-section-title">Origen</div>
+                            <p id="agent-bestiary-origin" data-bestiary-origin>—</p>
+                          </div>
+                          <div class="bestiary-section bestiary-dm-only">
+                            <div class="bestiary-section-title">Protocolos</div>
+                            <ul id="agent-bestiary-protocols" data-bestiary-protocols class="bestiary-protocols">
+                              <li>Sin protocolos registrados.</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="workspace-top agent-top" data-view="relations">
@@ -212,6 +271,8 @@
                       <button type="button" class="small ghost dossier-type" data-dossier-type="pc">PJ</button>
                       <button type="button" class="small ghost dossier-type" data-dossier-type="npc">PNJ</button>
                       <button type="button" class="small ghost dossier-type" data-dossier-type="org">Orgs</button>
+                      <button type="button" class="small ghost dossier-type" data-dossier-type="poi">PdI</button>
+                      <button type="button" class="small ghost dossier-type" data-dossier-type="criatura">EOE</button>
                     </div>
                     <input type="search" id="dossier-search" placeholder="Buscar nombre o callsign" />
                   </div>
@@ -354,38 +415,38 @@
                     <div class="bestiary-folder">
                       <div class="bestiary-tab">
                         <span class="bestiary-logo">ORDO</span>
-                        <span class="bestiary-code" id="bestiary-code">OV-ESK-XXX</span>
+                        <span class="bestiary-code" id="bestiary-code" data-bestiary-code>OV-ESK-XXX</span>
                       </div>
                       <div class="bestiary-body">
                         <div class="bestiary-visual">
                           <div class="bestiary-photo-frame">
-                            <img id="bestiary-image" src="/creature.png" alt="Bestiary portrait" />
+                            <img id="bestiary-image" data-bestiary-image src="/creature.png" alt="Bestiary portrait" />
                             <div class="bestiary-photo-overlay"></div>
                             <div class="bestiary-photo-band"></div>
                           </div>
                           <div class="bestiary-meta">
-                            <div class="bestiary-callsign" id="bestiary-callsign">Selecciona un dossier</div>
-                            <div class="bestiary-line" id="bestiary-classification">Clasificación: —</div>
-                            <div class="bestiary-line" id="bestiary-threat">Nivel de amenaza: ?</div>
-                            <div class="bestiary-line" id="bestiary-status">Estado: —</div>
-                            <div class="bestiary-line" id="bestiary-alignment">Alineación: —</div>
+                            <div class="bestiary-callsign" id="bestiary-callsign" data-bestiary-callsign>Selecciona un dossier</div>
+                            <div class="bestiary-line" id="bestiary-classification" data-bestiary-classification>Clasificación: —</div>
+                            <div class="bestiary-line" id="bestiary-threat" data-bestiary-threat>Nivel de amenaza: ?</div>
+                            <div class="bestiary-line" id="bestiary-status" data-bestiary-status>Estado: —</div>
+                            <div class="bestiary-line" id="bestiary-alignment" data-bestiary-alignment>Alineación: —</div>
                           </div>
                         </div>
                         <div class="bestiary-section">
                           <div class="bestiary-section-title">Resumen público</div>
-                          <p id="bestiary-summary" class="muted">Sin entidad seleccionada.</p>
+                          <p id="bestiary-summary" data-bestiary-summary class="muted">Sin entidad seleccionada.</p>
                         </div>
                         <div class="bestiary-section bestiary-dm-only">
                           <div class="bestiary-section-title">Comportamiento observado</div>
-                          <p id="bestiary-behaviour">—</p>
+                          <p id="bestiary-behaviour" data-bestiary-behaviour>—</p>
                         </div>
                         <div class="bestiary-section bestiary-dm-only">
                           <div class="bestiary-section-title">Origen teórico</div>
-                          <p id="bestiary-origin">—</p>
+                          <p id="bestiary-origin" data-bestiary-origin>—</p>
                         </div>
                         <div class="bestiary-section">
                           <div class="bestiary-section-title">Protocolos</div>
-                          <ul class="bestiary-protocols" id="bestiary-protocols">
+                          <ul class="bestiary-protocols" id="bestiary-protocols" data-bestiary-protocols>
                             <li>—</li>
                           </ul>
                         </div>

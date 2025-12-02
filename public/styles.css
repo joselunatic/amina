@@ -750,6 +750,23 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   margin-bottom: 0.5rem;
 }
 
+/* Simplify agent creature layout: show only bestiary, avoid overflow */
+body.agent-creature-view .dm-entities-top {
+  grid-template-columns: 2fr 1fr;
+}
+
+body:not(.agent-creature-view) #agent-bestiary-card {
+  display: none;
+}
+
+.bestiary-card[data-variant='agent'] {
+  display: block;
+}
+
+.bestiary-card[data-variant='agent'].hidden {
+  display: none;
+}
+
 .dm-entity-detail-card,
 .dm-entity-hero-card {
   min-height: 340px;
@@ -759,6 +776,25 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.agent-entities-top .dm-entity-detail-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-entities-top .dm-entity-detail-body {
+  flex: 1;
+}
+
+.agent-entities-top .dm-detail-grid {
+  height: 100%;
+  grid-template-rows: auto auto 1fr;
+}
+
+.agent-entities-top .dm-detail-box.scroll {
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 .dm-detail-role {
@@ -876,6 +912,10 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+body.agent-creature-view #agent-entity-hero-card {
+  display: none;
 }
 
 .dm-entity-hero-card.map-only {
@@ -1205,6 +1245,10 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   overflow: hidden;
   min-height: 380px;
   position: relative;
+}
+
+.bestiary-card.hidden {
+  display: none !important;
 }
 
 .bestiary-card::before {
