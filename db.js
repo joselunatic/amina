@@ -905,15 +905,37 @@ async function getEntityForDm(id) {
 }
 
 async function getEntitiesForAgent(filters = {}) {
-  const rows = await queryEntities(filters, { agentView: true });
-  return rows.map((row) => filterAgentEntity(mapRow(row)));
+  const wantsPois = !filters.type || filters.type === 'poi';
+  const wantsEntities = !filters.type || filters.type !== 'poi';
+
+  let entities = [];
+  if (wantsEntities) {
+    const rows = await queryEntities(filters, { agentView: true });
+    entities = rows.map((row) => filterAgentEntity(mapRow(row)));
+  }
+  if (wantsPois) {
+    const poiFilters = {};
+    if (filters.session) poiFilters.session_tag = filters.session;
+    const pois = await getAllPois(poiFilters);
+    entities = entities.concat(
+      pois
+        .map(mapPoiToEntity)
+        .map(filterAgentEntity)
+        .filter(Boolean)
+    );
+  }
+  return entities;
 }
 
 async function getEntityForAgent(id) {
   const row = await get('SELECT * FROM entities WHERE id = ?', [id]);
-  if (!row) return null;
-  if (row.visibility === 'dm_only' || row.archived) return null;
-  return filterAgentEntity(mapRow(row));
+  if (row) {
+    if (row.visibility === 'dm_only' || row.archived) return null;
+    return filterAgentEntity(mapRow(row));
+  }
+  const poi = await getPoiById(id);
+  if (!poi) return null;
+  return filterAgentEntity(mapPoiToEntity(poi));
 }
 
 function filterAgentEntity(entity) {
@@ -929,6 +951,30 @@ function filterAgentEntity(entity) {
       visibility: entity.visibility,
       locked_hint: entity.locked_hint || '',
       locked: true
+    };
+  }
+  if (entity.type === 'poi') {
+    return {
+      id: entity.id,
+      type: entity.type,
+      kind: entity.kind || 'poi',
+      code_name: entity.code_name,
+      name: entity.name,
+      role: entity.role,
+      status: entity.status,
+      alignment: entity.alignment,
+      threat_level: entity.threat_level,
+      image_url: entity.image_url,
+      public_summary: entity.public_summary || '',
+      visibility: entity.visibility,
+      locked_hint: entity.locked_hint || '',
+      poi_latitude: entity.poi_latitude ?? entity.latitude,
+      poi_longitude: entity.poi_longitude ?? entity.longitude,
+      latitude: entity.latitude,
+      longitude: entity.longitude,
+      category: entity.category,
+      session_tag: entity.session_tag,
+      veil_status: entity.veil_status
     };
   }
   return {
@@ -1192,6 +1238,7 @@ module.exports = {
   deleteEntity,
   mapPoiToEntity,
   getEntityContext,
+  filterAgentEntity,
   unlockEntity,
   ENTITY_TYPES
 };
