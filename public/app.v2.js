@@ -48,6 +48,8 @@ const state = {
   showOlderMobilePois: false,
   missionNotes: '',
   journalDm: '',
+  journalSeason: 2,
+  journalSession: 0,
   activeDmBlade: 'journal',
   poiFocal: null,
   activeMessage: null,
@@ -165,6 +167,8 @@ const messageReaderDm = document.getElementById('message-reader-dm');
 const missionBriefText = document.getElementById('mission-brief-text');
 const journalPublicInput = document.getElementById('journal-public');
 const journalDmInput = document.getElementById('journal-dm');
+const journalSeasonInput = document.getElementById('journal-season');
+const journalSessionInput = document.getElementById('journal-session');
 const journalSaveBtn = document.getElementById('journal-save');
 const dmFormOpenBtn = document.getElementById('dm-form-open');
 const msgPrevBtn = document.getElementById('msg-prev');
@@ -444,6 +448,8 @@ function bindEvents() {
       showMessage('Journal actualizado.');
     });
   }
+  journalSeasonInput?.addEventListener('change', loadJournalEntry);
+  journalSessionInput?.addEventListener('change', loadJournalEntry);
   if (msgBoxInboxBtn) {
     msgBoxInboxBtn.addEventListener('click', () => {
       state.messageFilters.box = '';
@@ -3334,45 +3340,67 @@ function setDmBlade(blade) {
 }
 
 function loadMissionNotes() {
-  try {
-    state.missionNotes = localStorage.getItem(MISSION_NOTES_KEY) || '';
-  } catch (err) {
-    state.missionNotes = '';
-  }
-  if (journalPublicInput) {
-    journalPublicInput.value = state.missionNotes;
-  }
-  renderMissionCards();
+  loadJournalEntry();
 }
 
-function saveMissionNotes(text) {
-  state.missionNotes = text.trim();
+async function loadJournalEntry() {
+  const season = Number(journalSeasonInput?.value) || state.journalSeason || 2;
+  const session = Number(journalSessionInput?.value) || state.journalSession || 0;
+  state.journalSeason = season;
+  state.journalSession = session;
+  const path = state.dmMode ? `/api/dm/journal?season=${season}&session=${session}` : `/api/agent/journal?season=${season}&session=${session}`;
   try {
-    localStorage.setItem(MISSION_NOTES_KEY, state.missionNotes);
+    const res = await fetch(path, {
+      headers: state.dmMode ? { 'x-dm-secret': state.dmSecret || '' } : undefined
+    });
+    if (!res.ok) throw new Error('No se pudo cargar journal');
+    const data = await res.json();
+    state.missionNotes = data.public_note || data.public_summary || '';
+    state.journalDm = state.dmMode ? data.dm_note || '' : state.journalDm;
   } catch (err) {
-    // ignore storage errors
+    logDebug(`Journal load failed: ${err.message}`);
+    state.missionNotes = '';
+    if (state.dmMode) state.journalDm = '';
   }
   renderMissionCards();
+  if (journalDmInput && state.dmMode && document.activeElement !== journalDmInput) {
+    journalDmInput.value = state.journalDm || '';
+  }
+}
+
+async function saveMissionNotes(text) {
+  state.missionNotes = text.trim();
+  const payload = {
+    season: state.journalSeason,
+    session: state.journalSession,
+    public_note: state.missionNotes
+  };
+  const url = state.dmMode ? '/api/dm/journal' : '/api/agent/journal';
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(state.dmMode ? { 'x-dm-secret': state.dmSecret || '' } : {})
+      },
+      body: JSON.stringify({ ...payload, dm_note: state.dmMode ? state.journalDm : undefined })
+    });
+    renderMissionCards();
+  } catch (err) {
+    logDebug(`No se pudo guardar journal: ${err.message}`);
+    showMessage('No se pudo guardar el journal.', true);
+  }
 }
 
 function loadJournalDm() {
-  try {
-    state.journalDm = localStorage.getItem(JOURNAL_DM_KEY) || '';
-  } catch (err) {
-    state.journalDm = '';
-  }
-  if (journalDmInput) {
-    journalDmInput.value = state.journalDm;
+  // legacy no-op, kept for compatibility
+  if (journalDmInput && state.dmMode) {
+    journalDmInput.value = state.journalDm || '';
   }
 }
 
 function saveJournalDm(text) {
   state.journalDm = text.trim();
-  try {
-    localStorage.setItem(JOURNAL_DM_KEY, state.journalDm);
-  } catch (err) {
-    // ignore storage errors
-  }
 }
 
 function renderMissionCards() {

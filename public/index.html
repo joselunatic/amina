@@ -380,6 +380,18 @@
                 </nav>
                 <div class="console-card mission-card">
                   <div class="card-title">Journal de sesión</div>
+                  <div class="inline-fields">
+                    <div class="flex-row gap-sm">
+                      <div class="flex-col equal">
+                        <label for="journal-season">Temporada</label>
+                        <input type="number" id="journal-season" min="1" max="20" value="2" />
+                      </div>
+                      <div class="flex-col equal">
+                        <label for="journal-session">Sesión</label>
+                        <input type="number" id="journal-session" min="0" max="99" value="0" />
+                      </div>
+                    </div>
+                  </div>
                   <label for="journal-public">Resumen para agentes</label>
                   <textarea id="journal-public" rows="4"
                     placeholder="Breve resumen visible para agentes en Base de Datos."></textarea>
