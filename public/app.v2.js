@@ -50,6 +50,8 @@ const state = {
   journalDm: '',
   journalSeason: 2,
   journalSession: 0,
+  agentJournalSeason: 2,
+  agentJournalSession: 0,
   activeDmBlade: 'journal',
   poiFocal: null,
   activeMessage: null,
@@ -190,6 +192,11 @@ const replyBodyInputDm = document.getElementById('reply-body-dm');
 const replyCancelBtnDm = document.getElementById('reply-cancel-dm');
 const replySendBtnDm = document.getElementById('reply-send-dm');
 const replyLabelDm = document.getElementById('reply-label-dm');
+const agentJournalSeasonInput = document.getElementById('agent-journal-season');
+const agentJournalSessionInput = document.getElementById('agent-journal-session');
+const agentJournalLoadBtn = document.getElementById('agent-journal-load');
+const agentJournalSaveBtn = document.getElementById('agent-journal-save');
+const agentJournalPublicInput = document.getElementById('agent-journal-public');
 let tickerSavedOffset = 0;
 let tickerAnimationStart = 0;
 let tickerAnimationDuration = 0;
@@ -446,6 +453,8 @@ function bindEvents() {
   }
   journalSeasonInput?.addEventListener('change', loadJournalEntry);
   journalSessionInput?.addEventListener('change', loadJournalEntry);
+  agentJournalLoadBtn?.addEventListener('click', loadAgentJournal);
+  agentJournalSaveBtn?.addEventListener('click', handleAgentJournalSave);
   if (msgBoxInboxBtn) {
     msgBoxInboxBtn.addEventListener('click', () => {
       state.messageFilters.box = '';
@@ -3432,6 +3441,59 @@ function renderMissionCards() {
   }
   if (journalPublicInput && journalPublicInput !== document.activeElement) {
     journalPublicInput.value = state.missionNotes;
+  }
+}
+
+async function loadAgentJournal() {
+  const season = Number(agentJournalSeasonInput?.value) || state.agentJournalSeason || 2;
+  const session = Number(agentJournalSessionInput?.value) || state.agentJournalSession || 0;
+  state.agentJournalSeason = season;
+  state.agentJournalSession = session;
+  try {
+    const res = await fetch(`/api/agent/journal?season=${season}&session=${session}`);
+    if (!res.ok) throw new Error('No se pudo cargar journal de agente');
+    const data = await res.json();
+    state.missionNotes = data.public_note || data.public_summary || '';
+    if (agentJournalPublicInput && agentJournalPublicInput !== document.activeElement) {
+      agentJournalPublicInput.value = state.missionNotes;
+    }
+    if (missionBriefText) {
+      missionBriefText.textContent = state.missionNotes || 'Esperando directivas.';
+    }
+  } catch (err) {
+    logDebug(`Journal agente load error: ${err.message}`);
+    showMessage('No se pudo cargar el journal.', true);
+  }
+}
+
+async function handleAgentJournalSave() {
+  if (!agentJournalSaveBtn) return;
+  setSavingButton(agentJournalSaveBtn, true, 'Guardando…');
+  const payload = {
+    season: Number(agentJournalSeasonInput?.value) || state.agentJournalSeason || 2,
+    session: Number(agentJournalSessionInput?.value) || state.agentJournalSession || 0,
+    public_note: agentJournalPublicInput?.value?.trim() || ''
+  };
+  try {
+    const res = await fetch('/api/agent/journal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudo guardar.');
+    }
+    state.agentJournalSeason = payload.season;
+    state.agentJournalSession = payload.session;
+    state.missionNotes = payload.public_note;
+    if (missionBriefText) missionBriefText.textContent = state.missionNotes || 'Esperando directivas.';
+    showMessage('Journal de agente guardado.');
+  } catch (err) {
+    logDebug(`Journal agente save error: ${err.message}`);
+    showMessage('No se pudo guardar el journal.', true);
+  } finally {
+    setSavingButton(agentJournalSaveBtn, false);
   }
 }
 

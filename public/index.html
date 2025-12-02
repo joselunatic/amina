@@ -253,14 +253,35 @@
             <div class="workspace-view agent-view active" data-view="map">
               <div class="console-stack"></div>
             </div>
-            <div class="workspace-view agent-view" data-view="console">
-              <div class="console-stack">
-                <div class="console-card mission-card" id="mission-brief-card">
-                  <div class="card-title">INFORME DE MISIÓN</div>
-                  <div class="console-card-body" id="mission-brief-text">Esperando directivas.</div>
+              <div class="workspace-view agent-view" data-view="console">
+                <div class="console-stack">
+                  <div class="console-card mission-card" id="mission-brief-card">
+                    <div class="card-title">INFORME DE MISIÓN</div>
+                    <div class="inline-fields">
+                      <div class="flex-row gap-sm">
+                        <div class="flex-col equal">
+                          <label for="agent-journal-season">Temporada</label>
+                          <input type="number" id="agent-journal-season" min="1" max="20" value="2" />
+                        </div>
+                        <div class="flex-col equal">
+                          <label for="agent-journal-session">Sesión</label>
+                          <input type="number" id="agent-journal-session" min="0" max="99" value="0" />
+                        </div>
+                        <div class="flex-col equal">
+                          <label>&nbsp;</label>
+                          <button type="button" id="agent-journal-load" class="ghost small">Cargar</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="console-card-body" id="mission-brief-text">Esperando directivas.</div>
+                    <label for="agent-journal-public">Notas de misión (agente)</label>
+                    <textarea id="agent-journal-public" rows="4" placeholder="Notas visibles para agentes"></textarea>
+                    <div class="form-actions">
+                      <button type="button" id="agent-journal-save" class="ghost">Guardar notas</button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
             <div class="workspace-view agent-view" data-view="database">
               <div class="database-stack">
                 <div class="console-card dossier-card" id="dossier-card">
