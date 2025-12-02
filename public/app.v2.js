@@ -2765,6 +2765,7 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   const detail = document.getElementById('dm-entity-detail-card');
   const hero = document.getElementById('dm-entity-hero-card');
   const bestiaryRoot = document.getElementById('dm-bestiary-card');
+  const stateSectionTitle = document.querySelector('.form-section .section-title'); // estado/afinidad label
   if (!detail || !hero) return;
   const isPoi = entity && (entity.kind === 'poi' || entity.type === 'poi');
   const isCreature = entity && entity.type === 'criatura';
@@ -2807,6 +2808,10 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
     }
     renderBestiary(null);
     return;
+  }
+
+  if (stateSectionTitle) {
+    stateSectionTitle.textContent = isPoi ? 'Amenaza y Velo' : 'Estado y afinidad';
   }
 
   const summary = sanitize(entity.public_summary || entity.public_note || 'Sin notas públicas');
