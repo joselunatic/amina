@@ -282,12 +282,12 @@ const formIds = {
   name: entityCodeNameInput,
   latitude: document.getElementById('poi-latitude'),
   longitude: document.getElementById('poi-longitude'),
-  imageUrl: document.getElementById('poi-image-url'),
-  threat: document.getElementById('poi-threat'),
+  imageUrl: entityImageInput,
+  threat: entityThreatInput,
   veil: document.getElementById('poi-veil'),
   session: document.getElementById('poi-session'),
-  publicNote: document.getElementById('poi-public-note'),
-  dmNote: document.getElementById('poi-dm-note')
+  publicNote: entityPublicNoteInput,
+  dmNote: entityDmNoteInput
 };
 
 const entityPoisSelect = {
@@ -1320,7 +1320,7 @@ async function submitPoiFromEntityForm() {
     return;
   }
   setSavingButton(entitySubmitBtn, true, 'Guardando…');
-  const threatValue = formIds.threat.value || '1';
+  const threatValue = (formIds.threat || entityThreatInput)?.value || '1';
   const veilValue = formIds.veil.value || 'intact';
   const errors = [];
   const latNum = Number(formIds.latitude.value);
@@ -1345,12 +1345,12 @@ async function submitPoiFromEntityForm() {
     category: poiCategorySelect.value,
     latitude: latNum,
     longitude: lonNum,
-    image_url: formIds.imageUrl.value.trim(),
+    image_url: (formIds.imageUrl || entityImageInput)?.value.trim(),
     threat_level: threatNum,
     veil_status: veilValue,
     session_tag: formIds.session.value.trim(),
-    public_note: formIds.publicNote.value.trim(),
-    dm_note: formIds.dmNote.value.trim()
+    public_note: (formIds.publicNote || entityPublicNoteInput)?.value.trim(),
+    dm_note: (formIds.dmNote || entityDmNoteInput)?.value.trim()
   };
 
   const isEdit = !!entityIdInput.value;
@@ -3769,15 +3769,15 @@ function populateEntityForm(entity) {
   // PdI-specific fields
   if (kind === 'poi') {
     poiCategorySelect.value = entity.category || '';
-    formIds.latitude.value = entity.latitude || '';
-    formIds.longitude.value = entity.longitude || '';
-    formIds.imageUrl.value = entity.image_url || '';
-    formIds.threat.value = entity.threat_level || '';
-    formIds.veil.value = entity.veil_status || entity.alignment || '';
-    formIds.session.value = entity.session_tag || entity.sessions || '';
-    formIds.publicNote.value = entity.public_note || entity.public_summary || '';
-    formIds.dmNote.value = entity.dm_note || entity.dm_notes || '';
-    entityThreatInput.value = entity.threat_level || '';
+    if (formIds.latitude) formIds.latitude.value = entity.latitude || '';
+    if (formIds.longitude) formIds.longitude.value = entity.longitude || '';
+    if (formIds.imageUrl) formIds.imageUrl.value = entity.image_url || '';
+    if (formIds.threat) formIds.threat.value = entity.threat_level || '';
+    if (formIds.veil) formIds.veil.value = entity.veil_status || entity.alignment || '';
+    if (formIds.session) formIds.session.value = entity.session_tag || entity.sessions || '';
+    if (formIds.publicNote) formIds.publicNote.value = entity.public_note || entity.public_summary || '';
+    if (formIds.dmNote) formIds.dmNote.value = entity.dm_note || entity.dm_notes || '';
+    if (entityThreatInput) entityThreatInput.value = entity.threat_level || '';
     state.editingPoiId = entity.id;
   }
   updateEntityFormMode(kind === 'poi' ? 'poi' : 'entity');
