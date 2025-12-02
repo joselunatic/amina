@@ -941,14 +941,15 @@ body.agent-creature-view #agent-entity-hero-card {
 }
 
 .agent-poi-marker {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: rgba(0, 255, 136, 0.8);
   border: 2px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
   animation: agent-poi-pulse 1.4s ease-in-out infinite;
   display: block;
+  box-sizing: border-box;
 }
 
 @keyframes agent-poi-pulse {

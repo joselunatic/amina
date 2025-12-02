@@ -2689,11 +2689,16 @@ function renderEntitiesMap(ctx, options = {}) {
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
     const el = document.createElement('div');
     const isAgentPoi = options.variant === 'agent';
-    el.className = isAgentPoi ? 'agent-poi-marker' : 'marker-dot';
-    if (!isAgentPoi) {
+    if (isAgentPoi) {
+      el.className = 'agent-poi-marker';
+      el.style.width = '22px';
+      el.style.height = '22px';
+      el.style.borderRadius = '50%';
+    } else {
+      el.className = 'marker-dot';
       el.textContent = categoryIcons[p.category] || '⬤';
     }
-    const marker = new mapboxgl.Marker(el, { anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
+    const marker = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
     state[markersKey].push(marker);
     bounds.extend([lon, lat]);
   });
