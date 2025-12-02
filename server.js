@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const {
+  mapPoiToEntity,
   getAllPois,
   getPoiById,
   createPoi,
@@ -21,11 +22,14 @@ const {
   updateEntity,
   archiveEntity,
   getEntityContext,
-  mapPoiToEntity,
+  filterAgentEntity,
   unlockEntity,
   ENTITY_TYPES,
   deleteMessageForViewer,
-  deleteEntity
+  deleteEntity,
+  upsertJournalEntry,
+  getJournalEntry,
+  listJournalEntries
 } = require('./db');
 const crypto = require('crypto');
 
@@ -41,9 +45,35 @@ const MAPBOX_TOKEN =
 const MAPBOX_STYLE =
   process.env.MAPBOX_STYLE_URL || 'mapbox://styles/joselun/cmi3ezivh00gi01s98tef234h';
 const DEBUG_MODE = process.env.DEBUG === 'true';
+const POI_ID_OFFSET = 100000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+function encodePoiIds(entity) {
+  if (!entity || entity.type !== 'poi') return entity;
+  const encodedId = POI_ID_OFFSET + Number(entity.id);
+  return {
+    ...entity,
+    poi_id: entity.id,
+    id: encodedId,
+    _key: `poi:${encodedId}`
+  };
+}
+
+function encodePoisInList(list = []) {
+  return list.map((item) => (item && item.type === 'poi' ? encodePoiIds(item) : item));
+}
+
+function isEncodedPoiId(id) {
+  const n = Number(id);
+  return Number.isInteger(n) && n >= POI_ID_OFFSET;
+}
+
+function decodePoiId(id) {
+  const n = Number(id);
+  return n - POI_ID_OFFSET;
+}
 
 if (DEBUG_MODE) {
   app.use((req, res, next) => {
@@ -239,7 +269,7 @@ app.get('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
       includeArchived: req.query.includeArchived === '1' || req.query.includeArchived === 'true'
     };
     const entities = await getEntitiesForDm(filters);
-    res.json(entities);
+    res.json(encodePoisInList(entities));
   } catch (err) {
     next(err);
   }
@@ -247,7 +277,15 @@ app.get('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
 
 app.get('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
   try {
-    const entity = await getEntityForDm(req.params.id);
+    const kind = req.query.kind || req.query.type || '';
+    const paramId = req.params.id;
+    if (kind === 'poi' || isEncodedPoiId(paramId)) {
+      const poiId = kind === 'poi' ? paramId : decodePoiId(paramId);
+      const poi = await getPoiById(poiId);
+      if (!poi) return res.status(404).json({ error: 'Entidad no encontrada.' });
+      return res.json(encodePoiIds(mapPoiToEntity(poi)));
+    }
+    const entity = await getEntityForDm(paramId);
     if (!entity) return res.status(404).json({ error: 'Entidad no encontrada.' });
     res.json(entity);
   } catch (err) {
@@ -257,9 +295,23 @@ app.get('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
 
 app.get('/api/dm/entities/:id/context', dmSecretRequired, async (req, res, next) => {
   try {
-    const ctx = await getEntityContext(req.params.id, { includePrivate: true });
+    const kind = req.query.kind || req.query.type || '';
+    const paramId = req.params.id;
+    if (kind === 'poi' || isEncodedPoiId(paramId)) {
+      const poiId = kind === 'poi' ? paramId : decodePoiId(paramId);
+      const poi = await getPoiById(poiId);
+      if (!poi) return res.status(404).json({ error: 'Entidad no encontrada.' });
+      const mapped = encodePoiIds(mapPoiToEntity(poi));
+      return res.json({ entity: mapped, pois: [mapped], sessions: [], relations: [] });
+    }
+    const ctx = await getEntityContext(paramId, { includePrivate: true });
     if (!ctx) return res.status(404).json({ error: 'Entidad no encontrada.' });
-    res.json(ctx);
+    const encodedCtx = {
+      ...ctx,
+      entity: ctx.entity && ctx.entity.type === 'poi' ? encodePoiIds(ctx.entity) : ctx.entity,
+      pois: Array.isArray(ctx.pois) ? ctx.pois.map((p) => (p.type === 'poi' ? encodePoiIds(p) : p)) : ctx.pois
+    };
+    res.json(encodedCtx);
   } catch (err) {
     next(err);
   }
@@ -337,7 +389,7 @@ app.get('/api/agent/entities', async (req, res, next) => {
       q: req.query.q
     };
     const entities = await getEntitiesForAgent(filters);
-    res.json(entities);
+    res.json(encodePoisInList(entities));
   } catch (err) {
     next(err);
   }
@@ -345,7 +397,15 @@ app.get('/api/agent/entities', async (req, res, next) => {
 
 app.get('/api/agent/entities/:id', async (req, res, next) => {
   try {
-    const entity = await getEntityForAgent(req.params.id);
+    const kind = req.query.kind || req.query.type || '';
+    const paramId = req.params.id;
+    if (kind === 'poi' || isEncodedPoiId(paramId)) {
+      const poiId = kind === 'poi' ? paramId : decodePoiId(paramId);
+      const poi = await getPoiById(poiId);
+      if (!poi) return res.status(404).json({ error: 'Entidad no encontrada.' });
+      return res.json(encodePoiIds(filterAgentEntity(mapPoiToEntity(poi))));
+    }
+    const entity = await getEntityForAgent(paramId);
     if (!entity) return res.status(404).json({ error: 'Entidad no encontrada.' });
     res.json(entity);
   } catch (err) {
@@ -355,13 +415,27 @@ app.get('/api/agent/entities/:id', async (req, res, next) => {
 
 app.get('/api/agent/entities/:id/context', async (req, res, next) => {
   try {
-    const entity = await getEntityForAgent(req.params.id);
+    const kind = req.query.kind || req.query.type || '';
+    const paramId = req.params.id;
+    if (kind === 'poi' || isEncodedPoiId(paramId)) {
+      const poiId = kind === 'poi' ? paramId : decodePoiId(paramId);
+      const poi = await getPoiById(poiId);
+      if (!poi) return res.status(404).json({ error: 'Entidad no encontrada.' });
+      const mapped = encodePoiIds(filterAgentEntity(mapPoiToEntity(poi)));
+      return res.json({ entity: mapped, pois: [mapped], sessions: [], relations: [] });
+    }
+    const entity = await getEntityForAgent(paramId);
     if (!entity) return res.status(404).json({ error: 'Entidad no encontrada.' });
     if (entity.visibility === 'locked') {
       return res.json({ entity });
     }
-    const ctx = await getEntityContext(req.params.id, { includePrivate: false });
-    res.json(ctx);
+    const ctx = await getEntityContext(paramId, { includePrivate: false });
+    const encodedCtx = {
+      ...ctx,
+      entity: ctx.entity && ctx.entity.type === 'poi' ? encodePoiIds(ctx.entity) : ctx.entity,
+      pois: Array.isArray(ctx.pois) ? ctx.pois.map((p) => (p.type === 'poi' ? encodePoiIds(p) : p)) : ctx.pois
+    };
+    res.json(encodedCtx);
   } catch (err) {
     next(err);
   }
@@ -373,6 +447,60 @@ app.post('/api/agent/entities/:id/unlock', async (req, res, next) => {
     const result = await unlockEntity(req.params.id, code);
     if (result.status === 'not_found') return res.status(404).json({ error: 'Entidad no encontrada.' });
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Journal ---
+app.get('/api/agent/journal', async (req, res, next) => {
+  try {
+    const season = req.query.season || 2;
+    const session = req.query.session || 0;
+    const entry = await getJournalEntry({ season, session });
+    if (!entry) return res.json({ season: Number(season), session: Number(session), public_note: '' });
+    res.json({ season: entry.season, session: entry.session, public_note: entry.public_note || '' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/agent/journal', async (req, res, next) => {
+  try {
+    const season = req.body?.season ?? 2;
+    const session = req.body?.session ?? 0;
+    const public_note = req.body?.public_note || req.body?.public_summary || '';
+    const entry = await upsertJournalEntry({ season, session, public_note, dm_note: null });
+    res.json({ season: entry.season, session: entry.session, public_note: entry.public_note || '' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/dm/journal', dmSecretRequired, async (req, res, next) => {
+  try {
+    if (req.query.list) {
+      const list = await listJournalEntries();
+      return res.json(list);
+    }
+    const season = req.query.season || 2;
+    const session = req.query.session || 0;
+    const entry = await getJournalEntry({ season, session });
+    if (!entry) return res.json({ season: Number(season), session: Number(session), public_note: '', dm_note: '' });
+    res.json(entry);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/dm/journal', dmSecretRequired, async (req, res, next) => {
+  try {
+    const season = req.body?.season ?? 2;
+    const session = req.body?.session ?? 0;
+    const public_note = req.body?.public_note || req.body?.public_summary || '';
+    const dm_note = req.body?.dm_note || req.body?.dm_notes || '';
+    const entry = await upsertJournalEntry({ season, session, public_note, dm_note });
+    res.json(entry);
   } catch (err) {
     next(err);
   }
