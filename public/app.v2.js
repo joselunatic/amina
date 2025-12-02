@@ -1322,13 +1322,31 @@ async function submitPoiFromEntityForm() {
   setSavingButton(entitySubmitBtn, true, 'Guardando…');
   const threatValue = formIds.threat.value || '1';
   const veilValue = formIds.veil.value || 'intact';
+  const errors = [];
+  const latNum = Number(formIds.latitude.value);
+  const lonNum = Number(formIds.longitude.value);
+  const threatNum = Number(threatValue);
+  const allowedVeil = ['intact', 'frayed', 'torn'];
+
+  if (!poiCategorySelect.value) errors.push('Elige una categoría para el PdI.');
+  if (!Number.isFinite(latNum) || latNum < -90 || latNum > 90) errors.push('Latitud inválida.');
+  if (!Number.isFinite(lonNum) || lonNum < -180 || lonNum > 180) errors.push('Longitud inválida.');
+  if (!Number.isInteger(threatNum) || threatNum < 1 || threatNum > 5) errors.push('Amenaza debe ser 1-5.');
+  if (!allowedVeil.includes(veilValue)) errors.push('Estado del velo inválido.');
+
+  if (errors.length) {
+    showMessage(errors.join(' '), true);
+    setSavingButton(entitySubmitBtn, false);
+    return;
+  }
+
   const payload = {
     name: entityCodeNameInput.value.trim(),
     category: poiCategorySelect.value,
-    latitude: formIds.latitude.value,
-    longitude: formIds.longitude.value,
+    latitude: latNum,
+    longitude: lonNum,
     image_url: formIds.imageUrl.value.trim(),
-    threat_level: threatValue,
+    threat_level: threatNum,
     veil_status: veilValue,
     session_tag: formIds.session.value.trim(),
     public_note: formIds.publicNote.value.trim(),
