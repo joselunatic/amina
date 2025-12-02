@@ -2121,6 +2121,7 @@ function renderAgentDossiers() {
 
   if (!state.activeEntityAgent || !entities.find((e) => e.id === state.activeEntityAgent.id)) {
     state.activeEntityAgent = entities[0];
+    setCookie('agent_active_entity', state.activeEntityAgent.id);
   }
 
   const compactList = isMobileView() && state.mobileTab === 'database';
@@ -2133,6 +2134,7 @@ function renderAgentDossiers() {
     );
     card.addEventListener('click', () => {
       state.activeEntityAgent = entity;
+      setCookie('agent_active_entity', entity.id);
       renderAgentDossiers();
       if (entity.visibility !== 'locked') {
         loadAgentContext(entity.id);
@@ -3894,6 +3896,7 @@ function setActiveEntityAgentById(id) {
   const entity = findEntityById(id);
   if (!entity) return;
   state.activeEntityAgent = entity;
+  setCookie('agent_active_entity', entity.id);
   setAgentBlade('dossiers');
   renderAgentDossiers();
   loadAgentContext(entity.id);
@@ -3912,6 +3915,7 @@ async function loadAgentContext(id) {
     const detailTarget = agentDossierDetail || dossierDetail;
     renderDossierDetailView(detailTarget, merged, { dm: false });
     renderEntityGraph(agentGraphContainer, ctx, { focusId: id });
+    setCookie('agent_active_entity', id);
   } catch (err) {
     logDebug(`Contexto agente error: ${err.message}`);
   }
@@ -3927,6 +3931,7 @@ function getEntitiesForPoi(poiId) {
 function hydrateFromCookies() {
   const storedRole = getCookie('amina_role');
   const storedSecret = storedRole === 'mrtruth' ? getCookie('amina_secret') : null;
+  const storedAgentEntity = getCookie('agent_active_entity');
   if (storedRole === 'mrtruth' && storedSecret) {
     activateDmMode(storedSecret);
     hideBootScreen();
@@ -3936,6 +3941,9 @@ function hydrateFromCookies() {
     // Forzamos re-selección de agente para evitar bloqueos de login
     deleteCookie('amina_role');
     deleteCookie('amina_agent');
+    if (storedAgentEntity) {
+      state.pendingAgentEntityId = Number(storedAgentEntity);
+    }
   } else {
   }
   updateRoleLayoutClasses();
