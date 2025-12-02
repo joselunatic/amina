@@ -228,6 +228,7 @@ const entityNewBtn = document.getElementById('entity-new');
 const entityCancelBtn = document.getElementById('entity-cancel');
 const entitySubmitBtn = document.getElementById('entity-submit');
 const entityDeleteBtns = document.querySelectorAll('#entity-delete'); // buttons in layout
+const entityStateTitle = document.getElementById('entity-state-title');
 const bestiaryCard = document.getElementById('dm-bestiary-card');
 const bestiaryImage = document.getElementById('bestiary-image');
 const bestiaryCode = document.getElementById('bestiary-code');
@@ -991,6 +992,9 @@ function updateEntityFormMode(kind) {
   entityForm.classList.toggle('is-poi', isPoi);
   if (entityKindInput) {
     entityKindInput.value = isPoi ? 'poi' : 'entity';
+  }
+  if (entityStateTitle) {
+    entityStateTitle.textContent = isPoi ? 'Amenaza y Velo' : 'Estado y afinidad';
   }
   if (state.entityEditorMode === 'new' && !state.activeEntityAdmin) {
     renderDmEntityDetailCard(null);
