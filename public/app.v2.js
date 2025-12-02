@@ -2673,55 +2673,63 @@ function renderEntitiesMap(ctx, options = {}) {
   }
   ensureBuildingsLayer(state[mapKey]);
 
-  if (!ctx || !ctx.pois || !ctx.pois.length) {
-    state[mapKey].setCenter(mapCenter);
-    state[mapKey].setZoom(9);
-    return;
-  }
-  const map = state[mapKey];
-  if (!state[markersKey]) state[markersKey] = [];
-  state[markersKey].forEach((m) => m.remove());
-  state[markersKey] = [];
-  const bounds = new mapboxgl.LngLatBounds();
-  const coords = [];
-  ctx.pois.forEach((p) => {
-    const lon = Number(p.poi_longitude ?? p.longitude);
-    const lat = Number(p.poi_latitude ?? p.latitude);
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
-    const el = document.createElement('div');
-    const isAgentPoi = options.variant === 'agent';
-    if (isAgentPoi) {
-      el.className = 'agent-poi-marker';
-    } else {
-      el.className = 'marker-dot';
-      el.textContent = categoryIcons[p.category] || '⬤';
+  const apply = () => {
+    if (!ctx || !ctx.pois || !ctx.pois.length) {
+      state[mapKey].setCenter(mapCenter);
+      state[mapKey].setZoom(9);
+      return;
     }
-    const marker = new mapboxgl.Marker({
-      element: el,
-      anchor: 'center',
-      pitchAlignment: 'map',
-      rotationAlignment: 'map'
-    })
-      .setLngLat([lon, lat])
-      .addTo(map);
-    state[markersKey].push(marker);
-    bounds.extend([lon, lat]);
-    coords.push([lon, lat]);
-  });
-  if (coords.length) {
-    const cameraOptions = { padding: 40, maxZoom: 13.5 };
-    const single = coords.length === 1 ? coords[0] : null;
-    if (single) {
-      map.easeTo({
-        center: single,
-        zoom: 13.5,
-        duration: reuse && flyTo && hadMap ? 900 : 0
-      });
-    } else {
-      map.fitBounds(bounds, { ...cameraOptions, duration: reuse && flyTo && hadMap ? 1200 : 0 });
+    const map = state[mapKey];
+    if (!state[markersKey]) state[markersKey] = [];
+    state[markersKey].forEach((m) => m.remove());
+    state[markersKey] = [];
+    const bounds = new mapboxgl.LngLatBounds();
+    const coords = [];
+    ctx.pois.forEach((p) => {
+      const lon = Number(p.poi_longitude ?? p.longitude);
+      const lat = Number(p.poi_latitude ?? p.latitude);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+      const el = document.createElement('div');
+      const isAgentPoi = options.variant === 'agent';
+      if (isAgentPoi) {
+        el.className = 'agent-poi-marker';
+      } else {
+        el.className = 'marker-dot';
+        el.textContent = categoryIcons[p.category] || '⬤';
+      }
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center',
+        pitchAlignment: 'map',
+        rotationAlignment: 'map'
+      })
+        .setLngLat([lon, lat])
+        .addTo(map);
+      state[markersKey].push(marker);
+      bounds.extend([lon, lat]);
+      coords.push([lon, lat]);
+    });
+    if (coords.length) {
+      const cameraOptions = { padding: 40, maxZoom: 13.5 };
+      const single = coords.length === 1 ? coords[0] : null;
+      if (single) {
+        map.easeTo({
+          center: single,
+          zoom: 13.5,
+          duration: reuse && flyTo && hadMap ? 900 : 0
+        });
+      } else {
+        map.fitBounds(bounds, { ...cameraOptions, duration: reuse && flyTo && hadMap ? 1200 : 0 });
+      }
     }
+    map.resize();
+  };
+
+  if (state[mapKey].loaded()) {
+    apply();
+  } else {
+    state[mapKey].once('load', apply);
   }
-  map.resize();
 }
 
 function renderDmEntityDetailCard(entity, ctx = {}) {
