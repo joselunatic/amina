@@ -669,12 +669,7 @@ async function setupMap() {
       // ignore cleanup errors
     }
   });
-  state.map.on('click', (event) => {
-    if (state.pickMode) {
-      setPickedLocation(event.lngLat.lat, event.lngLat.lng);
-      disablePickMode();
-    }
-  });
+  bindPickHandler(state.map);
   state.map.on('style.load', () => {
     update3DBuildings();
   });
@@ -2678,6 +2673,7 @@ function renderEntitiesMap(ctx, options = {}) {
     state[mapKey].on('style.load', () => ensureBuildingsLayer(state[mapKey]));
   }
   const map = state[mapKey];
+  bindPickHandler(map);
 
   const apply = () => {
     if (!ctx || !ctx.pois || !ctx.pois.length) {
@@ -3729,6 +3725,7 @@ function populateEntityForm(entity) {
     entityThreatInput.value = entity.threat_level || '';
     state.editingPoiId = entity.id;
   }
+  updateEntityFormMode(kind === 'poi' ? 'poi' : 'entity');
   updateEntityDeleteButtonState(entity);
 }
 
@@ -4327,6 +4324,16 @@ function renderTickerItems(items) {
 function initFooterMembrane() {
   if (!footerMembraneStatus) return;
   footerMembraneStatus.textContent = MEMBRANE_STATUS_TEXT;
+}
+
+function bindPickHandler(map) {
+  if (!map || map._pickHandlerBound) return;
+  map._pickHandlerBound = true;
+  map.on('click', (event) => {
+    if (!state.pickMode) return;
+    setPickedLocation(event.lngLat.lat, event.lngLat.lng);
+    disablePickMode();
+  });
 }
 
 function updateFooterTime() {
