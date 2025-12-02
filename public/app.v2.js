@@ -2744,6 +2744,8 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   const isPoi = entity && (entity.kind === 'poi' || entity.type === 'poi');
   const isCreature = entity && entity.type === 'criatura';
   const hasEntity = !!entity;
+  hero.classList.remove('hidden');
+  hero.classList.remove('map-only');
 
   // reset map when switching away from PdI
   if (!isPoi && state.entitiesMap) {
@@ -2757,6 +2759,10 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
       '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista de la izquierda. Podrás editarlo en el panel inferior y, si es un PdI, verlo en el mapa.</div>';
     hero.classList.remove('map-only');
     hero.innerHTML = '<div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
+    if (bestiaryRoot) {
+      bestiaryRoot.classList.add('hidden');
+      bestiaryRoot.classList.remove('bestiary-promoted');
+    }
     renderBestiary(null);
     return;
   }
@@ -2816,6 +2822,10 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
         <div id="dm-entity-detail-map" class="dm-entities-map" aria-label="Mapa de ${callsign || 'entidad'}"></div>
       </div>
     `;
+    if (bestiaryRoot) {
+      bestiaryRoot.classList.add('hidden');
+      bestiaryRoot.classList.remove('bestiary-promoted');
+    }
     const poiMapPayload = {
       pois: [
         {
@@ -2828,24 +2838,13 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
     renderEntitiesMap(poiMapPayload);
     renderBestiary(null);
   } else if (isCreature) {
+    hero.classList.add('hidden');
     hero.classList.remove('map-only');
-    hero.innerHTML = `
-      <div class="dm-creature-hero">
-        <div class="creature-photo-frame">
-          ${locked
-            ? '<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>'
-            : img
-              ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
-              : '<div class="muted">Sin imagen disponible.</div>'
-          }
-          <div class="folder-overlay"></div>
-        </div>
-        <div class="dm-entity-hero-meta">
-          <div class="dm-entity-hero-title">${callsign || 'Sin callsign'}</div>
-          <div class="dm-entity-hero-role">${role}</div>
-        </div>
-      </div>
-    `;
+    hero.innerHTML = '';
+    if (bestiaryRoot) {
+      bestiaryRoot.classList.remove('hidden');
+      bestiaryRoot.classList.add('bestiary-promoted');
+    }
     renderBestiary(entity);
   } else {
     hero.classList.remove('map-only');
@@ -2865,6 +2864,10 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
         </div>
       </div>
     `;
+    if (bestiaryRoot) {
+      bestiaryRoot.classList.add('hidden');
+      bestiaryRoot.classList.remove('bestiary-promoted');
+    }
     renderBestiary(null);
   }
 }

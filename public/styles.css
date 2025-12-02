@@ -1043,6 +1043,10 @@ body.agent-creature-view #agent-entity-hero-card {
   position: relative;
 }
 
+.bestiary-card.bestiary-promoted {
+  width: 100%;
+}
+
 .bestiary-card.hidden {
   display: none;
 }
