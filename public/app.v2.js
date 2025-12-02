@@ -2663,13 +2663,13 @@ function renderEntitiesMap(ctx, options = {}) {
       container: target,
       style: DECIMAL_STYLE,
       center: mapCenter,
-      zoom: 12,
-      pitch: 55,
+      zoom: 14,
+      pitch: 60,
       bearing: -17.6,
       antialias: true
     });
     state[mapKey].addControl(new mapboxgl.NavigationControl());
-    ensureBuildingsLayer(state[mapKey]);
+    state[mapKey].on('style.load', () => ensureBuildingsLayer(state[mapKey]));
   }
   ensureBuildingsLayer(state[mapKey]);
 
