@@ -667,6 +667,18 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   display: block;
 }
 
+/* Ocultar campos que no aplican a PdI en editor DM */
+.entity-form.is-poi label[for="entity-real-name"],
+.entity-form.is-poi #entity-real-name,
+.entity-form.is-poi label[for="entity-role"],
+.entity-form.is-poi #entity-role,
+.entity-form.is-poi label[for="entity-status"],
+.entity-form.is-poi #entity-status,
+.entity-form.is-poi label[for="entity-alignment"],
+.entity-form.is-poi #entity-alignment {
+  display: none;
+}
+
 .poi-item.compact {
   border: 1px solid rgba(0, 255, 136, 0.2);
   border-radius: 12px;
