@@ -543,12 +543,30 @@
                           </div>
                           <div class="form-section entity-only">
                             <div class="section-title">Estado y afinidad</div>
-                            <label for="entity-status">Estado</label>
-                            <input type="text" id="entity-status" placeholder="activo, desaparecido..." />
-                            <label for="entity-alignment">Alineación</label>
-                            <input type="text" id="entity-alignment" placeholder="ordo_veritatis, esoterror..." />
-                            <label for="entity-threat">Nivel de amenaza</label>
-                            <input type="number" id="entity-threat" min="1" max="5" />
+                            <div class="inline-fields">
+                              <div class="flex-row gap-sm">
+                                <div class="flex-col entity-only">
+                                  <label for="entity-status">Estado</label>
+                                  <input type="text" id="entity-status" placeholder="activo, desaparecido..." />
+                                </div>
+                                <div class="flex-col entity-only">
+                                  <label for="entity-alignment">Alineación</label>
+                                  <input type="text" id="entity-alignment" placeholder="ordo_veritatis, esoterror..." />
+                                </div>
+                                <div class="flex-col poi-only">
+                                  <label for="entity-threat">Nivel de amenaza</label>
+                                  <input type="number" id="entity-threat" min="1" max="5" />
+                                </div>
+                                <div class="flex-col poi-only">
+                                  <label for="poi-veil">Estado del velo</label>
+                                  <select id="poi-veil">
+                                    <option value="intact">Intacto</option>
+                                    <option value="frayed">Deshilachado</option>
+                                    <option value="torn">Roto</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
                             <label for="entity-image">URL de imagen</label>
                             <input type="url" id="entity-image" placeholder="https://..." />
                           </div>
@@ -606,12 +624,6 @@
                           <div class="form-section poi-only poi-extra">
                             <div class="section-title">Campos PdI</div>
                             <div id="dm-entities-map-inline" class="dm-entities-map"></div>
-                            <label for="poi-veil">Estado del velo</label>
-                            <select id="poi-veil">
-                              <option value="intact">Intacto</option>
-                              <option value="frayed">Deshilachado</option>
-                              <option value="torn">Roto</option>
-                            </select>
                             <label for="poi-session">Etiqueta de sesión</label>
                             <input type="text" id="poi-session" placeholder="1x02" />
                           </div>
