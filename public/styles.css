@@ -671,7 +671,7 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: flex-end;
 }
 
 .inline-fields .flex-col {
