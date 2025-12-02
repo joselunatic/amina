@@ -4032,19 +4032,23 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
 
     if (isPoi) {
       const mapContainerId = idx === 0 ? 'agent-entity-detail-map' : `agent-entity-detail-map-${idx}`;
+      const reuseMap = prevGraphic.type === 'poi' && !!state.agentEntitiesMap;
+      const existingContainer = document.getElementById(mapContainerId);
       hero.classList.remove('hidden');
       hero.classList.add('map-only');
-      hero.innerHTML = `
-        <div class="dm-entity-map-standalone">
-          <div id="${mapContainerId}" class="dm-entities-map" aria-label="Mapa de ${callsign || 'entidad'}"></div>
-        </div>
-      `;
+      if (!reuseMap || !existingContainer) {
+        hero.innerHTML = `
+          <div class="dm-entity-map-standalone">
+            <div id="${mapContainerId}" class="dm-entities-map" aria-label="Mapa de ${callsign || 'entidad'}"></div>
+          </div>
+        `;
+      }
       if (idx === 0 && poiMapPayload) {
         renderEntitiesMap(poiMapPayload, {
           containerId: mapContainerId,
           mapKey: 'agentEntitiesMap',
           markersKey: 'agentEntityMarkers',
-          reuse: prevGraphic.type === 'poi',
+          reuse: reuseMap,
           flyTo: true
         });
       }
