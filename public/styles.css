@@ -678,6 +678,11 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   min-width: 120px;
 }
 
+.inline-fields .flex-col.equal {
+  flex: 1 1 0;
+  min-width: 140px;
+}
+
 .inline-fields .coord-row input {
   width: 100%;
 }
