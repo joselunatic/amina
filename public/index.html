@@ -515,6 +515,21 @@
                             </select>
                             <label for="entity-code-name">Code name / callsign</label>
                             <input type="text" id="entity-code-name" required />
+                            <div class="poi-only">
+                              <label for="poi-category">Categoría</label>
+                              <select id="poi-category" required></select>
+                              <div class="coord-row">
+                                <div>
+                                  <label for="poi-latitude">Latitud</label>
+                                  <input type="number" step="0.000001" id="poi-latitude" />
+                                </div>
+                                <div>
+                                  <label for="poi-longitude">Longitud</label>
+                                  <input type="number" step="0.000001" id="poi-longitude" />
+                                </div>
+                              </div>
+                              <button type="button" id="pick-location">Elegir del mapa</button>
+                            </div>
                             <div class="entity-only">
                               <label for="entity-real-name">Nombre real</label>
                               <input type="text" id="entity-real-name" />
@@ -586,21 +601,8 @@
                                 Entidad</button>
                             </div>
                           </div>
-                          <div class="form-section poi-only">
+                            <div class="form-section poi-only">
                             <div class="section-title">Campos PdI</div>
-                            <label for="poi-category">Categoría</label>
-                            <select id="poi-category" required></select>
-                            <div class="coord-row">
-                              <div>
-                                <label for="poi-latitude">Latitud</label>
-                                <input type="number" step="0.000001" id="poi-latitude" />
-                              </div>
-                              <div>
-                                <label for="poi-longitude">Longitud</label>
-                                <input type="number" step="0.000001" id="poi-longitude" />
-                              </div>
-                            </div>
-                            <button type="button" id="pick-location">Elegir del mapa</button>
                             <div id="dm-entities-map-inline" class="dm-entities-map"></div>
                             <label for="poi-threat">Nivel de amenaza (1-5)</label>
                             <input type="number" id="poi-threat" min="1" max="5" />
