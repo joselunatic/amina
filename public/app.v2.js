@@ -2695,7 +2695,8 @@ function renderEntitiesMap(ctx, options = {}) {
       el.className = 'marker-dot';
       el.textContent = categoryIcons[p.category] || '⬤';
     }
-    const marker = new mapboxgl.Marker(el, {
+    const marker = new mapboxgl.Marker({
+      element: el,
       anchor: 'center',
       pitchAlignment: 'map',
       rotationAlignment: 'map'
