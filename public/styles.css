@@ -671,7 +671,6 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  align-items: flex-start;
 }
 
 .inline-fields .flex-col {
@@ -680,8 +679,8 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
 }
 
 .inline-fields .flex-col.equal {
-  flex: 1 1 50%;
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: 180px;
 }
 
 .inline-fields .coord-row input {
@@ -693,10 +692,6 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   width: 100%;
   box-sizing: border-box;
   height: 38px;
-}
-
-.inline-fields .flex-col label {
-  display: block;
 }
 
 .poi-extra {
