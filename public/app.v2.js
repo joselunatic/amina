@@ -442,13 +442,7 @@ function bindEvents() {
   }
   panelToggleBtn?.addEventListener('click', () => toggleSidebar());
   if (journalSaveBtn) {
-    journalSaveBtn.addEventListener('click', async () => {
-      await saveMissionNotes(journalPublicInput?.value || '');
-      if (state.dmMode) {
-        saveJournalDm(journalDmInput?.value || '');
-      }
-      showMessage('Journal actualizado.');
-    });
+    journalSaveBtn.addEventListener('click', handleJournalSave);
   }
   journalSeasonInput?.addEventListener('change', loadJournalEntry);
   journalSessionInput?.addEventListener('change', loadJournalEntry);
@@ -3395,9 +3389,11 @@ async function saveMissionNotes(text) {
       throw new Error(err.error || 'No se pudo guardar el journal.');
     }
     renderMissionCards();
+    return true;
   } catch (err) {
     logDebug(`No se pudo guardar journal: ${err.message}`);
     showMessage('No se pudo guardar el journal.', true);
+    return false;
   }
 }
 
@@ -3410,6 +3406,24 @@ function loadJournalDm() {
 
 function saveJournalDm(text) {
   state.journalDm = text.trim();
+}
+
+async function handleJournalSave() {
+  if (!journalSaveBtn) return;
+  setSavingButton(journalSaveBtn, true, 'Guardando…');
+  try {
+    const ok = await saveMissionNotes(journalPublicInput?.value || '');
+    if (!ok) return;
+    if (state.dmMode) {
+      saveJournalDm(journalDmInput?.value || '');
+    }
+    showMessage('Journal actualizado.');
+  } catch (err) {
+    logDebug(`Error guardando journal: ${err.message}`);
+    showMessage('No se pudo guardar el journal.', true);
+  } finally {
+    setSavingButton(journalSaveBtn, false);
+  }
 }
 
 function renderMissionCards() {
