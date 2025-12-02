@@ -947,25 +947,35 @@ body.agent-creature-view #agent-entity-hero-card {
   background: rgba(0, 255, 136, 0.8);
   border: 2px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
-  animation: agent-poi-pulse 1.4s ease-in-out infinite;
   display: block;
   box-sizing: border-box;
   position: relative;
   z-index: 5;
 }
 
+.agent-poi-marker::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 255, 136, 0.55);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+  animation: agent-poi-pulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
 @keyframes agent-poi-pulse {
   0% {
     transform: scale(0.9);
-    box-shadow: 0 0 6px rgba(0, 255, 136, 0.6);
+    opacity: 0.8;
   }
   50% {
-    transform: scale(1.05);
-    box-shadow: 0 0 14px rgba(0, 255, 136, 0.9);
+    transform: scale(1.15);
+    opacity: 1;
   }
   100% {
     transform: scale(0.9);
-    box-shadow: 0 0 6px rgba(0, 255, 136, 0.6);
+    opacity: 0.8;
   }
 }
 
