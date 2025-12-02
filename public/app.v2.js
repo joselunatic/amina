@@ -2501,6 +2501,36 @@ function highlightDossierType(context, value) {
   });
 }
 
+function ensureBuildingsLayer(map) {
+  if (!map || !map.getStyle()) return;
+  const addLayer = () => {
+    if (map.getLayer('3d-buildings') || !map.getSource('composite')) return;
+    const labelLayerId = map.getStyle().layers.find((l) => l.type === 'symbol' && l.layout && l.layout['text-field'])?.id;
+    map.addLayer(
+      {
+        id: '3d-buildings',
+        source: 'composite',
+        'source-layer': 'building',
+        filter: ['==', 'extrude', 'true'],
+        type: 'fill-extrusion',
+        minzoom: 15,
+        paint: {
+          'fill-extrusion-color': '#8fd7ff',
+          'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']],
+          'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']],
+          'fill-extrusion-opacity': 0.6
+        }
+      },
+      labelLayerId || undefined
+    );
+  };
+  if (map.isStyleLoaded()) {
+    addLayer();
+  } else {
+    map.once('styledata', addLayer);
+  }
+}
+
 function setWorkspaceView(view) {
   state.workspaceView = view;
   if (document?.body) {
@@ -2639,7 +2669,9 @@ function renderEntitiesMap(ctx, options = {}) {
       antialias: true
     });
     state[mapKey].addControl(new mapboxgl.NavigationControl());
+    ensureBuildingsLayer(state[mapKey]);
   }
+  ensureBuildingsLayer(state[mapKey]);
 
   if (!ctx || !ctx.pois || !ctx.pois.length) {
     state[mapKey].setCenter(mapCenter);
