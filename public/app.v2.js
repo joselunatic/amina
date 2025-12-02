@@ -2683,6 +2683,7 @@ function renderEntitiesMap(ctx, options = {}) {
   state[markersKey].forEach((m) => m.remove());
   state[markersKey] = [];
   const bounds = new mapboxgl.LngLatBounds();
+  const coords = [];
   ctx.pois.forEach((p) => {
     const lon = Number(p.poi_longitude ?? p.longitude);
     const lat = Number(p.poi_latitude ?? p.latitude);
@@ -2705,24 +2706,19 @@ function renderEntitiesMap(ctx, options = {}) {
       .addTo(map);
     state[markersKey].push(marker);
     bounds.extend([lon, lat]);
+    coords.push([lon, lat]);
   });
-  if (!bounds.isEmpty()) {
-    const cameraOptions = { padding: 40, maxZoom: 12 };
-    if (reuse && flyTo && hadMap) {
-      if (ctx.pois.length === 1 && ctx.pois[0].longitude && ctx.pois[0].latitude) {
-        map.flyTo({
-          center: [
-            Number(ctx.pois[0].poi_longitude ?? ctx.pois[0].longitude),
-            Number(ctx.pois[0].poi_latitude ?? ctx.pois[0].latitude)
-          ],
-          zoom: 12,
-          duration: 900
-        });
-      } else {
-        map.fitBounds(bounds, { ...cameraOptions, duration: 1200 });
-      }
+  if (coords.length) {
+    const cameraOptions = { padding: 40, maxZoom: 13.5 };
+    const single = coords.length === 1 ? coords[0] : null;
+    if (single) {
+      map.easeTo({
+        center: single,
+        zoom: 13.5,
+        duration: reuse && flyTo && hadMap ? 900 : 0
+      });
     } else {
-      map.fitBounds(bounds, cameraOptions);
+      map.fitBounds(bounds, { ...cameraOptions, duration: reuse && flyTo && hadMap ? 1200 : 0 });
     }
   }
   map.resize();
