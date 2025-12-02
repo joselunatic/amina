@@ -2792,42 +2792,73 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   const threat = sanitize(entity.threat_level || entity.threat || '—');
   const status = sanitize(entity.status || 'estado?');
   const alignment = sanitize(entity.alignment || 'afinidad?');
+  const categoryLabel = sanitize(categoryLabels[entity.category] || entity.category || 'PdI');
+  const sessionTag = sanitize(entity.session_tag || entity.sessions || '');
   const badgeRow = `
     <span class="badge">${status}</span>
     <span class="badge">${alignment}</span>
     ${entity.visibility === 'locked' ? '<span class="badge-soft">Bloqueada</span>' : ''}
   `;
 
-  // 2/3 pane: solo texto
-  detail.innerHTML = `
-    <div class="card-title">Dossier</div>
-    <div class="dm-detail-grid">
-      <div class="dm-detail-box wide">
-        <div class="dm-detail-label">Callsign</div>
-        <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
-        ${isDmViewer() ? `<div class="dm-detail-label">Nombre real</div><div class="dm-detail-value">${realName || '—'}</div>` : ''}
-        <div class="dm-detail-label">Rol / función</div>
-        <div class="dm-detail-value">${role}</div>
+  if (isPoi) {
+    detail.innerHTML = `
+      <div class="card-title">PdI</div>
+      <div class="dm-detail-grid">
+        <div class="dm-detail-box wide">
+          <div class="dm-detail-label">Callsign</div>
+          <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
+          <div class="dm-detail-label">Categoría</div>
+          <div class="dm-detail-value">${categoryLabel}</div>
+        </div>
+        <div class="dm-detail-box medium">
+          <div class="dm-detail-label">Amenaza</div>
+          <div class="dm-detail-value">${threat}</div>
+          <div class="dm-detail-label">Velo</div>
+          <div class="dm-detail-value">${sanitize(entity.veil_status || entity.alignment || '—')}</div>
+          ${sessionTag ? `<div class="dm-detail-label">Sesión</div><div class="dm-detail-value">${sessionTag}</div>` : ''}
+        </div>
+        <div class="dm-detail-box scroll full">
+          <div class="dm-detail-label">Resumen público</div>
+          <div class="dm-detail-value multiline">${summary}</div>
+          ${isDmViewer()
+            ? `<div class="dm-detail-label">Notas DM</div><div class="dm-detail-value multiline">${dmNotes}</div>`
+            : ''
+          }
+        </div>
       </div>
-      <div class="dm-detail-box medium">
-        <div class="dm-detail-label">Estado</div>
-        <div class="dm-detail-value">${status}</div>
-        <div class="dm-detail-label">Alineación</div>
-        <div class="dm-detail-value">${alignment}</div>
-        <div class="dm-detail-label">Amenaza</div>
-        <div class="dm-detail-value">${threat}</div>
-        <div class="dm-detail-badges">${badgeRow}</div>
+    `;
+  } else {
+    // 2/3 pane: solo texto para entidades
+    detail.innerHTML = `
+      <div class="card-title">Dossier</div>
+      <div class="dm-detail-grid">
+        <div class="dm-detail-box wide">
+          <div class="dm-detail-label">Callsign</div>
+          <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
+          ${isDmViewer() ? `<div class="dm-detail-label">Nombre real</div><div class="dm-detail-value">${realName || '—'}</div>` : ''}
+          <div class="dm-detail-label">Rol / función</div>
+          <div class="dm-detail-value">${role}</div>
+        </div>
+        <div class="dm-detail-box medium">
+          <div class="dm-detail-label">Estado</div>
+          <div class="dm-detail-value">${status}</div>
+          <div class="dm-detail-label">Alineación</div>
+          <div class="dm-detail-value">${alignment}</div>
+          <div class="dm-detail-label">Amenaza</div>
+          <div class="dm-detail-value">${threat}</div>
+          <div class="dm-detail-badges">${badgeRow}</div>
+        </div>
+        <div class="dm-detail-box scroll full">
+          <div class="dm-detail-label">Resumen público</div>
+          <div class="dm-detail-value multiline">${summary}</div>
+          ${isDmViewer()
+            ? `<div class="dm-detail-label">Notas DM</div><div class="dm-detail-value multiline">${dmNotes}</div>`
+            : ''
+          }
+        </div>
       </div>
-      <div class="dm-detail-box scroll full">
-        <div class="dm-detail-label">Resumen público</div>
-        <div class="dm-detail-value multiline">${summary}</div>
-        ${isDmViewer()
-          ? `<div class="dm-detail-label">Notas DM</div><div class="dm-detail-value multiline">${dmNotes}</div>`
-          : ''
-        }
-      </div>
-    </div>
-  `;
+    `;
+  }
 
   const img = entity.image_url || entity.photo || '';
   const locked = entity.visibility === 'locked' && !isDmViewer();
@@ -4072,6 +4103,8 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
   const threat = sanitize(entity?.threat_level || entity?.threat || '—');
   const status = sanitize(entity?.status || 'estado?');
   const alignment = sanitize(entity?.alignment || 'afinidad?');
+  const categoryLabel = sanitize(categoryLabels[entity?.category] || entity?.role || entity?.category || 'PdI');
+  const sessionTag = sanitize(entity?.session_tag || entity?.sessions || '');
   const badgeRow = `
     <span class="badge">${status}</span>
     <span class="badge">${alignment}</span>
@@ -4106,30 +4139,55 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
       return;
     }
 
-    detail.innerHTML = `
-      <div class="card-title">Dossier</div>
-      <div class="dm-detail-grid">
-        <div class="dm-detail-box wide">
-          <div class="dm-detail-label">Callsign</div>
-          <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
-          <div class="dm-detail-label">Rol / función</div>
-          <div class="dm-detail-value">${role}</div>
+    if (isPoi) {
+      detail.innerHTML = `
+        <div class="card-title">PdI</div>
+        <div class="dm-detail-grid">
+          <div class="dm-detail-box wide">
+            <div class="dm-detail-label">Callsign</div>
+            <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
+            <div class="dm-detail-label">Categoría</div>
+            <div class="dm-detail-value">${categoryLabel}</div>
+          </div>
+          <div class="dm-detail-box medium">
+            <div class="dm-detail-label">Amenaza</div>
+            <div class="dm-detail-value">${threat}</div>
+            <div class="dm-detail-label">Velo</div>
+            <div class="dm-detail-value">${sanitize(entity.veil_status || entity.alignment || '—')}</div>
+            ${sessionTag ? `<div class="dm-detail-label">Sesión</div><div class="dm-detail-value">${sessionTag}</div>` : ''}
+          </div>
+        <div class="dm-detail-box scroll full">
+          <div class="dm-detail-label">Resumen público</div>
+          <div class="dm-detail-value multiline">${summary}</div>
         </div>
-        <div class="dm-detail-box medium">
-          <div class="dm-detail-label">Estado</div>
-          <div class="dm-detail-value">${status}</div>
-          <div class="dm-detail-label">Alineación</div>
-          <div class="dm-detail-value">${alignment}</div>
-          <div class="dm-detail-label">Amenaza</div>
-          <div class="dm-detail-value">${threat}</div>
-          <div class="dm-detail-badges">${badgeRow}</div>
-        </div>
-      <div class="dm-detail-box scroll full">
-        <div class="dm-detail-label">Resumen público</div>
-        <div class="dm-detail-value multiline">${summary}</div>
       </div>
-    </div>
-    `;
+      `;
+    } else {
+      detail.innerHTML = `
+        <div class="card-title">Dossier</div>
+        <div class="dm-detail-grid">
+          <div class="dm-detail-box wide">
+            <div class="dm-detail-label">Callsign</div>
+            <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
+            <div class="dm-detail-label">Rol / función</div>
+            <div class="dm-detail-value">${role}</div>
+          </div>
+          <div class="dm-detail-box medium">
+            <div class="dm-detail-label">Estado</div>
+            <div class="dm-detail-value">${status}</div>
+            <div class="dm-detail-label">Alineación</div>
+            <div class="dm-detail-value">${alignment}</div>
+            <div class="dm-detail-label">Amenaza</div>
+            <div class="dm-detail-value">${threat}</div>
+            <div class="dm-detail-badges">${badgeRow}</div>
+          </div>
+        <div class="dm-detail-box scroll full">
+          <div class="dm-detail-label">Resumen público</div>
+          <div class="dm-detail-value multiline">${summary}</div>
+        </div>
+      </div>
+      `;
+    }
 
     const img = entity.image_url || entity.photo || '';
     const locked = entity.visibility === 'locked';
