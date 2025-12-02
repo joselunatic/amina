@@ -75,6 +75,9 @@ const state = {
   lastAgentGraphic: { type: null, id: null }
 };
 
+// Expose state for debugging and tests that inspect map centers
+window.state = state;
+
 const mapCenter = [-76.229, 40.68];
 const BESTIARY_FALLBACK_IMAGE = '/creature.png';
 const HERO_FALLBACK_IMAGE = '/noimage.png';
@@ -2671,15 +2674,15 @@ function renderEntitiesMap(ctx, options = {}) {
     state[mapKey].addControl(new mapboxgl.NavigationControl());
     state[mapKey].on('style.load', () => ensureBuildingsLayer(state[mapKey]));
   }
-  ensureBuildingsLayer(state[mapKey]);
+  const map = state[mapKey];
 
   const apply = () => {
     if (!ctx || !ctx.pois || !ctx.pois.length) {
-      state[mapKey].setCenter(mapCenter);
-      state[mapKey].setZoom(9);
+      map.setCenter(mapCenter);
+      map.setZoom(9);
       return;
     }
-    const map = state[mapKey];
+    ensureBuildingsLayer(map);
     if (!state[markersKey]) state[markersKey] = [];
     state[markersKey].forEach((m) => m.remove());
     state[markersKey] = [];
@@ -2727,10 +2730,10 @@ function renderEntitiesMap(ctx, options = {}) {
     map.resize();
   };
 
-  if (state[mapKey].loaded()) {
+  if (map.loaded()) {
     apply();
   } else {
-    state[mapKey].once('load', apply);
+    map.once('load', apply);
   }
 }
 

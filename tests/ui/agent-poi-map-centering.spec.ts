@@ -23,6 +23,7 @@ test('agent POI map recenters when switching dossiers', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Base de Datos', exact: true }).click();
   await expect(page.locator('.workspace-view.agent-view[data-view="database"].active')).toBeVisible();
+  await page.locator('.dossier-type[data-dossier-type="poi"]').click();
 
   const poiItems = page.locator('#dossier-list .dossier-card-row');
   const firstPoi = poiItems.nth(0);
@@ -53,5 +54,7 @@ test('agent POI map recenters when switching dossiers', async ({ page }) => {
     return [c.lng, c.lat];
   });
 
+  expect(center1).not.toBeNull();
+  expect(center2).not.toBeNull();
   expect(center1).not.toEqual(center2);
 });
