@@ -697,6 +697,14 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   height: 38px;
 }
 
+.entity-form .inline-fields .flex-row select,
+.entity-form .inline-fields .flex-row input[type='number'] {
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0.35rem 0.6rem;
+  line-height: 1.2;
+}
+
 .entity-form .poi-only .flex-row .flex-col {
   flex: 1 1 0;
   min-width: 0;
