@@ -455,6 +455,8 @@ function bindEvents() {
   journalSessionInput?.addEventListener('change', loadJournalEntry);
   agentJournalLoadBtn?.addEventListener('click', loadAgentJournal);
   agentJournalSaveBtn?.addEventListener('click', handleAgentJournalSave);
+  agentJournalSeasonInput?.addEventListener('change', loadAgentJournal);
+  agentJournalSessionInput?.addEventListener('change', loadAgentJournal);
   if (msgBoxInboxBtn) {
     msgBoxInboxBtn.addEventListener('click', () => {
       state.messageFilters.box = '';
@@ -2001,6 +2003,9 @@ function applyAgentStatus() {
   agentStatus.textContent = state.agent ? state.agent.display : 'Ningún agente seleccionado';
   updateMessageFromField();
   loadMessages();
+  if (!state.dmMode) {
+    loadAgentJournal();
+  }
 }
 
 function applyMessageFilters() {
@@ -3442,6 +3447,9 @@ function renderMissionCards() {
   if (journalPublicInput && journalPublicInput !== document.activeElement) {
     journalPublicInput.value = state.missionNotes;
   }
+  if (agentJournalPublicInput && agentJournalPublicInput !== document.activeElement) {
+    agentJournalPublicInput.value = state.missionNotes;
+  }
 }
 
 async function loadAgentJournal() {
@@ -3454,11 +3462,11 @@ async function loadAgentJournal() {
     if (!res.ok) throw new Error('No se pudo cargar journal de agente');
     const data = await res.json();
     state.missionNotes = data.public_note || data.public_summary || '';
-    if (agentJournalPublicInput && agentJournalPublicInput !== document.activeElement) {
-      agentJournalPublicInput.value = state.missionNotes;
-    }
     if (missionBriefText) {
       missionBriefText.textContent = state.missionNotes || 'Esperando directivas.';
+    }
+    if (agentJournalPublicInput && agentJournalPublicInput !== document.activeElement) {
+      agentJournalPublicInput.value = state.missionNotes;
     }
   } catch (err) {
     logDebug(`Journal agente load error: ${err.message}`);
