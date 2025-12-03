@@ -444,50 +444,52 @@
                 </div>
                 <div class="dm-entity-hero-stack">
                   <div class="console-card dm-entity-hero-card" id="dm-entity-hero-card">
-                    <div class="dm-entity-hero-body muted">Sin imagen disponible.</div>
-                  </div>
-                  <div class="console-card bestiary-card" id="dm-bestiary-card" data-variant="dm">
-                    <div class="bestiary-folder">
-                      <div class="bestiary-tab">
-                        <span class="bestiary-logo">ORDO</span>
-                        <span class="bestiary-code" id="bestiary-code" data-bestiary-code>OV-ESK-XXX</span>
-                      </div>
-                      <div class="bestiary-body">
-                        <div class="bestiary-visual">
-                          <div class="bestiary-photo-frame">
-                            <img id="bestiary-image" data-bestiary-image src="/creature.png" alt="Bestiary portrait" />
-                            <div class="bestiary-photo-overlay"></div>
-                            <div class="bestiary-photo-band"></div>
+                    <div class="dm-entity-hero-visual" id="dm-entity-hero-visual">
+                      <div class="dm-entity-hero-body muted" id="dm-entity-hero-placeholder">Sin imagen disponible.</div>
+                    </div>
+                    <div class="bestiary-card hidden" id="dm-bestiary-card" data-variant="dm" data-empty="true">
+                      <div class="bestiary-folder">
+                        <div class="bestiary-tab">
+                          <span class="bestiary-logo">ORDO</span>
+                          <span class="bestiary-code" id="bestiary-code" data-bestiary-code>OV-ESK-XXX</span>
+                        </div>
+                        <div class="bestiary-body">
+                          <div class="bestiary-visual">
+                            <div class="bestiary-photo-frame">
+                              <img id="bestiary-image" data-bestiary-image src="/creature.png" alt="Bestiary portrait" />
+                              <div class="bestiary-photo-overlay"></div>
+                              <div class="bestiary-photo-band"></div>
+                            </div>
+                            <div class="bestiary-meta">
+                              <div class="bestiary-callsign" id="bestiary-callsign" data-bestiary-callsign>Selecciona un dossier</div>
+                              <div class="bestiary-line" id="bestiary-classification" data-bestiary-classification>Clasificación: —</div>
+                              <div class="bestiary-line" id="bestiary-threat" data-bestiary-threat>Nivel de amenaza: ?</div>
+                              <div class="bestiary-line" id="bestiary-status" data-bestiary-status>Estado: —</div>
+                              <div class="bestiary-line" id="bestiary-alignment" data-bestiary-alignment>Alineación: —</div>
+                            </div>
                           </div>
-                          <div class="bestiary-meta">
-                            <div class="bestiary-callsign" id="bestiary-callsign" data-bestiary-callsign>Selecciona un dossier</div>
-                            <div class="bestiary-line" id="bestiary-classification" data-bestiary-classification>Clasificación: —</div>
-                            <div class="bestiary-line" id="bestiary-threat" data-bestiary-threat>Nivel de amenaza: ?</div>
-                            <div class="bestiary-line" id="bestiary-status" data-bestiary-status>Estado: —</div>
-                            <div class="bestiary-line" id="bestiary-alignment" data-bestiary-alignment>Alineación: —</div>
+                          <div class="bestiary-section">
+                            <div class="bestiary-section-title">Resumen público</div>
+                            <p id="bestiary-summary" data-bestiary-summary class="muted">Sin entidad seleccionada.</p>
+                          </div>
+                          <div class="bestiary-section bestiary-dm-only">
+                            <div class="bestiary-section-title">Comportamiento observado</div>
+                            <p id="bestiary-behaviour" data-bestiary-behaviour>—</p>
+                          </div>
+                          <div class="bestiary-section bestiary-dm-only">
+                            <div class="bestiary-section-title">Origen teórico</div>
+                            <p id="bestiary-origin" data-bestiary-origin>—</p>
+                          </div>
+                          <div class="bestiary-section">
+                            <div class="bestiary-section-title">Protocolos</div>
+                            <ul class="bestiary-protocols" id="bestiary-protocols" data-bestiary-protocols>
+                              <li>—</li>
+                            </ul>
                           </div>
                         </div>
-                        <div class="bestiary-section">
-                          <div class="bestiary-section-title">Resumen público</div>
-                          <p id="bestiary-summary" data-bestiary-summary class="muted">Sin entidad seleccionada.</p>
+                        <div class="bestiary-drawer">
+                          <span class="bestiary-drawer-label">Fichero de expediente</span>
                         </div>
-                        <div class="bestiary-section bestiary-dm-only">
-                          <div class="bestiary-section-title">Comportamiento observado</div>
-                          <p id="bestiary-behaviour" data-bestiary-behaviour>—</p>
-                        </div>
-                        <div class="bestiary-section bestiary-dm-only">
-                          <div class="bestiary-section-title">Origen teórico</div>
-                          <p id="bestiary-origin" data-bestiary-origin>—</p>
-                        </div>
-                        <div class="bestiary-section">
-                          <div class="bestiary-section-title">Protocolos</div>
-                          <ul class="bestiary-protocols" id="bestiary-protocols" data-bestiary-protocols>
-                            <li>—</li>
-                          </ul>
-                        </div>
-                      </div>
-                      <div class="bestiary-drawer">
-                        <span class="bestiary-drawer-label">Fichero de expediente</span>
                       </div>
                     </div>
                   </div>
