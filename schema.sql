@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS pois (
   threat_level INTEGER NOT NULL DEFAULT 1 CHECK(threat_level BETWEEN 1 AND 5),
   veil_status TEXT NOT NULL DEFAULT 'intact' CHECK(veil_status IN ('intact','frayed','torn')),
   session_tag TEXT,
+  visibility TEXT NOT NULL DEFAULT 'agent_public',
+  unlock_code TEXT,
+  locked_hint TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

@@ -26,6 +26,7 @@ const VEIL_VALUES = ['intact', 'frayed', 'torn'];
 
 const ENTITY_TYPES = ['pc', 'npc', 'org', 'criatura'];
 const REL_VISIBILITY = ['public', 'dm'];
+const POI_VISIBILITY = ['agent_public', 'locked'];
 
 const seedData = [
   {
@@ -331,6 +332,7 @@ async function initialize() {
   await ensureMessageReadByColumn();
   await ensureMessageDeletedByColumn();
   await ensureJournalTable();
+  await ensurePoiVisibilityColumns();
 
   await ensureEntitiesTables();
   await seedPoisIfEmpty();
@@ -342,8 +344,8 @@ async function seedPoisIfEmpty() {
   if (countRow && countRow.count === 0) {
     const insertSql = `
       INSERT INTO pois
-      (name, category, latitude, longitude, image_url, public_note, dm_note, threat_level, veil_status, session_tag)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (name, category, latitude, longitude, image_url, public_note, dm_note, threat_level, veil_status, session_tag, visibility, unlock_code, locked_hint)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'agent_public', NULL, NULL)
     `;
     for (const poi of seedData) {
       await run(insertSql, [
@@ -356,7 +358,8 @@ async function seedPoisIfEmpty() {
         poi.dm_note,
         poi.threat_level,
         poi.veil_status,
-        poi.session_tag
+        poi.session_tag,
+        'agent_public'
       ]);
     }
   }
@@ -512,8 +515,8 @@ async function getPoiById(id) {
 async function createPoi(poi) {
   const sql = `
     INSERT INTO pois
-    (name, category, latitude, longitude, image_url, public_note, dm_note, threat_level, veil_status, session_tag)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (name, category, latitude, longitude, image_url, public_note, dm_note, threat_level, veil_status, session_tag, visibility, unlock_code, locked_hint)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   const result = await run(sql, [
     poi.name,
@@ -525,7 +528,10 @@ async function createPoi(poi) {
     poi.dm_note || null,
     poi.threat_level,
     poi.veil_status,
-    poi.session_tag || null
+    poi.session_tag || null,
+    poi.visibility || 'agent_public',
+    poi.unlock_code || null,
+    poi.locked_hint || null
   ]);
 
   return getPoiById(result.lastID);
@@ -544,6 +550,9 @@ async function updatePoi(id, poi) {
       threat_level = ?,
       veil_status = ?,
       session_tag = ?,
+      visibility = ?,
+      unlock_code = ?,
+      locked_hint = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `;
@@ -558,13 +567,34 @@ async function updatePoi(id, poi) {
     poi.threat_level,
     poi.veil_status,
     poi.session_tag || null,
+    poi.visibility || 'agent_public',
+    poi.unlock_code || null,
+    poi.locked_hint || null,
     id
   ]);
 
   return getPoiById(id);
 }
 
+async function replacePoiEntityLinks(poiId, links = []) {
+  await run('DELETE FROM entity_poi_links WHERE poi_id = ?', [poiId]);
+  if (!Array.isArray(links)) return;
+  for (const link of links) {
+    const entityId = Number(link.entity_id || link.to_entity_id);
+    if (!entityId || Number.isNaN(entityId)) continue;
+    const role = link.role_at_poi || link.relation_type || null;
+    const sessionTag = link.session_tag || null;
+    const isPublic = link.is_public === false ? 0 : 1;
+    await run(
+      `INSERT INTO entity_poi_links (entity_id, poi_id, role_at_poi, session_tag, is_public)
+       VALUES (?, ?, ?, ?, ?)`,
+      [entityId, poiId, role, sessionTag, isPublic]
+    );
+  }
+}
+
 async function deletePoi(id) {
+  await run('DELETE FROM entity_poi_links WHERE poi_id = ?', [id]);
   const result = await run('DELETE FROM pois WHERE id = ?', [id]);
   return result.changes > 0;
 }
@@ -639,6 +669,24 @@ async function ensureMessageSessionColumn() {
   const hasSession = columns.some((col) => col.name === 'session_tag');
   if (!hasSession) {
     await run('ALTER TABLE messages ADD COLUMN session_tag TEXT');
+  }
+}
+
+async function ensurePoiVisibilityColumns() {
+  const columns = await all("PRAGMA table_info('pois')");
+  const existing = new Set(columns.map((c) => c.name));
+  const pending = [];
+  if (!existing.has('visibility')) {
+    pending.push("ALTER TABLE pois ADD COLUMN visibility TEXT NOT NULL DEFAULT 'agent_public'");
+  }
+  if (!existing.has('unlock_code')) {
+    pending.push('ALTER TABLE pois ADD COLUMN unlock_code TEXT');
+  }
+  if (!existing.has('locked_hint')) {
+    pending.push('ALTER TABLE pois ADD COLUMN locked_hint TEXT');
+  }
+  for (const sql of pending) {
+    await run(sql);
   }
 }
 
@@ -896,6 +944,7 @@ function mapRow(row) {
 
 function mapPoiToEntity(row) {
   if (!row) return null;
+  const visibility = row.visibility || 'agent_public';
   return {
     id: row.id,
     type: 'poi',
@@ -911,8 +960,9 @@ function mapPoiToEntity(row) {
     public_summary: row.public_note || '',
     dm_notes: row.dm_notes || row.dm_note || '',
     dm_note: row.dm_notes || row.dm_note || '',
-    visibility: 'agent_public',
-    locked_hint: '',
+    visibility,
+    unlock_code: row.unlock_code || null,
+    locked_hint: row.locked_hint || '',
     poi_latitude: row.latitude,
     poi_longitude: row.longitude,
     latitude: row.latitude,
@@ -986,6 +1036,23 @@ async function getEntityForAgent(id) {
 
 function filterAgentEntity(entity) {
   if (!entity) return null;
+  if (entity.visibility === 'locked' && entity.type === 'poi') {
+    return {
+      id: entity.id,
+      type: entity.type,
+      kind: entity.kind || 'poi',
+      code_name: entity.code_name,
+      name: entity.name || entity.code_name,
+      category: entity.category,
+      visibility: entity.visibility,
+      locked_hint: entity.locked_hint || '',
+      locked: true,
+      poi_latitude: entity.poi_latitude ?? entity.latitude,
+      poi_longitude: entity.poi_longitude ?? entity.longitude,
+      latitude: entity.latitude,
+      longitude: entity.longitude
+    };
+  }
   if (entity.visibility === 'locked') {
     return {
       id: entity.id,
@@ -1238,12 +1305,24 @@ async function replaceEntityLinks(entityId, relations = {}) {
 
 async function unlockEntity(id, code) {
   const entity = await get('SELECT * FROM entities WHERE id = ?', [id]);
-  if (!entity) return { status: 'not_found' };
-  if (entity.visibility !== 'locked') return { status: 'not_locked' };
-  if (entity.unlock_code && code && entity.unlock_code === code) {
-    await run('UPDATE entities SET visibility = ? WHERE id = ?', ['agent_public', id]);
-    const updated = await get('SELECT * FROM entities WHERE id = ?', [id]);
-    const mapped = mapRow(updated);
+  if (entity) {
+    if (entity.visibility !== 'locked') return { status: 'not_locked' };
+    if (entity.unlock_code && code && entity.unlock_code === code) {
+      await run('UPDATE entities SET visibility = ? WHERE id = ?', ['agent_public', id]);
+      const updated = await get('SELECT * FROM entities WHERE id = ?', [id]);
+      const mapped = mapRow(updated);
+      return { status: 'ok', public_summary: mapped.public_summary || '', entity: filterAgentEntity(mapped) };
+    }
+    return { status: 'invalid_code' };
+  }
+  // Try POI unlock
+  const poi = await get('SELECT * FROM pois WHERE id = ?', [id]);
+  if (!poi) return { status: 'not_found' };
+  if (poi.visibility !== 'locked') return { status: 'not_locked' };
+  if (poi.unlock_code && code && poi.unlock_code === code) {
+    await run('UPDATE pois SET visibility = ? WHERE id = ?', ['agent_public', id]);
+    const updated = await get('SELECT * FROM pois WHERE id = ?', [id]);
+    const mapped = mapPoiToEntity(updated);
     return { status: 'ok', public_summary: mapped.public_summary || '', entity: filterAgentEntity(mapped) };
   }
   return { status: 'invalid_code' };
@@ -1268,6 +1347,7 @@ module.exports = {
   createPoi,
   updatePoi,
   deletePoi,
+  replacePoiEntityLinks,
   CATEGORY_VALUES,
   VEIL_VALUES,
   getMessages,

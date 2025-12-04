@@ -662,7 +662,17 @@
                                 Entidad</button>
                             </div>
                           </div>
-                          <div class="form-section poi-only poi-extra"></div>
+                          <div class="form-section poi-only poi-extra">
+                            <div class="section-title">Conexiones con dossiers</div>
+                            <p class="text-xs muted">Vincula este PdI a PJ/PNJ/ORG/EOE (busca por nombre o callsign).</p>
+                            <div class="multi-select" id="poi-entity-links-select">
+                              <input type="search" id="poi-entity-links-search" placeholder="Buscar PJ/PNJ/Org/EOE…"
+                                autocomplete="off" />
+                              <div class="multi-suggestions" id="poi-entity-links-suggestions"></div>
+                              <div class="multi-chips" id="poi-entity-links-chips"></div>
+                            </div>
+                            <input type="hidden" id="poi-entity-links" />
+                          </div>
                         </div>
                       </div>
                     </form>

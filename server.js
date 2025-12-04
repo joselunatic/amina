@@ -24,6 +24,7 @@ const {
   getEntityContext,
   filterAgentEntity,
   unlockEntity,
+  replacePoiEntityLinks,
   ENTITY_TYPES,
   deleteMessageForViewer,
   deleteEntity,
@@ -46,6 +47,32 @@ const MAPBOX_STYLE =
   process.env.MAPBOX_STYLE_URL || 'mapbox://styles/joselun/cmi3ezivh00gi01s98tef234h';
 const DEBUG_MODE = process.env.DEBUG === 'true';
 const POI_ID_OFFSET = 100000;
+
+function redactPayload(payload) {
+  if (!payload || typeof payload !== 'object') return payload;
+  const clone = Array.isArray(payload) ? payload.map(redactPayload) : { ...payload };
+  const sensitiveKeys = ['x-dm-secret', 'dm_secret', 'code', 'unlock_code', 'locked_hint', 'password', 'passwordHash'];
+  Object.keys(clone).forEach((key) => {
+    if (sensitiveKeys.includes(key)) {
+      clone[key] = '[redacted]';
+    } else if (clone[key] && typeof clone[key] === 'object') {
+      clone[key] = redactPayload(clone[key]);
+    }
+  });
+  return clone;
+}
+
+function logCrud(label, req, extra = {}) {
+  const dm = !!req.headers['x-dm-secret'];
+  const meta = {
+    method: req.method,
+    path: req.originalUrl || req.url,
+    dm,
+    body: redactPayload(req.body || {}),
+    ...extra
+  };
+  console.log(`[CRUD] ${label}`, meta);
+}
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -319,10 +346,12 @@ app.get('/api/dm/entities/:id/context', dmSecretRequired, async (req, res, next)
 
 app.post('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
   try {
+    logCrud('Entity create', req);
     const raw = req.body || {};
     if (raw.type === 'poi') {
-      const data = validatePoi(raw);
-      const createdPoi = await createPoi(data);
+      const { cleaned, entityLinks, linksProvided } = validatePoi(raw);
+      const createdPoi = await createPoi(cleaned);
+      if (linksProvided) await replacePoiEntityLinks(createdPoi.id, entityLinks);
       return res.status(201).json(mapPoiToEntity(createdPoi));
     }
     const payload = validateEntity(raw);
@@ -335,12 +364,15 @@ app.post('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
 
 app.put('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
   try {
+    logCrud('Entity update', req, { id: req.params.id });
     const existing = await getEntityForDm(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Entidad no encontrada.' });
 
     if (existing.type === 'poi' || req.body?.type === 'poi') {
-      const data = validatePoi(req.body || {});
-      const updatedPoi = await updatePoi(req.params.id, data);
+      const poiId = isEncodedPoiId(req.params.id) ? decodePoiId(req.params.id) : req.params.id;
+      const { cleaned, entityLinks, linksProvided } = validatePoi(req.body || {});
+      const updatedPoi = await updatePoi(poiId, cleaned);
+      if (linksProvided) await replacePoiEntityLinks(poiId, entityLinks);
       return res.json(mapPoiToEntity(updatedPoi));
     }
 
@@ -354,6 +386,7 @@ app.put('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
 
 app.post('/api/dm/entities/:id/archive', dmSecretRequired, async (req, res, next) => {
   try {
+    logCrud('Entity archive', req, { id: req.params.id });
     const exists = await getEntityForDm(req.params.id);
     if (!exists) return res.status(404).json({ error: 'Entidad no encontrada.' });
     const archived = await archiveEntity(req.params.id);
@@ -365,6 +398,7 @@ app.post('/api/dm/entities/:id/archive', dmSecretRequired, async (req, res, next
 
 app.delete('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
   try {
+    logCrud('Entity delete', req, { id: req.params.id });
     const existing = await getEntityForDm(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Entidad no encontrada.' });
     if (existing.type === 'poi') {
@@ -444,7 +478,10 @@ app.get('/api/agent/entities/:id/context', async (req, res, next) => {
 app.post('/api/agent/entities/:id/unlock', async (req, res, next) => {
   try {
     const code = (req.body && req.body.code) || '';
-    const result = await unlockEntity(req.params.id, code);
+    const rawId = req.params.id;
+    const id = isEncodedPoiId(rawId) ? decodePoiId(rawId) : rawId;
+    const result = await unlockEntity(id, code);
+    logCrud('Agent unlock', req, { id, status: result.status });
     if (result.status === 'not_found') return res.status(404).json({ error: 'Entidad no encontrada.' });
     res.json(result);
   } catch (err) {
@@ -509,6 +546,9 @@ app.post('/api/dm/journal', dmSecretRequired, async (req, res, next) => {
 function validatePoi(payload) {
   const errors = [];
   const cleaned = {};
+  const entityLinks = [];
+  const linksProvided = Array.isArray(payload.entity_links);
+  const allowedVisibility = ['agent_public', 'locked'];
 
   if (!payload.name || typeof payload.name !== 'string' || !payload.name.trim()) {
     errors.push('Name is required.');
@@ -576,6 +616,31 @@ function validatePoi(payload) {
   if (payload.session_tag !== undefined) {
     cleaned.session_tag = typeof payload.session_tag === 'string' ? payload.session_tag.trim() : null;
   }
+  const vis = payload.visibility ? String(payload.visibility).trim() : 'agent_public';
+  if (!allowedVisibility.includes(vis)) {
+    errors.push('Visibility is invalid.');
+  } else {
+    cleaned.visibility = vis;
+  }
+  if (payload.unlock_code !== undefined) {
+    cleaned.unlock_code = payload.unlock_code ? String(payload.unlock_code).trim() : null;
+  }
+  if (payload.locked_hint !== undefined) {
+    cleaned.locked_hint = payload.locked_hint ? String(payload.locked_hint).trim() : null;
+  }
+
+  if (Array.isArray(payload.entity_links)) {
+    payload.entity_links.forEach((link) => {
+      const entityId = Number(link.entity_id || link.to_entity_id);
+      if (!entityId || Number.isNaN(entityId)) return;
+      entityLinks.push({
+        entity_id: entityId,
+        role_at_poi: link.role_at_poi ? String(link.role_at_poi).trim() : null,
+        session_tag: link.session_tag ? String(link.session_tag).trim() : null,
+        is_public: link.is_public !== false
+      });
+    });
+  }
 
   if (errors.length) {
     const error = new Error(errors.join(' '));
@@ -583,7 +648,7 @@ function validatePoi(payload) {
     throw error;
   }
 
-  return cleaned;
+  return { cleaned, entityLinks, linksProvided };
 }
 
 function validateEntity(payload) {
@@ -709,6 +774,7 @@ function dmSecretRequired(req, res, next) {
 
 app.get('/api/pois', async (req, res, next) => {
   try {
+    const isDm = DM_SECRET && req.header('x-dm-secret') === DM_SECRET;
     const filters = {
       category: req.query.category,
       session_tag: req.query.session_tag
@@ -719,7 +785,10 @@ app.get('/api/pois', async (req, res, next) => {
     }
 
     const pois = await getAllPois(filters);
-    res.json(pois);
+    const mapped = pois.map(mapPoiToEntity);
+    const visible = isDm ? mapped : mapped.map(filterAgentEntity).filter(Boolean);
+    logCrud('POI list', req, { count: visible.length, dm: isDm });
+    res.json(visible);
   } catch (err) {
     next(err);
   }
@@ -727,11 +796,13 @@ app.get('/api/pois', async (req, res, next) => {
 
 app.get('/api/pois/:id', async (req, res, next) => {
   try {
-    const poi = await getPoiById(req.params.id);
-    if (!poi) {
-      return res.status(404).json({ error: 'POI not found.' });
-    }
-    res.json(poi);
+    const poiId = isEncodedPoiId(req.params.id) ? decodePoiId(req.params.id) : req.params.id;
+    const poi = await getPoiById(poiId);
+    if (!poi) return res.status(404).json({ error: 'POI not found.' });
+    const isDm = DM_SECRET && req.header('x-dm-secret') === DM_SECRET;
+    const mapped = mapPoiToEntity(poi);
+    logCrud('POI get', req, { id: poiId, dm: isDm, visibility: mapped.visibility });
+    res.json(isDm ? mapped : filterAgentEntity(mapped));
   } catch (err) {
     next(err);
   }
@@ -739,9 +810,14 @@ app.get('/api/pois/:id', async (req, res, next) => {
 
 app.post('/api/pois', dmSecretRequired, async (req, res, next) => {
   try {
-    const data = validatePoi(req.body || {});
-    const created = await createPoi(data);
-    res.status(201).json(created);
+    logCrud('POI create', req);
+    const { cleaned, entityLinks, linksProvided } = validatePoi(req.body || {});
+    const created = await createPoi(cleaned);
+    if (linksProvided) {
+      await replacePoiEntityLinks(created.id, entityLinks);
+    }
+    const fresh = await getPoiById(created.id);
+    res.status(201).json(fresh);
   } catch (err) {
     next(err);
   }
@@ -749,13 +825,19 @@ app.post('/api/pois', dmSecretRequired, async (req, res, next) => {
 
 app.put('/api/pois/:id', dmSecretRequired, async (req, res, next) => {
   try {
-    const existing = await getPoiById(req.params.id);
+    const poiId = isEncodedPoiId(req.params.id) ? decodePoiId(req.params.id) : req.params.id;
+    logCrud('POI update', req, { id: poiId });
+    const existing = await getPoiById(poiId);
     if (!existing) {
       return res.status(404).json({ error: 'POI not found.' });
     }
-    const data = validatePoi(req.body || {});
-    const updated = await updatePoi(req.params.id, data);
-    res.json(updated);
+    const { cleaned, entityLinks, linksProvided } = validatePoi(req.body || {});
+    const updated = await updatePoi(poiId, cleaned);
+    if (linksProvided) {
+      await replacePoiEntityLinks(poiId, entityLinks);
+    }
+    const fresh = await getPoiById(poiId);
+    res.json(fresh);
   } catch (err) {
     next(err);
   }
@@ -763,11 +845,13 @@ app.put('/api/pois/:id', dmSecretRequired, async (req, res, next) => {
 
 app.delete('/api/pois/:id', dmSecretRequired, async (req, res, next) => {
   try {
-    const existing = await getPoiById(req.params.id);
+    const poiId = isEncodedPoiId(req.params.id) ? decodePoiId(req.params.id) : req.params.id;
+    logCrud('POI delete', req, { id: poiId });
+    const existing = await getPoiById(poiId);
     if (!existing) {
       return res.status(404).json({ error: 'POI not found.' });
     }
-    await deletePoi(req.params.id);
+    await deletePoi(poiId);
     res.status(204).send();
   } catch (err) {
     next(err);

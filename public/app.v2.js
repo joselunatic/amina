@@ -224,10 +224,14 @@ const entityThreatInput = document.getElementById('entity-threat');
 const entityImageInput = document.getElementById('entity-image');
 const entityPoisInput = document.getElementById('entity-pois');
 const entityLinksInput = document.getElementById('entity-links');
+const poiEntityLinksInput = document.getElementById('poi-entity-links');
 const entityResetBtn = document.getElementById('entity-reset');
 const entityLinksSearch = document.getElementById('entity-links-search');
 const entityLinksSuggestions = document.getElementById('entity-links-suggestions');
 const entityLinksChips = document.getElementById('entity-links-chips');
+const poiEntityLinksSearch = document.getElementById('poi-entity-links-search');
+const poiEntityLinksSuggestions = document.getElementById('poi-entity-links-suggestions');
+const poiEntityLinksChips = document.getElementById('poi-entity-links-chips');
 const entityPublicNoteInput = document.getElementById('entity-public-note');
 const entityDmNoteInput = document.getElementById('entity-dm-note');
 const entityVisibilityInput = document.getElementById('entity-visibility');
@@ -307,6 +311,13 @@ const entityPoisSelect = {
   suggestions: document.getElementById('entity-pois-suggestions'),
   chips: document.getElementById('entity-pois-chips'),
   hidden: document.getElementById('entity-pois')
+};
+
+const poiEntityLinksSelect = {
+  input: document.getElementById('poi-entity-links-search'),
+  suggestions: document.getElementById('poi-entity-links-suggestions'),
+  chips: document.getElementById('poi-entity-links-chips'),
+  hidden: document.getElementById('poi-entity-links')
 };
 
 const unlockOverlay = document.getElementById('unlock-overlay');
@@ -604,6 +615,16 @@ function bindEvents() {
     () => (state.entities || []).filter((e) => e.type !== 'poi'),
     'entity'
   );
+  setupMultiSelect(
+    {
+      input: poiEntityLinksSearch,
+      suggestions: poiEntityLinksSuggestions,
+      chips: poiEntityLinksChips,
+      hidden: poiEntityLinksInput
+    },
+    () => (state.entities || []).filter((e) => e.type !== 'poi'),
+    'entity'
+  );
   if (entityVisibilityInput) {
     entityVisibilityInput.addEventListener('change', toggleUnlockFields);
     toggleUnlockFields();
@@ -784,7 +805,8 @@ async function loadPois() {
   if (state.filters.session_tag) params.append('session_tag', state.filters.session_tag);
   const url = params.toString() ? `/api/pois?${params.toString()}` : '/api/pois';
 
-  const response = await fetch(url);
+  const headers = state.dmSecret ? { 'x-dm-secret': state.dmSecret } : undefined;
+  const response = await fetch(url, { headers });
   if (!response.ok) {
     showMessage('Fallo al cargar PdIs.', true);
     return;
@@ -1358,6 +1380,14 @@ async function submitPoiFromEntityForm() {
     return;
   }
 
+  const entityLinks = parseMultiSelect(poiEntityLinksInput?.value, 'entity')
+    .map((link) => ({
+      entity_id: link.to_entity_id,
+      role_at_poi: link.relation_type || '',
+      is_public: link.is_public !== false
+    }))
+    .filter((link) => link.entity_id);
+
   const payload = {
     name: entityCodeNameInput.value.trim(),
     category: poiCategorySelect.value,
@@ -1368,7 +1398,11 @@ async function submitPoiFromEntityForm() {
     veil_status: veilValue,
     session_tag: formIds.session ? formIds.session.value.trim() : '',
     public_note: (formIds.publicNote || entityPublicNoteInput)?.value?.trim() || '',
-    dm_note: (formIds.dmNote || entityDmNoteInput)?.value?.trim() || ''
+    dm_note: (formIds.dmNote || entityDmNoteInput)?.value?.trim() || '',
+    entity_links: entityLinks,
+    visibility: entityVisibilityInput?.value || 'agent_public',
+    unlock_code: entityUnlockInput?.value?.trim() || '',
+    locked_hint: entityLockedHintInput?.value?.trim() || ''
   };
 
   const isEdit = !!entityIdInput.value;
@@ -1891,6 +1925,7 @@ function populateAgentSelect() {
 
 function showAgentLogin() {
   bootMenu.classList.add('hidden');
+  agentLoginDiv.classList.remove('hidden');
   agentLoginDiv.classList.add('visible');
   agentLoginStatus.textContent = '';
   agentPassInput.value = '';
@@ -1899,6 +1934,7 @@ function showAgentLogin() {
 
 function hideAgentLogin() {
   agentLoginDiv.classList.remove('visible');
+  agentLoginDiv.classList.add('hidden');
   bootMenu.classList.remove('hidden');
 }
 
@@ -2124,6 +2160,9 @@ function mapPoiToAdminItem(poi) {
     category: poi.category,
     latitude: poi.latitude,
     longitude: poi.longitude,
+    visibility: poi.visibility || 'agent_public',
+    unlock_code: poi.unlock_code || '',
+    locked_hint: poi.locked_hint || '',
     poi_id: poi.id,
     veil_status: poi.veil_status
   };
@@ -2196,6 +2235,8 @@ function renderAgentDossiers() {
       renderAgentDossiers();
       if (entity.visibility !== 'locked') {
         loadAgentContext(entity.id);
+      } else {
+        renderDossierDetailView(detailTarget, entity, { dm: false });
       }
     });
     listTarget.appendChild(card);
@@ -2277,27 +2318,41 @@ function renderDossierDetailView(target, entity, options = {}) {
     return;
   }
   const dmView = options.dm;
+  const isPoiLocked = entity.type === 'poi' && entity.visibility === 'locked' && !dmView;
+  const showUnlockButton = isPoiLocked || (entity.visibility === 'locked' && !dmView);
   if (entity.type === 'poi') {
-    target.innerHTML = `
-      <div class="dossier-detail">
-        <div class="dossier-title">${sanitize(entity.code_name || entity.name)}</div>
-        <div class="dossier-subtitle">${sanitize(categoryLabels[entity.category] || entity.role || 'PdI')}</div>
-        <div class="dossier-badges">
-          <span class="badge">Amenaza ${sanitize(String(entity.threat_level || '?'))}</span>
-          <span class="badge">Velo ${sanitize(entity.veil_status || entity.alignment || '?')}</span>
-          ${entity.sessions ? `<span class="badge-soft">${sanitize(entity.sessions)}</span>` : ''}
+    if (isPoiLocked) {
+      target.innerHTML = `
+        <div class="dossier-detail">
+          <div class="locked-placeholder">LOCKED</div>
+          <div class="dossier-title">${sanitize(entity.code_name || entity.name)}</div>
+          <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
+            entity.locked_hint || ''
+          )}">Desbloquear</button>
         </div>
-        <div class="dossier-section">
-          <div class="section-title">Ubicación</div>
-          <p class="muted">Lat: ${sanitize(String(entity.latitude || '—'))} / Lng: ${sanitize(String(entity.longitude || '—'))}</p>
+      `;
+    } else {
+      target.innerHTML = `
+        <div class="dossier-detail">
+          <div class="dossier-title">${sanitize(entity.code_name || entity.name)}</div>
+          <div class="dossier-subtitle">${sanitize(categoryLabels[entity.category] || entity.role || 'PdI')}</div>
+          <div class="dossier-badges">
+            <span class="badge">Amenaza ${sanitize(String(entity.threat_level || '?'))}</span>
+            <span class="badge">Velo ${sanitize(entity.veil_status || entity.alignment || '?')}</span>
+            ${entity.sessions ? `<span class="badge-soft">${sanitize(entity.sessions)}</span>` : ''}
+          </div>
+          <div class="dossier-section">
+            <div class="section-title">Ubicación</div>
+            <p class="muted">Lat: ${sanitize(String(entity.latitude || '—'))} / Lng: ${sanitize(String(entity.longitude || '—'))}</p>
+          </div>
+          <div class="dossier-section">
+            <div class="section-title">Notas</div>
+            <p>${sanitize(entity.public_summary || entity.public_note || 'Sin notas públicas')}</p>
+            ${dmView ? `<div class="dm-note"><strong>Intel DM:</strong> ${sanitize(entity.dm_notes || entity.dm_note || 'Sin notas DM')}</div>` : ''}
+          </div>
         </div>
-        <div class="dossier-section">
-          <div class="section-title">Notas</div>
-          <p>${sanitize(entity.public_summary || entity.public_note || 'Sin notas públicas')}</p>
-          ${dmView ? `<div class="dm-note"><strong>Intel DM:</strong> ${sanitize(entity.dm_notes || entity.dm_note || 'Sin notas DM')}</div>` : ''}
-        </div>
-      </div>
-    `;
+      `;
+    }
     return;
   }
   const isLocked = entity.visibility === 'locked' && !dmView;
@@ -2313,8 +2368,8 @@ function renderDossierDetailView(target, entity, options = {}) {
         <div class="locked-placeholder">LOCKED</div>
         <div class="dossier-title">${sanitize(entity.code_name || entity.name)}</div>
         <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
-      entity.locked_hint || ''
-    )}">Desbloquear</button>
+          entity.locked_hint || ''
+        )}">Desbloquear</button>
       </div>
     `;
     return;
@@ -2798,7 +2853,6 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   const detail = document.getElementById('dm-entity-detail-card');
   const hero = document.getElementById('dm-entity-hero-card');
   const bestiaryRoot = document.getElementById('dm-bestiary-card');
-  const heroVisual = document.getElementById('dm-entity-hero-visual');
   const stateSectionTitle = document.getElementById('entity-state-title'); // estado/afinidad label
   if (!detail || !hero) return;
   const isPoi = entity && (entity.kind === 'poi' || entity.type === 'poi');
@@ -2810,11 +2864,6 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
     (entityTypeInput?.value === 'poi' || entityKindInput?.value === 'poi');
   hero.classList.remove('hidden');
   hero.classList.remove('map-only');
-  if (heroVisual) heroVisual.classList.remove('hidden');
-  if (bestiaryRoot) {
-    bestiaryRoot.classList.add('hidden');
-    bestiaryRoot.classList.remove('bestiary-promoted');
-  }
 
   // reset map when switching away from PdI
   if (!isPoi && state.entitiesMap) {
@@ -2823,42 +2872,29 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
     state.entityMarkers = [];
   }
 
-  const showHeroMedia = (content) => {
-    hero.classList.remove('map-only');
-    if (heroVisual) {
-      heroVisual.classList.remove('hidden');
-      if (typeof content === 'string') {
-        heroVisual.innerHTML = content;
-      }
-    } else if (typeof content === 'string') {
-      hero.innerHTML = content;
-    }
-    if (bestiaryRoot) {
-      bestiaryRoot.classList.add('hidden');
-      bestiaryRoot.classList.remove('bestiary-promoted');
-    }
-  };
-
-  const showBestiary = () => {
-    hero.classList.remove('map-only');
-    if (heroVisual) heroVisual.classList.add('hidden');
-    if (bestiaryRoot) {
-      bestiaryRoot.classList.remove('hidden');
-      bestiaryRoot.classList.add('bestiary-promoted');
-    }
-  };
-
   if (!hasEntity) {
     if (wantsNewPoiPreview) {
       detail.innerHTML =
         '<div class="card-title">Nuevo PdI</div><div class="muted">Usa el mapa de la izquierda para centrar Schuylkill y el botón “Elegir del mapa”.</div>';
+      hero.classList.add('map-only');
+      hero.innerHTML = `
+        <div class="dm-entity-map-standalone">
+          <div id="dm-entity-detail-map" class="dm-entities-map" aria-label="Mapa de nuevo PdI"></div>
+        </div>
+      `;
       const seedCtx = { pois: [{ poi_longitude: mapCenter[0], poi_latitude: mapCenter[1] }] };
       renderEntitiesMap(seedCtx);
     } else {
       detail.innerHTML =
         '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista de la izquierda. Podrás editarlo en el panel inferior y, si es un PdI, verlo en el mapa.</div>';
+      hero.classList.remove('map-only');
+      hero.innerHTML =
+        '<div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
     }
-    showHeroMedia('<div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto.</div>');
+    if (bestiaryRoot) {
+      bestiaryRoot.classList.add('hidden');
+      bestiaryRoot.classList.remove('bestiary-promoted');
+    }
     renderBestiary(null);
     return;
   }
@@ -2947,6 +2983,16 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
   const locked = entity.visibility === 'locked' && !isDmViewer();
 
   if (isPoi) {
+    hero.classList.add('map-only');
+    hero.innerHTML = `
+      <div class="dm-entity-map-standalone">
+        <div id="dm-entity-detail-map" class="dm-entities-map" aria-label="Mapa de ${callsign || 'entidad'}"></div>
+      </div>
+    `;
+    if (bestiaryRoot) {
+      bestiaryRoot.classList.add('hidden');
+      bestiaryRoot.classList.remove('bestiary-promoted');
+    }
     const poiMapPayload = {
       pois: [
         {
@@ -2957,29 +3003,19 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
       ]
     };
     renderEntitiesMap(poiMapPayload);
-    showHeroMedia(`
-      <div class="dm-entity-hero-body">
-        <div class="dm-entity-hero-media">
-          ${
-            locked
-              ? `<div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>`
-              : img
-                ? `<div class="hero-wrapper"><img src="${sanitize(img)}" alt="${callsign}" /></div>`
-                : '<div class="muted">Mapa activo en el panel principal.</div>'
-          }
-        </div>
-        <div class="dm-entity-hero-info">
-          <div class="dm-entity-hero-title">${callsign || 'Sin callsign'}</div>
-          <div class="dm-entity-hero-role">${role}</div>
-        </div>
-      </div>
-    `);
     renderBestiary(null);
   } else if (isCreature) {
-    showBestiary();
+    hero.classList.add('hidden');
+    hero.classList.remove('map-only');
+    hero.innerHTML = '';
+    if (bestiaryRoot) {
+      bestiaryRoot.classList.remove('hidden');
+      bestiaryRoot.classList.add('bestiary-promoted');
+    }
     renderBestiary(entity);
   } else {
-    showHeroMedia(`
+    hero.classList.remove('map-only');
+    hero.innerHTML = `
       <div class="dm-entity-hero-body">
         <div class="dm-entity-hero-media">
           ${locked
@@ -2994,7 +3030,11 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
           <div class="dm-entity-hero-role">${role}</div>
         </div>
       </div>
-    `);
+    `;
+    if (bestiaryRoot) {
+      bestiaryRoot.classList.add('hidden');
+      bestiaryRoot.classList.remove('bestiary-promoted');
+    }
     renderBestiary(null);
   }
 }
@@ -3593,6 +3633,7 @@ async function attemptUnlock(id, code) {
       showMessage('Dossier desbloqueado.');
       hideUnlockOverlay();
       await loadEntities();
+      await loadPois();
       const entity = findEntityById(id);
       renderAgentDossiers();
       if (entity) renderDossierDetailView(agentDossierDetail, entity, { dm: false });
@@ -3604,6 +3645,11 @@ async function attemptUnlock(id, code) {
   } catch (err) {
     showMessage('Error en desbloqueo.', true);
   }
+}
+
+function triggerUnlockFlow(entityId, hint = '') {
+  if (!entityId) return;
+  openUnlockOverlay(entityId, hint);
 }
 
 function updateMessageFromField() {
@@ -3956,6 +4002,8 @@ function resetEntityForm() {
   entityLockedHintInput.value = '';
   entityPoisInput.value = '';
   entityLinksInput.value = '';
+  poiEntityLinksInput && (poiEntityLinksInput.value = '');
+  poiEntityLinksSelect?.renderChips?.([]);
   state.editingPoiId = null;
   updateEntityFormMode('entity');
   updateEntityDeleteButtonState();
@@ -4289,6 +4337,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
   const alignment = sanitize(entity?.alignment || 'afinidad?');
   const categoryLabel = sanitize(categoryLabels[entity?.category] || entity?.role || entity?.category || 'PdI');
   const sessionTag = sanitize(entity?.session_tag || entity?.sessions || '');
+  const locked = entity?.visibility === 'locked';
   const badgeRow = `
     <span class="badge">${status}</span>
     <span class="badge">${alignment}</span>
@@ -4324,6 +4373,33 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
     }
 
     if (isPoi) {
+      if (locked) {
+        detail.innerHTML = `
+          <div class="card-title">PdI</div>
+          <div class="dossier-detail locked">
+            <div class="locked-placeholder small">LOCKED</div>
+            <div class="dossier-title">${callsign || 'PdI bloqueado'}</div>
+            <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
+          entity.locked_hint || ''
+        )}">Desbloquear</button>
+          </div>
+        `;
+        hero.classList.remove('map-only');
+        hero.innerHTML = `
+          <div class="dm-entity-hero-body">
+            <div class="dm-entity-hero-media">
+              <div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>
+            </div>
+            <div class="dm-entity-hero-info">
+              <div class="dm-entity-hero-title">${callsign || 'PdI bloqueado'}</div>
+              <div class="dm-entity-hero-role">${categoryLabel}</div>
+            </div>
+          </div>
+        `;
+        if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
+        renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+        return;
+      }
       detail.innerHTML = `
         <div class="card-title">PdI</div>
         <div class="dm-detail-grid">
@@ -4374,7 +4450,6 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
     }
 
     const img = entity.image_url || entity.photo || '';
-    const locked = entity.visibility === 'locked';
 
     if (isPoi) {
       const mapContainerId = idx === 0 ? 'agent-entity-detail-map' : `agent-entity-detail-map-${idx}`;
