@@ -4053,7 +4053,7 @@ function renderMelChips() {
     chip.dataset.index = String(index);
     const label = document.createElement('span');
     label.className = 'chip-label';
-    label.textContent = isDmOnly ? `${item.text} · DM` : `${item.text} · AG`;
+    label.textContent = isDmOnly ? `[DM] ${item.text}` : `[AG] ${item.text}`;
     chip.appendChild(label);
     const actions = document.createElement('div');
     actions.className = 'chip-actions';
