@@ -4029,6 +4029,7 @@ function toggleMelVisibilityAt(index) {
   if (!tokens[index]) return;
   const isDmOnly = tokens[index].is_public === false;
   tokens[index] = { ...tokens[index], is_public: !isDmOnly };
+  console.log('MEL toggle', { index, from: isDmOnly ? 'dm' : 'ag', to: isDmOnly ? 'ag' : 'dm' });
   setMelTokens(tokens);
 }
 
@@ -4092,11 +4093,13 @@ function handleMelChipClick(event) {
   const index = Number(chip.dataset.index);
   if (Number.isNaN(index)) return;
   if (remover) {
+    console.log('MEL remove', { index });
     const next = getMelTokens().slice();
     next.splice(index, 1);
     setMelTokens(next);
     return;
   }
+  console.log('MEL chip click', { index });
   toggleMelVisibilityAt(index);
 }
 
