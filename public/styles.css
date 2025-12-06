@@ -1891,6 +1891,22 @@ body.agent-creature-view #agent-entity-hero-card {
   background: rgba(0, 255, 136, 0.2);
 }
 
+.chip.dm-only {
+  background: rgba(255, 95, 95, 0.08);
+  border-color: rgba(255, 95, 95, 0.6);
+  color: #ffcaca;
+}
+
+.chip.dm-only .chip-label {
+  color: #ffb3b3;
+}
+
+.chip.dm-only .chip-actions button {
+  background: rgba(255, 95, 95, 0.15);
+  border-color: rgba(255, 95, 95, 0.45);
+  color: #ffdede;
+}
+
 .mel-editor {
   display: flex;
   flex-direction: column;

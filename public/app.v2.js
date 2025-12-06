@@ -4044,11 +4044,13 @@ function renderMelChips() {
   entityMelChips.innerHTML = '';
   tokens.forEach((item, index) => {
     const chip = document.createElement('span');
+    const isDmOnly = item.is_public === false;
     chip.className = 'chip';
+    if (isDmOnly) chip.classList.add('dm-only');
     chip.dataset.index = String(index);
     const label = document.createElement('span');
     label.className = 'chip-label';
-    label.textContent = item.text;
+    label.textContent = isDmOnly ? `${item.text} · DM` : `${item.text} · AG`;
     chip.appendChild(label);
     const actions = document.createElement('div');
     actions.className = 'chip-actions';
@@ -4056,7 +4058,6 @@ function renderMelChips() {
     toggle.type = 'button';
     toggle.className = 'chip-toggle';
     toggle.dataset.index = String(index);
-    const isDmOnly = item.is_public === false;
     toggle.textContent = isDmOnly ? 'DM' : 'AG';
     toggle.title = isDmOnly ? 'Solo DM' : 'Visible agentes';
     toggle.addEventListener('click', (e) => {
