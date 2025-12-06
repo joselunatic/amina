@@ -80,6 +80,8 @@ const state = {
   melTokens: []
 };
 
+console.log('AMINA app.v2 loaded (mel toggles debug)');
+
 // Expose state for debugging and tests that inspect map centers
 window.state = state;
 
