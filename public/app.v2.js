@@ -645,9 +645,7 @@ function bindEvents() {
   });
   if (entityMelChips) {
     console.log('MEL chips binding ready', { hasEntry: !!entityMelEntry, hasAdd: !!entityMelAddBtn });
-    ['click', 'pointerdown'].forEach((evt) => {
-      entityMelChips.addEventListener(evt, handleMelChipClick);
-    });
+    entityMelChips.addEventListener('click', handleMelChipClick);
   }
   unlockClose?.addEventListener('click', hideUnlockOverlay);
   unlockOverlay?.addEventListener('click', (event) => {
@@ -4109,6 +4107,10 @@ function handleMelChipClick(event) {
     const next = getMelTokens().slice();
     next.splice(index, 1);
     setMelTokens(next);
+    return;
+  }
+  if (toggle) {
+    // button handles its own toggle; avoid double flip
     return;
   }
   console.log('MEL chip click', { index, toggle: !!toggle });
