@@ -642,9 +642,10 @@ function bindEvents() {
     }
   });
   if (entityMelChips) {
-    console.log('MEL chips binding ready');
-    entityMelChips.addEventListener('click', handleMelChipClick);
-    entityMelChips.addEventListener('pointerdown', handleMelChipClick);
+    console.log('MEL chips binding ready', { hasEntry: !!entityMelEntry, hasAdd: !!entityMelAddBtn });
+    ['click', 'pointerdown'].forEach((evt) => {
+      entityMelChips.addEventListener(evt, handleMelChipClick);
+    });
   }
   unlockClose?.addEventListener('click', hideUnlockOverlay);
   unlockOverlay?.addEventListener('click', (event) => {
@@ -4058,7 +4059,11 @@ function renderMelChips() {
     const isDmOnly = item.is_public === false;
     toggle.textContent = isDmOnly ? 'DM' : 'AG';
     toggle.title = isDmOnly ? 'Solo DM' : 'Visible agentes';
-    toggle.addEventListener('click', () => toggleMelVisibilityAt(index));
+    toggle.addEventListener('click', (e) => {
+      console.log('MEL toggle btn', { index, target: e.target?.className });
+      e.stopPropagation();
+      toggleMelVisibilityAt(index);
+    });
     actions.appendChild(toggle);
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -4104,7 +4109,7 @@ function handleMelChipClick(event) {
     setMelTokens(next);
     return;
   }
-  console.log('MEL chip click', { index });
+  console.log('MEL chip click', { index, toggle: !!toggle });
   toggleMelVisibilityAt(index);
 }
 
