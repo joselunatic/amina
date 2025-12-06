@@ -4022,6 +4022,7 @@ function getMelTokens() {
 
 function setMelTokens(list = []) {
   const normalized = (list || []).map(normalizeMelEntry).filter(Boolean);
+  console.log('MEL set tokens', normalized);
   state.melTokens = normalized;
   if (entityMelInput) {
     entityMelInput.value = serializeMel(normalized);
@@ -4041,6 +4042,7 @@ function toggleMelVisibilityAt(index) {
 function renderMelChips() {
   if (!entityMelChips) return;
   const tokens = getMelTokens();
+  console.log('MEL render chips', tokens);
   entityMelChips.innerHTML = '';
   tokens.forEach((item, index) => {
     const chip = document.createElement('span');
