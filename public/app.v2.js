@@ -4049,6 +4049,7 @@ function renderMelChips() {
     const isDmOnly = item.is_public === false;
     chip.className = 'chip';
     if (isDmOnly) chip.classList.add('dm-only');
+    chip.dataset.visibility = isDmOnly ? 'dm' : 'ag';
     chip.dataset.index = String(index);
     const label = document.createElement('span');
     label.className = 'chip-label';
@@ -4062,6 +4063,8 @@ function renderMelChips() {
     toggle.dataset.index = String(index);
     toggle.textContent = isDmOnly ? 'DM' : 'AG';
     toggle.title = isDmOnly ? 'Solo DM' : 'Visible agentes';
+    toggle.dataset.visibility = isDmOnly ? 'dm' : 'ag';
+    if (isDmOnly) toggle.classList.add('is-dm');
     toggle.addEventListener('click', (e) => {
       console.log('MEL toggle btn', { index, target: e.target?.className });
       e.stopPropagation();
