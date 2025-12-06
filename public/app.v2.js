@@ -226,6 +226,7 @@ const entityPoisInput = document.getElementById('entity-pois');
 const entityLinksInput = document.getElementById('entity-links');
 const poiEntityLinksInput = document.getElementById('poi-entity-links');
 const entityResetBtn = document.getElementById('entity-reset');
+const entityMelInput = document.getElementById('entity-mel');
 const entityLinksSearch = document.getElementById('entity-links-search');
 const entityLinksSuggestions = document.getElementById('entity-links-suggestions');
 const entityLinksChips = document.getElementById('entity-links-chips');
@@ -1024,7 +1025,9 @@ function getFilteredPois() {
 function updateEntityFormMode(kind) {
   if (!entityForm) return;
   const isPoi = kind === 'poi';
+  const isCreature = entityTypeInput?.value === 'criatura';
   entityForm.classList.toggle('is-poi', isPoi);
+  entityForm.classList.toggle('is-creature', isCreature);
   if (entityKindInput) {
     entityKindInput.value = isPoi ? 'poi' : 'entity';
   }
@@ -2157,6 +2160,7 @@ function mapPoiToAdminItem(poi) {
     public_summary: poi.public_note || '',
     dm_notes: poi.dm_notes || poi.dm_note || '',
     dm_note: poi.dm_notes || poi.dm_note || '',
+    mel: poi.mel || '',
     category: poi.category,
     latitude: poi.latitude,
     longitude: poi.longitude,
@@ -2852,11 +2856,20 @@ function renderEntitiesMap(ctx, options = {}) {
 function renderDmEntityDetailCard(entity, ctx = {}) {
   const detail = document.getElementById('dm-entity-detail-card');
   const hero = document.getElementById('dm-entity-hero-card');
-  const bestiaryRoot = document.getElementById('dm-bestiary-card');
+  const bestiaryRoot = document.getElementById('dm-bestiary-card') || bestiaryCard;
+  const heroStack = hero?.parentElement;
   const stateSectionTitle = document.getElementById('entity-state-title'); // estado/afinidad label
+
+  // When the hero card is re-rendered its innerHTML is replaced, which used to orphan the DM bestiary
+  // (it lived inside the hero card in the static markup). Keep the card mounted as a sibling in the
+  // hero stack so subsequent renders don't wipe it out.
+  if (heroStack && bestiaryRoot && bestiaryRoot.parentElement !== heroStack) {
+    heroStack.appendChild(bestiaryRoot);
+  }
+
   if (!detail || !hero) return;
   const isPoi = entity && (entity.kind === 'poi' || entity.type === 'poi');
-  const isCreature = entity && entity.type === 'criatura';
+  const isCreature = normalizeEntityType(entity) === 'criatura';
   const hasEntity = !!entity;
   const wantsNewPoiPreview =
     !hasEntity &&
@@ -2877,6 +2890,7 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
       detail.innerHTML =
         '<div class="card-title">Nuevo PdI</div><div class="muted">Usa el mapa de la izquierda para centrar Schuylkill y el botón “Elegir del mapa”.</div>';
       hero.classList.add('map-only');
+      hero.style.display = '';
       hero.innerHTML = `
         <div class="dm-entity-map-standalone">
           <div id="dm-entity-detail-map" class="dm-entities-map" aria-label="Mapa de nuevo PdI"></div>
@@ -2888,6 +2902,7 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
       detail.innerHTML =
         '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista de la izquierda. Podrás editarlo en el panel inferior y, si es un PdI, verlo en el mapa.</div>';
       hero.classList.remove('map-only');
+      hero.style.display = '';
       hero.innerHTML =
         '<div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
     }
@@ -2984,6 +2999,7 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
 
   if (isPoi) {
     hero.classList.add('map-only');
+    hero.style.display = '';
     hero.innerHTML = `
       <div class="dm-entity-map-standalone">
         <div id="dm-entity-detail-map" class="dm-entities-map" aria-label="Mapa de ${callsign || 'entidad'}"></div>
@@ -3005,16 +3021,21 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
     renderEntitiesMap(poiMapPayload);
     renderBestiary(null);
   } else if (isCreature) {
-    hero.classList.add('hidden');
     hero.classList.remove('map-only');
+    hero.classList.add('hidden');
+    hero.style.display = 'none';
     hero.innerHTML = '';
     if (bestiaryRoot) {
       bestiaryRoot.classList.remove('hidden');
       bestiaryRoot.classList.add('bestiary-promoted');
+      bestiaryRoot.style.display = 'block';
+      bestiaryRoot.dataset.variant = 'dm';
+      bestiaryRoot.dataset.empty = 'false';
     }
-    renderBestiary(entity);
+    renderBestiary(entity, 'dm');
   } else {
     hero.classList.remove('map-only');
+    hero.style.display = '';
     hero.innerHTML = `
       <div class="dm-entity-hero-body">
         <div class="dm-entity-hero-media">
@@ -3076,6 +3097,20 @@ function parseBestiaryExtras(notes = '') {
   return extras;
 }
 
+function parseMel(raw = '') {
+  if (!raw) return [];
+  return String(raw)
+    .split(/[\n;,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeEntityType(entity) {
+  if (!entity) return '';
+  const value = (entity.type || entity.kind || '').toString().trim().toLowerCase();
+  return value;
+}
+
 function getBestiaryElements(root = null) {
   const scope = root || document;
   return {
@@ -3091,6 +3126,7 @@ function getBestiaryElements(root = null) {
     behaviour: scope.querySelector('[data-bestiary-behaviour]') || bestiaryBehaviour,
     origin: scope.querySelector('[data-bestiary-origin]') || bestiaryOrigin,
     protocols: scope.querySelector('[data-bestiary-protocols]') || bestiaryProtocols,
+    mel: scope.querySelector('[data-bestiary-mel]'),
     dmOnly: Array.from(scope.querySelectorAll('.bestiary-dm-only'))
   };
 }
@@ -3109,7 +3145,11 @@ function renderBestiary(entity = null, variantOrOptions = {}) {
   const root = resolveBestiaryRoot(variant, options.root);
   const elements = getBestiaryElements(root);
   if (!elements.card) return;
-  const isCreature = !!entity && entity.type === 'criatura';
+  const summarySection = elements.summary?.closest('.bestiary-section');
+  if (summarySection) {
+    summarySection.style.display = 'none'; // Resumen público ya se muestra en el panel de detalle
+  }
+  const isCreature = normalizeEntityType(entity) === 'criatura';
   elements.card.classList.toggle('hidden', !isCreature);
   elements.card.dataset.variant = variant;
   if (elements.dmOnly.length) {
@@ -3117,19 +3157,23 @@ function renderBestiary(entity = null, variantOrOptions = {}) {
   }
   const hasSelection = !!entity && isCreature;
   elements.card.dataset.empty = hasSelection ? 'false' : 'true';
+  if (hasSelection) {
+    elements.card.classList.remove('hidden');
+    elements.card.style.display = 'block';
+  }
   if (!hasSelection) {
     elements.callsign && (elements.callsign.textContent = 'Sin entidad seleccionada');
     elements.classification && (elements.classification.textContent = 'Clasificación: —');
     elements.threat && (elements.threat.textContent = 'Nivel de amenaza: —');
     elements.status && (elements.status.textContent = 'Estado: —');
     elements.alignment && (elements.alignment.textContent = 'Alineación: —');
-    if (elements.summary) {
-      elements.summary.textContent = 'Selecciona un dossier para cargar el bestiario.';
-    }
     if (elements.behaviour) elements.behaviour.textContent = '—';
     if (elements.origin) elements.origin.textContent = '—';
     if (elements.protocols) {
       elements.protocols.innerHTML = '<li>Sin protocolos registrados.</li>';
+    }
+    if (elements.mel) {
+      elements.mel.innerHTML = '<li>Sin MEL registradas.</li>';
     }
     if (elements.image) {
       elements.image.src = BESTIARY_FALLBACK_IMAGE;
@@ -3163,8 +3207,11 @@ function renderBestiary(entity = null, variantOrOptions = {}) {
   if (elements.alignment) {
     elements.alignment.textContent = `Alineación: ${sanitize(record.alignment || record.allegiance || '—')}`;
   }
-  if (elements.summary) {
-    elements.summary.textContent = sanitize(record.public_summary || record.public_note || 'Sin notas públicas disponibles.');
+  if (elements.mel) {
+    const melItems = parseMel(record.mel);
+    elements.mel.innerHTML = melItems.length
+      ? melItems.map((item) => `<li>${sanitize(item)}</li>`).join('')
+      : '<li>Sin MEL registradas.</li>';
   }
 
   const extras = parseBestiaryExtras(record.dm_notes || record.dm_note || '');
@@ -3959,6 +4006,9 @@ function populateEntityForm(entity) {
   entityAlignmentInput.value = entity.alignment || '';
   entityThreatInput.value = entity.threat_level || '';
   entityImageInput.value = entity.image_url || '';
+  if (entityMelInput) {
+    entityMelInput.value = entity.mel || '';
+  }
   entityPublicNoteInput.value = entity.public_summary || entity.public_note || '';
   entityDmNoteInput.value = entity.dm_notes || entity.dm_note || '';
   entityVisibilityInput.value = entity.visibility || 'agent_public';
@@ -4000,6 +4050,7 @@ function resetEntityForm() {
   entityArchivedInput.checked = false;
   entityUnlockInput.value = '';
   entityLockedHintInput.value = '';
+  if (entityMelInput) entityMelInput.value = '';
   entityPoisInput.value = '';
   entityLinksInput.value = '';
   poiEntityLinksInput && (poiEntityLinksInput.value = '');
@@ -4152,6 +4203,7 @@ function buildEntityPayload(kind = 'entity') {
     alignment: entityAlignmentInput?.value.trim(),
     threat_level: entityThreatInput?.value ? Number(entityThreatInput.value) : null,
     image_url: entityImageInput?.value.trim(),
+    mel: entityMelInput?.value.trim(),
     public_summary: entityPublicNoteInput?.value.trim(),
     dm_notes: entityDmNoteInput?.value.trim(),
     visibility: entityVisibilityInput?.value || 'agent_public',
@@ -4305,7 +4357,7 @@ function getCookie(name) {
 }
 
 function updateAgentCreatureLayout(entity) {
-  const isCreature = entity && entity.type === 'criatura';
+  const isCreature = normalizeEntityType(entity) === 'criatura';
   document.body.classList.toggle('agent-creature-view', !!isCreature);
 }
 
@@ -4313,7 +4365,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
   const panels = Array.from(document.querySelectorAll('.agent-entities-top'));
   if (!panels.length) return;
   const isPoi = entity && (entity.kind === 'poi' || entity.type === 'poi');
-  const isCreature = entity && entity.type === 'criatura';
+  const isCreature = normalizeEntityType(entity) === 'criatura';
   const hasEntity = !!entity;
   const prevGraphic = state.lastAgentGraphic || { type: null, id: null };
   updateAgentCreatureLayout(entity);
@@ -4482,10 +4534,13 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
     }
 
     if (isCreature) {
-      hero.classList.add('hidden');
+      hero.classList.remove('hidden');
       hero.classList.remove('map-only');
       hero.innerHTML = '';
-      if (bestiaryRoot) bestiaryRoot.classList.remove('hidden');
+      if (bestiaryRoot) {
+        bestiaryRoot.classList.remove('hidden');
+        bestiaryRoot.classList.add('bestiary-promoted');
+      }
       renderBestiary(entity, { variant: 'agent', root: bestiaryRoot });
       return;
     }
