@@ -1899,11 +1899,17 @@ body.agent-creature-view #agent-entity-hero-card {
 
 .mel-inline {
   display: flex;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
 }
 
 .mel-inline input {
   flex: 1;
+}
+
+.mel-inline button {
+  align-self: flex-start;
 }
 
 .dm-entities-left {
