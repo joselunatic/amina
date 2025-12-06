@@ -76,7 +76,8 @@ const state = {
     dm: null
   },
   entityEditorMode: 'new',
-  lastAgentGraphic: { type: null, id: null }
+  lastAgentGraphic: { type: null, id: null },
+  melTokens: []
 };
 
 // Expose state for debugging and tests that inspect map centers
@@ -227,6 +228,9 @@ const entityLinksInput = document.getElementById('entity-links');
 const poiEntityLinksInput = document.getElementById('poi-entity-links');
 const entityResetBtn = document.getElementById('entity-reset');
 const entityMelInput = document.getElementById('entity-mel');
+const entityMelEntry = document.getElementById('entity-mel-entry');
+const entityMelAddBtn = document.getElementById('entity-mel-add');
+const entityMelChips = document.getElementById('entity-mel-chips');
 const entityLinksSearch = document.getElementById('entity-links-search');
 const entityLinksSuggestions = document.getElementById('entity-links-suggestions');
 const entityLinksChips = document.getElementById('entity-links-chips');
@@ -630,6 +634,13 @@ function bindEvents() {
     entityVisibilityInput.addEventListener('change', toggleUnlockFields);
     toggleUnlockFields();
   }
+  entityMelAddBtn?.addEventListener('click', addMelFromInput);
+  entityMelEntry?.addEventListener('keypress', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addMelFromInput();
+    }
+  });
   unlockClose?.addEventListener('click', hideUnlockOverlay);
   unlockOverlay?.addEventListener('click', (event) => {
     if (event.target === unlockOverlay) hideUnlockOverlay();
@@ -3097,12 +3108,48 @@ function parseBestiaryExtras(notes = '') {
   return extras;
 }
 
+function normalizeMelEntry(entry) {
+  if (!entry) return null;
+  if (typeof entry === 'string') {
+    return { text: entry.trim(), is_public: true };
+  }
+  const text = (entry.text || entry.mel || entry.value || '').toString().trim();
+  if (!text) return null;
+  const isPublic = entry.is_public !== false && entry.visibility !== 'dm';
+  return { text, is_public: isPublic };
+}
+
 function parseMel(raw = '') {
   if (!raw) return [];
-  return String(raw)
+  const trimmed = typeof raw === 'string' ? raw.trim() : raw;
+  if (typeof trimmed === 'string' && trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.map(normalizeMelEntry).filter(Boolean);
+      }
+    } catch (err) {
+      console.warn('Fallo al parsear MEL JSON', err);
+    }
+  }
+  return String(trimmed)
     .split(/[\n;,]/)
     .map((item) => item.trim())
+    .filter(Boolean)
+    .map((token) => {
+      const parts = token.split('|');
+      const maybeVis = parts.length > 1 ? parts.pop().trim().toLowerCase() : 'public';
+      const text = parts.join('|').trim() || token.trim();
+      const isPublic = maybeVis === 'dm' ? false : true;
+      return normalizeMelEntry({ text, is_public: isPublic });
+    })
     .filter(Boolean);
+}
+
+function serializeMel(list = []) {
+  if (!list.length) return '';
+  const sanitized = list.map(normalizeMelEntry).filter(Boolean);
+  return sanitized.length ? JSON.stringify(sanitized) : '';
 }
 
 function normalizeEntityType(entity) {
@@ -3209,9 +3256,18 @@ function renderBestiary(entity = null, variantOrOptions = {}) {
   }
   if (elements.mel) {
     const melItems = parseMel(record.mel);
-    elements.mel.innerHTML = melItems.length
-      ? melItems.map((item) => `<li>${sanitize(item)}</li>`).join('')
-      : '<li>Sin MEL registradas.</li>';
+    const visibleMel = variant === 'dm' ? melItems : melItems.filter((item) => item.is_public !== false);
+    const hasHidden = melItems.some((item) => item.is_public === false);
+    if (!visibleMel.length) {
+      elements.mel.innerHTML = hasHidden && variant !== 'dm' ? '<li>MEL reservadas al DJ.</li>' : '<li>Sin MEL registradas.</li>';
+    } else {
+      elements.mel.innerHTML = visibleMel
+        .map((item) => {
+          const dmTag = item.is_public === false ? '<span class="muted text-xs">(DM)</span>' : '';
+          return `<li>${sanitize(item.text)}${dmTag ? ` ${dmTag}` : ''}</li>`;
+        })
+        .join('');
+    }
   }
 
   const extras = parseBestiaryExtras(record.dm_notes || record.dm_note || '');
@@ -3954,6 +4010,66 @@ function setupMultiSelect(config, dataFn, mode = 'entity') {
   }
 }
 
+function getMelTokens() {
+  return Array.isArray(state.melTokens) ? state.melTokens : [];
+}
+
+function setMelTokens(list = []) {
+  const normalized = (list || []).map(normalizeMelEntry).filter(Boolean);
+  state.melTokens = normalized;
+  if (entityMelInput) {
+    entityMelInput.value = serializeMel(normalized);
+  }
+  renderMelChips();
+}
+
+function renderMelChips() {
+  if (!entityMelChips) return;
+  const tokens = getMelTokens();
+  entityMelChips.innerHTML = '';
+  tokens.forEach((item, index) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    const label = document.createElement('span');
+    label.className = 'chip-label';
+    label.textContent = item.text;
+    chip.appendChild(label);
+    const actions = document.createElement('div');
+    actions.className = 'chip-actions';
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    const isDmOnly = item.is_public === false;
+    toggle.textContent = isDmOnly ? 'DM' : 'AG';
+    toggle.title = isDmOnly ? 'Solo DM' : 'Visible agentes';
+    toggle.addEventListener('click', () => {
+      const next = getMelTokens().slice();
+      next[index] = { ...next[index], is_public: !isDmOnly };
+      setMelTokens(next);
+    });
+    actions.appendChild(toggle);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = '×';
+    remove.addEventListener('click', () => {
+      const next = getMelTokens().slice();
+      next.splice(index, 1);
+      setMelTokens(next);
+    });
+    actions.appendChild(remove);
+    chip.appendChild(actions);
+    entityMelChips.appendChild(chip);
+  });
+}
+
+function addMelFromInput() {
+  if (!entityMelEntry) return;
+  const value = entityMelEntry.value.trim();
+  if (!value) return;
+  const tokens = getMelTokens().concat([{ text: value, is_public: true }]);
+  setMelTokens(tokens);
+  entityMelEntry.value = '';
+}
+
 function openUnlockOverlay(id, hint = '') {
   if (!unlockOverlay || !unlockInput || !unlockConfirm || !unlockHint) return;
   unlockOverlay.classList.remove('hidden');
@@ -4006,9 +4122,7 @@ function populateEntityForm(entity) {
   entityAlignmentInput.value = entity.alignment || '';
   entityThreatInput.value = entity.threat_level || '';
   entityImageInput.value = entity.image_url || '';
-  if (entityMelInput) {
-    entityMelInput.value = entity.mel || '';
-  }
+  setMelTokens(parseMel(entity.mel || ''));
   entityPublicNoteInput.value = entity.public_summary || entity.public_note || '';
   entityDmNoteInput.value = entity.dm_notes || entity.dm_note || '';
   entityVisibilityInput.value = entity.visibility || 'agent_public';
@@ -4050,7 +4164,7 @@ function resetEntityForm() {
   entityArchivedInput.checked = false;
   entityUnlockInput.value = '';
   entityLockedHintInput.value = '';
-  if (entityMelInput) entityMelInput.value = '';
+  setMelTokens([]);
   entityPoisInput.value = '';
   entityLinksInput.value = '';
   poiEntityLinksInput && (poiEntityLinksInput.value = '');

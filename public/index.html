@@ -214,6 +214,12 @@
                             <div class="bestiary-section-title">Origen</div>
                             <p id="agent-bestiary-origin" data-bestiary-origin>—</p>
                           </div>
+                          <div class="bestiary-section">
+                            <div class="bestiary-section-title">MEL (medidas especiales de liquidación)</div>
+                            <ul id="agent-bestiary-mel" data-bestiary-mel class="bestiary-protocols">
+                              <li>Sin MEL registradas.</li>
+                            </ul>
+                          </div>
                           <div class="bestiary-section bestiary-dm-only">
                             <div class="bestiary-section-title">Protocolos</div>
                             <ul id="agent-bestiary-protocols" data-bestiary-protocols class="bestiary-protocols">
@@ -481,6 +487,12 @@
                             <p id="bestiary-origin" data-bestiary-origin>—</p>
                           </div>
                           <div class="bestiary-section">
+                            <div class="bestiary-section-title">MEL (medidas especiales de liquidación)</div>
+                            <ul class="bestiary-protocols" id="bestiary-mel" data-bestiary-mel>
+                              <li>Sin MEL registradas.</li>
+                            </ul>
+                          </div>
+                          <div class="bestiary-section">
                             <div class="bestiary-section-title">Protocolos</div>
                             <ul class="bestiary-protocols" id="bestiary-protocols" data-bestiary-protocols>
                               <li>—</li>
@@ -638,6 +650,18 @@
                             <textarea id="entity-public-note" rows="4"></textarea>
                             <label for="entity-dm-note">Notas DM</label>
                             <textarea id="entity-dm-note" rows="6"></textarea>
+                            <div class="creature-only">
+                              <label for="entity-mel-entry">MEL (medidas especiales de liquidación)</label>
+                              <div class="mel-editor">
+                                <div class="multi-chips" id="entity-mel-chips"></div>
+                                <div class="mel-inline">
+                                  <input type="text" id="entity-mel-entry" placeholder="Añade una MEL y usa AG/DM para alternar visibilidad." />
+                                  <button type="button" id="entity-mel-add">Añadir</button>
+                                </div>
+                                <p class="text-xs muted">Las MEL marcadas como DM no se muestran a agentes.</p>
+                              </div>
+                              <input type="hidden" id="entity-mel" />
+                            </div>
                           </div>
                           <div class="form-section entity-only">
                             <div class="section-title">Control de visibilidad</div>

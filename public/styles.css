@@ -721,6 +721,14 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
 .poi-extra {
   display: none;
 }
+
+.creature-only {
+  display: none;
+}
+
+.entity-form.is-creature .creature-only {
+  display: block;
+}
 /* Ocultar campos que no aplican a PdI en editor DM */
 .entity-form.is-poi label[for="entity-real-name"],
 .entity-form.is-poi #entity-real-name,
@@ -817,6 +825,36 @@ body.agent-creature-view .dm-entities-top {
   grid-template-columns: 2fr 1fr;
 }
 
+.bestiary-card[data-variant='dm'] {
+  display: block;
+}
+
+.agent-entities-top {
+  grid-template-columns: 1.5fr 1fr;
+  align-items: stretch;
+}
+
+.agent-entities-top .dm-entity-detail-card,
+.agent-entities-top .dm-entity-hero-card,
+.agent-entities-top .bestiary-card {
+  min-height: 480px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-entities-top .bestiary-folder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-entities-top .bestiary-body {
+  flex: 1;
+  overflow: auto;
+  padding-bottom: 0.75rem;
+}
+
 body:not(.agent-creature-view) #agent-bestiary-card {
   display: none;
 }
@@ -827,6 +865,23 @@ body:not(.agent-creature-view) #agent-bestiary-card {
 
 .bestiary-card[data-variant='agent'].hidden {
   display: none;
+}
+
+.bestiary-card[data-variant='agent'] .bestiary-folder {
+  max-height: 100%;
+}
+
+.bestiary-card[data-variant='agent'] .bestiary-body {
+  max-height: calc(100% - 48px);
+  overflow-y: auto;
+}
+
+.dm-entity-hero-stack .bestiary-card {
+  display: block;
+}
+
+.dm-entity-hero-stack .bestiary-card.hidden {
+  display: none !important;
 }
 
 .dm-entity-detail-card,
@@ -971,9 +1026,27 @@ body:not(.agent-creature-view) #agent-bestiary-card {
 }
 
 .dm-entity-hero-stack {
+   display: flex;
+   flex-direction: column;
+   gap: 0.75rem;
+ }
+
+.dm-entity-hero-stack .bestiary-card[data-variant='dm'] {
+  display: block;
+  min-height: 420px;
+  height: 100%;
+}
+
+.dm-entity-hero-stack .bestiary-folder {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  height: 100%;
+}
+
+.dm-entity-hero-stack .bestiary-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 0.75rem;
 }
 
 body.agent-creature-view #agent-entity-hero-card {
@@ -1816,6 +1889,21 @@ body.agent-creature-view #agent-entity-hero-card {
 
 .chip-actions button:hover {
   background: rgba(0, 255, 136, 0.2);
+}
+
+.mel-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.mel-inline {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.mel-inline input {
+  flex: 1;
 }
 
 .dm-entities-left {

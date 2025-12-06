@@ -755,6 +755,7 @@ async function ensureEntitiesTables() {
   await ensureColumn('first_session', 'TEXT', '');
   await ensureColumn('last_session', 'TEXT', '');
   await ensureColumn('sessions', 'TEXT', '');
+  await ensureColumn('mel', 'TEXT', '');
   await ensureColumn('public_summary', 'TEXT', '');
   await ensureColumn('dm_notes', 'TEXT', '');
   await ensureColumn('visibility', "TEXT NOT NULL DEFAULT 'agent_public'", '');
@@ -929,6 +930,49 @@ function normalizeVisibility(value) {
   return allowed.includes(value) ? value : 'agent_public';
 }
 
+function normalizeMelEntry(entry) {
+  if (!entry) return null;
+  if (typeof entry === 'string') {
+    const text = entry.trim();
+    return text ? { text, is_public: true } : null;
+  }
+  const text = (entry.text || entry.mel || '').toString().trim();
+  if (!text) return null;
+  const isPublic = entry.is_public !== false && entry.visibility !== 'dm';
+  return { text, is_public: isPublic };
+}
+
+function parseMel(raw = '') {
+  if (!raw) return [];
+  const trimmed = typeof raw === 'string' ? raw.trim() : raw;
+  if (typeof trimmed === 'string' && trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.map(normalizeMelEntry).filter(Boolean);
+      }
+    } catch (err) {
+      console.warn('Fallo al parsear MEL JSON', err);
+    }
+  }
+  return String(trimmed)
+    .split(/[\n;,]/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => normalizeMelEntry(line))
+    .filter(Boolean);
+}
+
+function serializeMelPublic(list = []) {
+  const safe = list.map(normalizeMelEntry).filter(Boolean);
+  return safe.length ? JSON.stringify(safe) : '';
+}
+
+function filterMelForAgent(raw = '') {
+  const items = parseMel(raw).filter((item) => item.is_public !== false);
+  return items.length ? serializeMelPublic(items) : '';
+}
+
 function mapRow(row) {
   if (!row) return null;
   return {
@@ -937,6 +981,7 @@ function mapRow(row) {
     code_name: row.code_name || row.name,
     real_name: row.real_name || '',
     alignment: row.alignment || row.allegiance || '',
+    mel: row.mel || '',
     public_summary: row.public_summary || row.public_note || '',
     dm_notes: row.dm_notes || row.dm_note || ''
   };
@@ -1078,6 +1123,7 @@ function filterAgentEntity(entity) {
       alignment: entity.alignment,
       threat_level: entity.threat_level,
       image_url: entity.image_url,
+      mel: filterMelForAgent(entity.mel || ''),
       public_summary: entity.public_summary || '',
       visibility: entity.visibility,
       locked_hint: entity.locked_hint || '',
@@ -1100,6 +1146,7 @@ function filterAgentEntity(entity) {
     alignment: entity.alignment,
     threat_level: entity.threat_level,
     image_url: entity.image_url,
+    mel: filterMelForAgent(entity.mel || ''),
     first_session: entity.first_session,
     last_session: entity.last_session,
     sessions: entity.sessions,
@@ -1183,8 +1230,8 @@ async function createEntity(entity, relations = {}) {
   return withTransaction(async () => {
     const result = await run(
       `INSERT INTO entities
-        (type, code_name, name, real_name, role, status, alignment, threat_level, image_url, first_session, last_session, sessions, public_summary, dm_notes, visibility, unlock_code, locked_hint, archived)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (type, code_name, name, real_name, role, status, alignment, threat_level, image_url, first_session, last_session, sessions, mel, public_summary, dm_notes, visibility, unlock_code, locked_hint, archived)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       , [
         entity.type,
         entity.code_name || entity.name,
@@ -1198,6 +1245,7 @@ async function createEntity(entity, relations = {}) {
         entity.first_session || null,
         entity.last_session || null,
         entity.sessions || null,
+        entity.mel || null,
         entity.public_summary || null,
         entity.dm_notes || null,
         normalizeVisibility(entity.visibility),
@@ -1228,6 +1276,7 @@ async function updateEntity(id, entity, relations = {}) {
         first_session = ?,
         last_session = ?,
         sessions = ?,
+        mel = ?,
         public_summary = ?,
         dm_notes = ?,
         visibility = ?,
@@ -1249,6 +1298,7 @@ async function updateEntity(id, entity, relations = {}) {
         entity.first_session || null,
         entity.last_session || null,
         entity.sessions || null,
+        entity.mel || null,
         entity.public_summary || null,
         entity.dm_notes || null,
         normalizeVisibility(entity.visibility),
