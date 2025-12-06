@@ -641,7 +641,11 @@ function bindEvents() {
       addMelFromInput();
     }
   });
-  entityMelChips?.addEventListener('click', handleMelChipClick);
+  if (entityMelChips) {
+    console.log('MEL chips binding ready');
+    entityMelChips.addEventListener('click', handleMelChipClick);
+    entityMelChips.addEventListener('pointerdown', handleMelChipClick);
+  }
   unlockClose?.addEventListener('click', hideUnlockOverlay);
   unlockOverlay?.addEventListener('click', (event) => {
     if (event.target === unlockOverlay) hideUnlockOverlay();
@@ -4089,6 +4093,7 @@ function handleMelChipClick(event) {
   const toggle = event.target.closest('.chip-toggle');
   const remover = event.target.closest('.chip-remove');
   const chip = event.target.closest('.chip');
+  console.log('MEL handler event', { type: event.type, target: event.target?.className });
   if (!chip) return;
   const index = Number(chip.dataset.index);
   if (Number.isNaN(index)) return;
