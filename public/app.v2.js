@@ -641,6 +641,7 @@ function bindEvents() {
       addMelFromInput();
     }
   });
+  entityMelChips?.addEventListener('click', handleMelChipClick);
   unlockClose?.addEventListener('click', hideUnlockOverlay);
   unlockOverlay?.addEventListener('click', (event) => {
     if (event.target === unlockOverlay) hideUnlockOverlay();
@@ -4038,6 +4039,7 @@ function renderMelChips() {
   tokens.forEach((item, index) => {
     const chip = document.createElement('span');
     chip.className = 'chip';
+    chip.dataset.index = String(index);
     const label = document.createElement('span');
     label.className = 'chip-label';
     label.textContent = item.text;
@@ -4047,6 +4049,7 @@ function renderMelChips() {
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'chip-toggle';
+    toggle.dataset.index = String(index);
     const isDmOnly = item.is_public === false;
     toggle.textContent = isDmOnly ? 'DM' : 'AG';
     toggle.title = isDmOnly ? 'Solo DM' : 'Visible agentes';
@@ -4056,6 +4059,7 @@ function renderMelChips() {
     remove.type = 'button';
     remove.textContent = '×';
     remove.className = 'chip-remove';
+    remove.dataset.index = String(index);
     remove.addEventListener('click', () => {
       const next = getMelTokens().slice();
       next.splice(index, 1);
@@ -4078,6 +4082,22 @@ function addMelFromInput() {
   const tokens = getMelTokens().concat([{ text: value, is_public: true }]);
   setMelTokens(tokens);
   entityMelEntry.value = '';
+}
+
+function handleMelChipClick(event) {
+  const toggle = event.target.closest('.chip-toggle');
+  const remover = event.target.closest('.chip-remove');
+  const chip = event.target.closest('.chip');
+  if (!chip) return;
+  const index = Number(chip.dataset.index);
+  if (Number.isNaN(index)) return;
+  if (remover) {
+    const next = getMelTokens().slice();
+    next.splice(index, 1);
+    setMelTokens(next);
+    return;
+  }
+  toggleMelVisibilityAt(index);
 }
 
 function openUnlockOverlay(id, hint = '') {
