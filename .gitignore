@@ -2,8 +2,8 @@
 /node_modules
 
 # Data
-*.db
-*.sql
+#*.db
+#*.sql
 
 # Logs
 *.log
@@ -15,8 +15,8 @@ yarn-error.log*
 /test-results/
 
 # Screenshots
-*.png
-*.jpeg
+#*.png
+#*.jpeg
 
 # Env
 .env
