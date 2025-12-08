@@ -4021,7 +4021,7 @@ function getMelTokens() {
 }
 
 function setMelTokens(list = []) {
-  const normalized = (list || []).map(normalizeMelEntry).filter(Boolean);
+  const normalized = (list || []).map((entry) => normalizeMelEntry(entry) || entry).filter(Boolean);
   console.log('MEL set tokens', normalized);
   state.melTokens = normalized;
   if (entityMelInput) {
@@ -4031,11 +4031,14 @@ function setMelTokens(list = []) {
 }
 
 function toggleMelVisibilityAt(index) {
-  const tokens = getMelTokens().slice();
-  if (!tokens[index]) return;
-  const isDmOnly = tokens[index].is_public === false;
-  tokens[index] = { ...tokens[index], is_public: !isDmOnly };
-  console.log('MEL toggle', { index, from: isDmOnly ? 'dm' : 'ag', to: isDmOnly ? 'ag' : 'dm' });
+  const tokens = Array.isArray(state.melTokens)
+    ? state.melTokens.map((entry) => ({ ...entry }))
+    : [];
+  const current = tokens[index];
+  if (!current) return;
+  const isPublic = current.is_public !== false && current.visibility !== 'dm';
+  tokens.splice(index, 1, { ...current, is_public: !isPublic });
+  console.log('MEL toggle', { index, from: isPublic ? 'ag' : 'dm', to: isPublic ? 'dm' : 'ag' });
   setMelTokens(tokens);
 }
 
@@ -4048,7 +4051,7 @@ function renderMelChips() {
     const chip = document.createElement('span');
     const isDmOnly = item.is_public === false;
     chip.className = 'chip';
-    if (isDmOnly) chip.classList.add('dm-only');
+    if (isDmOnly) chip.classList.add('mel-dm');
     chip.dataset.visibility = isDmOnly ? 'dm' : 'ag';
     chip.dataset.index = String(index);
     const label = document.createElement('span');

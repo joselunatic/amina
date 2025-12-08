@@ -1891,20 +1891,20 @@ body.agent-creature-view #agent-entity-hero-card {
   background: rgba(0, 255, 136, 0.2);
 }
 
-.chip.dm-only {
+.chip.mel-dm {
   background: rgba(255, 95, 95, 0.08);
   border-color: rgba(255, 95, 95, 0.6);
   color: #ffcaca;
 }
 
-.chip.dm-only .chip-toggle,
+.chip.mel-dm .chip-toggle,
 .chip .chip-toggle.is-dm {
   background: rgba(255, 95, 95, 0.2);
   border-color: rgba(255, 95, 95, 0.6);
   color: #ffdede;
 }
 
-.chip.dm-only .chip-label {
+.chip.mel-dm .chip-label {
   color: #ffb3b3;
 }
 
