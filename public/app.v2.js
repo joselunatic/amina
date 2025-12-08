@@ -299,6 +299,7 @@ const mapFilters = document.getElementById('map-filters');
 const mapFiltersDm = document.getElementById('map-filters-dm');
 const entityDeleteConfirmBtn = document.getElementById('entity-delete-confirm');
 const entityDeleteCancelBtn = document.getElementById('entity-delete-cancel');
+const mobileMapTopbar = document.getElementById('mobile-map-topbar');
 
 const formIds = {
   id: entityIdInput,
@@ -514,6 +515,15 @@ function bindEvents() {
       if (!target) return;
       const tab = target.getAttribute('data-mobile-tab');
       if (tab) setMobileTab(tab);
+    });
+  }
+
+  if (mobileMapTopbar) {
+    mobileMapTopbar.addEventListener('click', (event) => {
+      const tab = event.target.closest('.map-tab');
+      if (!tab) return;
+      mobileMapTopbar.querySelectorAll('.map-tab').forEach((btn) => btn.classList.remove('active'));
+      tab.classList.add('active');
     });
   }
 
@@ -925,9 +935,10 @@ function buildPopupImage(poi) {
 
 function renderPoiList() {
   const filtered = getFilteredPois();
-  renderPoiListInto(poiList, { items: filtered });
+  const mobileGrouping = isMobileView();
+  renderPoiListInto(poiList, { items: filtered, mobileGrouping });
   if (poiListDm) {
-    renderPoiListInto(poiListDm, { items: filtered });
+    renderPoiListInto(poiListDm, { items: filtered, mobileGrouping });
   }
 }
 
@@ -983,8 +994,11 @@ function renderPoiListMobileBySession(target, items) {
       hasHiddenSessions = true;
       return;
     }
-    renderSessionHeader(target, tag === 'Sin sesión' ? 'Otras ubicaciones' : `Sesión ${tag}`);
-    poisForSession.forEach((poi) => renderPoiItem(poi, target));
+    const group = document.createElement('div');
+    group.className = 'mobile-poi-group';
+    group.appendChild(renderSessionHeader(null, tag === 'Sin sesión' ? 'Otras ubicaciones' : `Sesión ${tag}`));
+    poisForSession.forEach((poi) => renderPoiItem(poi, group));
+    target.appendChild(group);
   });
 
   if (hasHiddenSessions && !state.showOlderMobilePois) {
@@ -1003,10 +1017,11 @@ function renderPoiListMobileBySession(target, items) {
 }
 
 function renderSessionHeader(target, label) {
-  const headerItem = document.createElement('li');
+  const headerItem = document.createElement('div');
   headerItem.className = 'poi-session-header';
   headerItem.textContent = label;
-  target.appendChild(headerItem);
+  if (target) target.appendChild(headerItem);
+  return headerItem;
 }
 
 function getFilteredPois() {
@@ -3423,7 +3438,30 @@ function renderFocalPoiCard() {
       .join('')}</div>
       </div>`
     : '';
-  focalPoiContent.innerHTML = `
+  const mobile = isMobileView();
+  const mobileHtml = `
+    <div class="mobile-focal-card">
+      <div class="mobile-focal-eyebrow">
+        <span>PDI FOCAL</span>
+        <span class="mobile-focal-session">Sesión ${sanitize(poi.session_tag || '—')}</span>
+      </div>
+      <div class="mobile-focal-title">
+        <span class="focal-icon">${icon}</span>
+        <div>${sanitize(poi.name)}</div>
+      </div>
+      <div class="mobile-focal-meta">
+        <div class="mobile-focal-line"><span class="label">Amenaza</span><span>${poi.threat_level}</span></div>
+        <div class="mobile-focal-line"><span class="label">Velo</span><span>${sanitize(poi.veil_status)}</span></div>
+        <div class="mobile-focal-line"><span class="label">Notas</span><span>${sanitize(poi.public_note || 'Sin notas públicas')}</span></div>
+      </div>
+      ${safeImage
+        ? `<div class="mobile-focal-image"><img src="${safeImage}" alt="${sanitize(poi.name)}"/></div>`
+        : `<div class="mobile-focal-image"><span class="muted">No image available</span></div>`}
+      ${relatedBlock ? `<div class="mobile-focal-related">${relatedBlock}</div>` : ''}
+    </div>
+  `;
+
+  const desktopHtml = `
     <div class="poi-focal-header">
       <div class="poi-name">${icon} ${sanitize(poi.name)}</div>
       <div class="poi-meta">Amenaza ${poi.threat_level} · Velo ${sanitize(poi.veil_status)}</div>
@@ -3433,8 +3471,10 @@ function renderFocalPoiCard() {
     ${safeImage ? `<div class="poi-image-thumb"><img src="${safeImage}" alt="${sanitize(poi.name)}"/></div>` : ''}
     ${relatedBlock}
   `;
+
+  focalPoiContent.innerHTML = mobile ? mobileHtml : desktopHtml;
   if (focalPoiContentDm) {
-    focalPoiContentDm.innerHTML = focalPoiContent.innerHTML;
+    focalPoiContentDm.innerHTML = mobile ? mobileHtml : desktopHtml;
   }
 }
 

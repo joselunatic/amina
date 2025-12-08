@@ -676,6 +676,7 @@ function validateEntity(payload) {
   cleaned.role = payload.role ? String(payload.role).trim() : null;
   cleaned.status = payload.status ? String(payload.status).trim() : null;
   cleaned.alignment = payload.alignment ? String(payload.alignment).trim() : null;
+  cleaned.mel = payload.mel ? String(payload.mel).trim() : null;
   cleaned.threat_level = payload.threat_level ? parseInt(payload.threat_level, 10) : null;
   cleaned.first_session = payload.first_session ? String(payload.first_session).trim() : null;
   cleaned.last_session = payload.last_session ? String(payload.last_session).trim() : null;

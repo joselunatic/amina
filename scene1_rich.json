@@ -1,0 +1,167 @@
+{
+  "scene": {
+    "name": "Incidente Holloway – Brief cinematográfico",
+    "description": "Recorrido táctico por casa de Peter y granero de Angus con aparición del Externo",
+    "default_target": "all"
+  },
+  "beats": [
+    {
+      "order_index": 1,
+      "type": "clear",
+      "payload": {},
+      "delay_ms": 1000,
+      "duration_ms": 1000,
+      "target": null
+    },
+    {
+      "order_index": 2,
+      "type": "camera_move",
+      "payload": {
+        "waypoints": [
+          {
+            "lng": -76.2205,
+            "lat": 40.7605,
+            "zoom": 13,
+            "pitch": 45,
+            "bearing": -30,
+            "durationMs": 2000
+          },
+          {
+            "lng": -76.26391,
+            "lat": 40.70682,
+            "zoom": 15.5,
+            "pitch": 60,
+            "bearing": 20,
+            "durationMs": 3200
+          }
+        ],
+        "card": {
+          "title": "Entrada propiedad Holloway",
+          "body": "Valla forzada. Rastro extraño en la casa de Peter.",
+          "tag": "TÁCTICO",
+          "durationMs": 5200
+        }
+      },
+      "delay_ms": 4500,
+      "duration_ms": 5200,
+      "target": null
+    },
+    {
+      "order_index": 3,
+      "type": "label",
+      "payload": {
+        "lng": -76.26391,
+        "lat": 40.70682,
+        "title": "Foto macabra + rifle",
+        "body": "Rastro paranormal en la casa de Peter.",
+        "ttlMs": 9000,
+        "markerType": "anomaly"
+      },
+      "delay_ms": 3000,
+      "duration_ms": 3000,
+      "target": null
+    },
+    {
+      "order_index": 4,
+      "type": "camera_move",
+      "payload": {
+        "waypoints": [
+          {
+            "lng": -76.2252,
+            "lat": 40.748,
+            "zoom": 13.5,
+            "pitch": 55,
+            "bearing": 40,
+            "durationMs": 3600
+          },
+          {
+            "lng": -76.209003,
+            "lat": 40.771645,
+            "zoom": 14.5,
+            "pitch": 65,
+            "bearing": 15,
+            "durationMs": 3600
+          }
+        ],
+        "card": {
+          "title": "Granero de Angus",
+          "body": "Jaula industrial. Peter menciona caza en el linde.",
+          "tag": "OPERACIÓN",
+          "durationMs": 5200
+        }
+      },
+      "delay_ms": 5200,
+      "duration_ms": 5200,
+      "target": null
+    },
+    {
+      "order_index": 5,
+      "type": "overlay_image",
+      "payload": {
+        "url": "https://picsum.photos/900/600",
+        "title": "El Externo",
+        "body": "Aparece dentro de la jaula. Observando.",
+        "tag": "VISUAL"
+      },
+      "delay_ms": 6500,
+      "duration_ms": 6500,
+      "target": null
+    },
+    {
+      "order_index": 6,
+      "type": "label",
+      "payload": {
+        "lng": -76.2345,
+        "lat": 40.7802,
+        "title": "Disparo en el linde",
+        "body": "Relato de Peter sobre cazar en el borde del bosque.",
+        "ttlMs": 8000,
+        "markerType": "incident-active"
+      },
+      "delay_ms": 4000,
+      "duration_ms": 4000,
+      "target": null
+    },
+    {
+      "order_index": 7,
+      "type": "camera_move",
+      "payload": {
+        "waypoints": [
+          {
+            "lng": -76.2345,
+            "lat": 40.7802,
+            "zoom": 15,
+            "pitch": 50,
+            "bearing": -10,
+            "durationMs": 2800
+          },
+          {
+            "lng": -76.2252,
+            "lat": 40.748,
+            "zoom": 12.5,
+            "pitch": 40,
+            "bearing": 0,
+            "durationMs": 2600
+          }
+        ],
+        "card": {
+          "title": "Salida táctica",
+          "body": "Preparar equipo para incursión en granero.",
+          "tag": "BRIEF",
+          "durationMs": 4800
+        }
+      },
+      "delay_ms": 4800,
+      "duration_ms": 4800,
+      "target": null
+    },
+    {
+      "order_index": 8,
+      "type": "clear",
+      "payload": {},
+      "delay_ms": 1500,
+      "duration_ms": 1500,
+      "target": null
+    }
+  ]
+}

@@ -98,6 +98,11 @@
             <div class="view-left">
               <div class="map-shell">
                 <section class="map-panel" id="map-panel">
+                  <div class="mobile-map-topbar" id="mobile-map-topbar">
+                    <button type="button" class="map-tab active" data-map-feed="feed">FEED</button>
+                    <button type="button" class="map-tab" data-map-feed="global">GLOBAL</button>
+                    <button type="button" class="map-tab" data-map-feed="auto">AUTOMATED DATA</button>
+                  </div>
                   <div id="map"></div>
                   <div class="map-style-switch">
                     <button type="button" data-style="config-default" class="ghost small">Base</button>
@@ -717,10 +722,22 @@
       </div>
     </main>
     <nav class="mobile-nav" id="mobile-nav">
-      <button type="button" class="mobile-tab active" data-mobile-tab="map">Mapa</button>
-      <button type="button" class="mobile-tab" data-mobile-tab="pois">PdI</button>
-      <button type="button" class="mobile-tab" data-mobile-tab="database">Base</button>
-      <button type="button" class="mobile-tab" data-mobile-tab="console">Consola</button>
+      <button type="button" class="mobile-tab active" data-mobile-tab="map">
+        <span class="mobile-tab-icon"></span>
+        <span class="mobile-tab-label">Mapa</span>
+      </button>
+      <button type="button" class="mobile-tab" data-mobile-tab="pois">
+        <span class="mobile-tab-icon"></span>
+        <span class="mobile-tab-label">PdI</span>
+      </button>
+      <button type="button" class="mobile-tab" data-mobile-tab="database">
+        <span class="mobile-tab-icon"></span>
+        <span class="mobile-tab-label">Base</span>
+      </button>
+      <button type="button" class="mobile-tab" data-mobile-tab="console">
+        <span class="mobile-tab-icon"></span>
+        <span class="mobile-tab-label">Consola</span>
+      </button>
     </nav>
     <footer class="app-footer">
       <div class="footer-status">

@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS entities (
   first_session TEXT,
   last_session TEXT,
   sessions TEXT,
+  mel TEXT,
   public_summary TEXT,
   dm_notes TEXT,
   visibility TEXT NOT NULL DEFAULT 'agent_public',
