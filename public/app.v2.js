@@ -2251,7 +2251,8 @@ function filterDmItems(filters = {}) {
 function renderAgentDossiers() {
   const listTarget = agentDossierList || dossierList;
   const detailTarget = agentDossierDetail || dossierDetail;
-  if (!listTarget || !detailTarget) return;
+  const canRenderLegacyDetail = !!detailTarget;
+  if (!listTarget) return;
   highlightDossierType('agent', state.entityFiltersAgent.type);
   const entities = filterEntities(state.entityFiltersAgent, { includeArchived: false });
   listTarget.innerHTML = '';
@@ -2260,7 +2261,8 @@ function renderAgentDossiers() {
     empty.className = 'dossier-empty';
     empty.textContent = 'Sin entidades con estos filtros.';
     listTarget.appendChild(empty);
-    detailTarget.textContent = 'Selecciona una entidad para ver su dossier.';
+    if (detailTarget) detailTarget.textContent = 'Selecciona una entidad para ver su dossier.';
+    renderAgentEntityDetailCard(null);
     return;
   }
 
@@ -2284,15 +2286,24 @@ function renderAgentDossiers() {
       if (entity.visibility !== 'locked') {
         loadAgentContext(entity.id);
       } else {
-        renderDossierDetailView(detailTarget, entity, { dm: false });
+        if (canRenderLegacyDetail) {
+          renderDossierDetailView(detailTarget, entity, { dm: false });
+        }
+        renderAgentEntityDetailCard(entity);
       }
     });
     listTarget.appendChild(card);
   });
 
-  renderDossierDetailView(detailTarget, state.activeEntityAgent, { dm: false });
-  if (state.activeEntityAgent && state.activeEntityAgent.visibility !== 'locked') {
-    loadAgentContext(state.activeEntityAgent.id);
+  if (canRenderLegacyDetail) {
+    renderDossierDetailView(detailTarget, state.activeEntityAgent, { dm: false });
+  }
+  if (state.activeEntityAgent) {
+    if (state.activeEntityAgent.visibility !== 'locked') {
+      loadAgentContext(state.activeEntityAgent.id);
+    } else {
+      renderAgentEntityDetailCard(state.activeEntityAgent);
+    }
   }
 }
 
@@ -4536,7 +4547,9 @@ async function loadAgentContext(id) {
     updateAgentCreatureLayout(merged);
     renderAgentEntityDetailCard(merged, ctx);
     const detailTarget = agentDossierDetail || dossierDetail;
-    renderDossierDetailView(detailTarget, merged, { dm: false });
+    if (detailTarget) {
+      renderDossierDetailView(detailTarget, merged, { dm: false });
+    }
     renderEntityGraph(agentGraphContainer, ctx, { focusId: id });
     setCookie('agent_active_entity', id);
   } catch (err) {
