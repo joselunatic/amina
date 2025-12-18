@@ -399,13 +399,18 @@ app.post('/api/dm/entities/:id/archive', dmSecretRequired, async (req, res, next
 app.delete('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
   try {
     logCrud('Entity delete', req, { id: req.params.id });
-    const existing = await getEntityForDm(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Entidad no encontrada.' });
-    if (existing.type === 'poi') {
-      await deletePoi(req.params.id);
-    } else {
-      await deleteEntity(req.params.id);
+    const kind = req.query.kind || req.query.type || '';
+    const paramId = req.params.id;
+    if (kind === 'poi' || isEncodedPoiId(paramId)) {
+      const poiId = kind === 'poi' ? paramId : decodePoiId(paramId);
+      const poi = await getPoiById(poiId);
+      if (!poi) return res.status(404).json({ error: 'Entidad no encontrada.' });
+      await deletePoi(poiId);
+      return res.status(204).send();
     }
+    const existing = await getEntityForDm(paramId);
+    if (!existing) return res.status(404).json({ error: 'Entidad no encontrada.' });
+    await deleteEntity(paramId);
     res.status(204).send();
   } catch (err) {
     next(err);

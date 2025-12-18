@@ -20,6 +20,12 @@ const categoryLabels = {
   RUMOR: 'Rumor'
 };
 
+const veilLabels = {
+  intact: 'Intacto',
+  frayed: 'Deshilachado',
+  torn: 'Roto'
+};
+
 const state = {
   map: null,
   pois: [],
@@ -88,6 +94,7 @@ window.state = state;
 const mapCenter = [-76.229, 40.68];
 const BESTIARY_FALLBACK_IMAGE = '/creature.png';
 const HERO_FALLBACK_IMAGE = '/noimage.png';
+const LOCKED_IMAGE = '/locked.png';
 const DECIMAL_STYLE = 'mapbox://styles/mapbox-map-design/ck4014y110wt61ctt07egsel6';
 const MISSION_NOTES_KEY = 'amina_mission_notes';
 const JOURNAL_DM_KEY = 'amina_journal_dm';
@@ -898,7 +905,7 @@ function buildPopupHtml(poi) {
       <h3>${sanitize(poi.name)}</h3>
       <div>${categoryLabels[poi.category] || poi.category} ${categoryIcons[poi.category] || ''}</div>
       <div>Amenaza: ${poi.threat_level}/5</div>
-      <div>Membrana: ${poi.veil_status}</div>
+      <div>Membrana: ${sanitize(formatVeilLabel(poi.veil_status))}</div>
       <div>Sesión: ${sanitize(poi.session_tag || '–')}</div>
       ${buildPopupImage(poi)}
       <p>${sanitize(poi.public_note || 'Sin nota pública')}</p>
@@ -925,6 +932,11 @@ function sanitizeUrlValue(url) {
     return '';
   }
   return '';
+}
+
+function formatVeilLabel(value) {
+  const key = (value || '').toString().trim().toLowerCase();
+  return veilLabels[key] || value || '—';
 }
 
 function buildPopupImage(poi) {
@@ -1127,7 +1139,7 @@ function renderPoiItem(poi, target) {
     meta.innerHTML = `
       <span class="badge">#${poi.id}</span>
       <span class="badge">Amenaza ${poi.threat_level}</span>
-      <span class="badge veil-${poi.veil_status}">Velo ${poi.veil_status}</span>
+      <span class="badge veil-${poi.veil_status}">Velo ${sanitize(formatVeilLabel(poi.veil_status))}</span>
       <span class="badge-soft">${sanitize(poi.session_tag || 'Sin sesión')}</span>
       <span class="poi-summary-sub">${categoryLabels[poi.category] || poi.category}</span>
     `;
@@ -1155,7 +1167,7 @@ function renderPoiItem(poi, target) {
     <div class="poi-summary-meta">
       <span class="badge">#${poi.id}</span>
       <span class="badge">Amenaza ${poi.threat_level}</span>
-      <span class="badge ${veilClass}">Velo ${poi.veil_status}</span>
+      <span class="badge ${veilClass}">Velo ${sanitize(formatVeilLabel(poi.veil_status))}</span>
       <span class="badge">${sanitize(poi.session_tag || 'Sin sesión')}</span>
     </div>
   `;
@@ -2124,7 +2136,7 @@ async function loadEntities() {
     if (state.entityEditorMode === 'edit' && state.activeEntityAdmin) {
       const found = state.entities.find((e) => e.id === state.activeEntityAdmin.id);
       if (found) {
-        state.activeEntityAdmin = { ...found, kind: 'entity' };
+        state.activeEntityAdmin = { ...found, kind: found.type === 'poi' ? 'poi' : 'entity' };
         populateEntityForm(state.activeEntityAdmin);
       } else {
         enterNewEntityMode();
@@ -2374,7 +2386,7 @@ function renderDossierDetailView(target, entity, options = {}) {
           <div class="dossier-subtitle">${sanitize(categoryLabels[entity.category] || entity.role || 'PdI')}</div>
           <div class="dossier-badges">
             <span class="badge">Amenaza ${sanitize(String(entity.threat_level || '?'))}</span>
-            <span class="badge">Velo ${sanitize(entity.veil_status || entity.alignment || '?')}</span>
+            <span class="badge">Velo ${sanitize(formatVeilLabel(entity.veil_status || entity.alignment || '?'))}</span>
             ${entity.sessions ? `<span class="badge-soft">${sanitize(entity.sessions)}</span>` : ''}
           </div>
           <div class="dossier-section">
@@ -2980,7 +2992,7 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
           <div class="dm-detail-label">Amenaza</div>
           <div class="dm-detail-value">${threat}</div>
           <div class="dm-detail-label">Velo</div>
-          <div class="dm-detail-value">${sanitize(entity.veil_status || entity.alignment || '—')}</div>
+          <div class="dm-detail-value">${sanitize(formatVeilLabel(entity.veil_status || entity.alignment || '—'))}</div>
           ${sessionTag ? `<div class="dm-detail-label">Sesión</div><div class="dm-detail-value">${sessionTag}</div>` : ''}
         </div>
         <div class="dm-detail-box scroll full">
@@ -3356,6 +3368,7 @@ async function handleEntityDelete() {
     Number(entityDeleteOverlay?.dataset.entityId) || (state.activeEntityAdmin ? Number(state.activeEntityAdmin.id) : null);
   if (!targetId) return;
   entityDeleteConfirmBtn?.setAttribute('disabled', 'true');
+  const target = state.entities.find((entity) => Number(entity.id) === targetId) || state.activeEntityAdmin;
   try {
     const response = await fetch(`/api/dm/entities/${targetId}`, {
       method: 'DELETE',
@@ -3374,6 +3387,9 @@ async function handleEntityDelete() {
     showMessage('Entidad eliminada.');
     closeEntityDeleteOverlay();
     await loadEntities();
+    if (target && target.type === 'poi') {
+      await loadPois();
+    }
     enterNewEntityMode();
   } catch (err) {
     showMessage(err.message || 'No se pudo eliminar la entidad.', true);
@@ -3451,7 +3467,7 @@ function renderFocalPoiCard() {
       </div>
       <div class="mobile-focal-meta">
         <div class="mobile-focal-line"><span class="label">Amenaza</span><span>${poi.threat_level}</span></div>
-        <div class="mobile-focal-line"><span class="label">Velo</span><span>${sanitize(poi.veil_status)}</span></div>
+        <div class="mobile-focal-line"><span class="label">Velo</span><span>${sanitize(formatVeilLabel(poi.veil_status))}</span></div>
         <div class="mobile-focal-line"><span class="label">Notas</span><span>${sanitize(poi.public_note || 'Sin notas públicas')}</span></div>
       </div>
       ${safeImage
@@ -3464,7 +3480,7 @@ function renderFocalPoiCard() {
   const desktopHtml = `
     <div class="poi-focal-header">
       <div class="poi-name">${icon} ${sanitize(poi.name)}</div>
-      <div class="poi-meta">Amenaza ${poi.threat_level} · Velo ${sanitize(poi.veil_status)}</div>
+      <div class="poi-meta">Amenaza ${poi.threat_level} · Velo ${sanitize(formatVeilLabel(poi.veil_status))}</div>
     </div>
     <div class="poi-session">Sesión ${sanitize(poi.session_tag || '—')}</div>
     <div class="poi-note">${sanitize(poi.public_note || 'Sin notas públicas')}</div>
@@ -4246,6 +4262,7 @@ function populateEntityForm(entity) {
     if (entityThreatInput) entityThreatInput.value = entity.threat_level || '';
     state.editingPoiId = entity.id;
   }
+  toggleUnlockFields();
   updateEntityFormMode(kind === 'poi' ? 'poi' : 'entity');
   updateEntityDeleteButtonState(entity);
 }
@@ -4375,6 +4392,9 @@ async function confirmEntityDeletion() {
     state.activeEntityAdmin = null;
     resetEntityForm();
     await loadEntities();
+    if (entity.type === 'poi') {
+      await loadPois();
+    }
   } catch (err) {
     logDebug(`Error borrando entidad: ${err.message}`);
     showMessage('No se pudo eliminar la entidad.', true);
@@ -4641,6 +4661,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
           <div class="dossier-detail locked">
             <div class="locked-placeholder small">LOCKED</div>
             <div class="dossier-title">${callsign || 'PdI bloqueado'}</div>
+            <p class="muted">PROTOCOLO OV-RESTRINGIDO // Membrana clasificada. Credenciales de campo requeridas.</p>
             <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
           entity.locked_hint || ''
         )}">Desbloquear</button>
@@ -4650,7 +4671,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
         hero.innerHTML = `
           <div class="dm-entity-hero-body">
             <div class="dm-entity-hero-media">
-              <div class="hero-wrapper hero-locked"><div class="locked-placeholder">LOCKED</div></div>
+              <div class="hero-wrapper hero-locked"><img src="${LOCKED_IMAGE}" alt="Dossier bloqueado" /></div>
             </div>
             <div class="dm-entity-hero-info">
               <div class="dm-entity-hero-title">${callsign || 'PdI bloqueado'}</div>
@@ -4675,7 +4696,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
             <div class="dm-detail-label">Amenaza</div>
             <div class="dm-detail-value">${threat}</div>
             <div class="dm-detail-label">Velo</div>
-            <div class="dm-detail-value">${sanitize(entity.veil_status || entity.alignment || '—')}</div>
+            <div class="dm-detail-value">${sanitize(formatVeilLabel(entity.veil_status || entity.alignment || '—'))}</div>
             ${sessionTag ? `<div class="dm-detail-label">Sesión</div><div class="dm-detail-value">${sessionTag}</div>` : ''}
           </div>
         <div class="dm-detail-box scroll full">
@@ -4685,6 +4706,35 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
       </div>
       `;
     } else {
+      if (locked) {
+        detail.innerHTML = `
+          <div class="card-title">Dossier</div>
+          <div class="dossier-detail locked">
+            <div class="locked-placeholder small">LOCKED</div>
+            <div class="dossier-title">${callsign || 'Entidad bloqueada'}</div>
+            <p class="muted">DOSSIER SELLADO // Nivel Ordo Veritatis: Restringido. Credenciales de campo requeridas.</p>
+            <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
+          entity.locked_hint || ''
+        )}">Desbloquear</button>
+          </div>
+        `;
+        hero.classList.remove('map-only');
+        hero.classList.remove('hidden');
+        hero.innerHTML = `
+          <div class="dm-entity-hero-body">
+            <div class="dm-entity-hero-media">
+              <div class="hero-wrapper hero-locked"><img src="${LOCKED_IMAGE}" alt="Dossier bloqueado" /></div>
+            </div>
+            <div class="dm-entity-hero-info">
+              <div class="dm-entity-hero-title">${callsign || 'Entidad bloqueada'}</div>
+              <div class="dm-entity-hero-role">${role}</div>
+            </div>
+          </div>
+        `;
+        if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
+        renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+        return;
+      }
       detail.innerHTML = `
         <div class="card-title">Dossier</div>
         <div class="dm-detail-grid">
