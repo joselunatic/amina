@@ -525,14 +525,14 @@
                   <div class="console-card">
                     <div class="card-title">Dossiers</div>
                     <div class="dossier-controls">
-                    <div class="dossier-filter-group">
-                      <button type="button" class="small ghost dm-filter-type" data-type="">Todos</button>
-                      <button type="button" class="small ghost dm-filter-type" data-type="pc">PJ</button>
-                      <button type="button" class="small ghost dm-filter-type" data-type="npc">PNJ</button>
-                      <button type="button" class="small ghost dm-filter-type" data-type="org">Orgs</button>
-                      <button type="button" class="small ghost dm-filter-type" data-type="poi">PdI</button>
-                      <button type="button" class="small ghost dm-filter-type" data-type="criatura">EOE</button>
-                    </div>
+                      <div class="dossier-filter-group">
+                        <button type="button" class="small ghost dm-filter-type" data-type="">Todos</button>
+                        <button type="button" class="small ghost dm-filter-type" data-type="pc">PJ</button>
+                        <button type="button" class="small ghost dm-filter-type" data-type="npc">PNJ</button>
+                        <button type="button" class="small ghost dm-filter-type" data-type="org">Orgs</button>
+                        <button type="button" class="small ghost dm-filter-type" data-type="poi">PdI</button>
+                        <button type="button" class="small ghost dm-filter-type" data-type="criatura">EOE</button>
+                      </div>
                       <input type="search" id="dm-entity-search" placeholder="Buscar por nombre o rol" />
                     </div>
                     <div class="dossier-list" id="dm-entity-list"></div>
@@ -545,13 +545,13 @@
                         <div class="dm-form-title">Dossier editable</div>
                         <p class="text-xs muted">Actualiza identidad, actividad y control de visibilidad.</p>
                       </div>
-                    <div class="entity-editor-actions">
-                      <button type="button" id="entity-new" class="ghost small">Crear nuevo</button>
-                      <button type="button" id="entity-cancel" class="ghost small hidden" disabled>Descartar edición</button>
-                      <button type="button" id="entity-delete" class="danger small hidden">Eliminar entidad</button>
-                      <button type="button" id="entity-reset" class="hidden" aria-hidden="true">Reset</button>
+                      <div class="entity-editor-actions">
+                        <button type="button" id="entity-new" class="ghost small">Crear nuevo</button>
+                        <button type="button" id="entity-cancel" class="ghost small hidden" disabled>Descartar edición</button>
+                        <button type="button" id="entity-delete" class="danger small hidden">Eliminar entidad</button>
+                        <button type="button" id="entity-reset" class="hidden" aria-hidden="true">Reset</button>
+                      </div>
                     </div>
-                  </div>
                     <form id="entity-form" class="entity-form">
                       <input type="hidden" id="entity-id" />
                       <input type="hidden" id="entity-kind" value="entity" />
@@ -705,6 +705,7 @@
                         </div>
                       </div>
                     </form>
+                  </div>
                 </div>
               </div>
             </div>
@@ -712,8 +713,29 @@
               <div class="console-stack">
                 <div class="console-card" id="dm-relations-card">
                   <div class="card-title">Relaciones (DJ)</div>
-                  <div id="dm-graph" class="entity-graph-panel">Selecciona una entidad en Entidades para ver el grafo.
+                  <div class="dm-graph-toolbar">
+                    <div class="dm-graph-search">
+                      <label for="dm-graph-search">Buscar entidad</label>
+                      <input type="search" id="dm-graph-search" placeholder="Nombre o callsign…" autocomplete="off" />
+                      <div class="multi-suggestions" id="dm-graph-suggestions"></div>
+                    </div>
+                    <label for="dm-graph-entity">Entidad focal</label>
+                    <select id="dm-graph-entity">
+                      <option value="">Selecciona entidad</option>
+                    </select>
+                    <div class="graph-layout-buttons">
+                      <button type="button" data-dm-graph-layout="cose" class="ghost small">Fuerza</button>
+                      <button type="button" data-dm-graph-layout="concentric" class="ghost small">Concentrico</button>
+                    </div>
+                    <div class="graph-legend">
+                      <span class="legend-dot type-npc">PNJ</span>
+                      <span class="legend-dot type-org">Org</span>
+                      <span class="legend-dot type-criatura">Criatura</span>
+                      <span class="legend-dot type-pc">PJ</span>
+                      <span class="legend-dot type-session">Sesiones</span>
+                    </div>
                   </div>
+                  <div id="dm-graph" class="entity-graph-panel">Selecciona una entidad en Entidades o aquí para ver el grafo.</div>
                 </div>
               </div>
             </div>
@@ -772,6 +794,13 @@
         <div class="form-actions">
           <button type="button" id="unlock-confirm">Desbloquear</button>
         </div>
+      </div>
+    </div>
+    <div id="image-lightbox" class="lightbox hidden" role="dialog" aria-modal="true">
+      <div class="lightbox-backdrop" data-lightbox-close></div>
+      <div class="lightbox-body">
+        <button class="lightbox-close" type="button" aria-label="Cerrar" data-lightbox-close>×</button>
+        <img id="lightbox-img" alt="Imagen ampliada" />
       </div>
     </div>
   </div>

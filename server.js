@@ -2,6 +2,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const session = require('express-session');
 const {
   mapPoiToEntity,
   getAllPois,
@@ -39,6 +40,8 @@ const DEFAULT_PORT = 3002;
 const PORT = parseInt(process.env.PORT, 10) || DEFAULT_PORT;
 const HOST = process.env.HOST || '127.0.0.1';
 const DM_SECRET = process.env.DM_SECRET || '';
+const SESSION_SECRET = process.env.SESSION_SECRET || DM_SECRET || 'amina-dev-session-secret';
+const SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 365 * 10;
 const MAPBOX_TOKEN =
   process.env.MAPBOX_PUBLIC_TOKEN ||
   process.env.MAPBOX_ACCESS_TOKEN ||
@@ -62,8 +65,16 @@ function redactPayload(payload) {
   return clone;
 }
 
+function isDmSession(req) {
+  return req.session && req.session.role === 'dm';
+}
+
+function isAgentSession(req) {
+  return req.session && req.session.role === 'agent';
+}
+
 function logCrud(label, req, extra = {}) {
-  const dm = !!req.headers['x-dm-secret'];
+  const dm = isDmSession(req);
   const meta = {
     method: req.method,
     path: req.originalUrl || req.url,
@@ -75,6 +86,20 @@ function logCrud(label, req, extra = {}) {
 }
 
 app.use(express.json());
+app.use(
+  session({
+    name: 'amina.sid',
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: SESSION_MAX_AGE_MS
+    }
+  })
+);
 app.use(express.static(path.join(__dirname, 'public')));
 
 function encodePoiIds(entity) {
@@ -117,7 +142,10 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-app.post('/api/auth/dm', dmSecretRequired, (req, res) => {
+app.post('/api/auth/dm', validateDmSecret, (req, res) => {
+  req.session.role = 'dm';
+  req.session.agentId = null;
+  req.session.agentDisplay = null;
   res.status(204).send();
 });
 
@@ -167,7 +195,31 @@ app.post('/api/auth/agent', (req, res) => {
   if (hash !== user.passwordHash) {
     return res.status(401).json({ error: 'Invalid credentials.' });
   }
+  req.session.role = 'agent';
+  req.session.agentId = user.username;
+  req.session.agentDisplay = user.display;
   res.json({ username: user.username, display: user.display });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  if (isDmSession(req)) {
+    return res.json({ role: 'dm' });
+  }
+  if (isAgentSession(req)) {
+    return res.json({
+      role: 'agent',
+      agentId: req.session.agentId || null,
+      agentDisplay: req.session.agentDisplay || null
+    });
+  }
+  return res.json({ role: 'guest' });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.clearCookie('amina.sid');
+    res.status(204).send();
+  });
 });
 
 app.get('/api/messages', async (req, res, next) => {
@@ -211,7 +263,7 @@ app.get('/api/event-ticker', (req, res) => {
   });
 });
 
-app.post('/api/messages', dmSecretRequired, async (req, res, next) => {
+app.post('/api/messages', requireDmSession, async (req, res, next) => {
   try {
     const { sender, recipient, subject, body, session_tag } = req.body || {};
     if (!sender || !recipient || !subject || !body) {
@@ -285,7 +337,7 @@ app.post('/api/messages/agent', async (req, res, next) => {
 });
 
 // --- Dossiers: rutas DM ---
-app.get('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
+app.get('/api/dm/entities', requireDmSession, async (req, res, next) => {
   try {
     const filters = {
       type: req.query.type,
@@ -302,7 +354,7 @@ app.get('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
   }
 });
 
-app.get('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
+app.get('/api/dm/entities/:id', requireDmSession, async (req, res, next) => {
   try {
     const kind = req.query.kind || req.query.type || '';
     const paramId = req.params.id;
@@ -320,7 +372,7 @@ app.get('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
   }
 });
 
-app.get('/api/dm/entities/:id/context', dmSecretRequired, async (req, res, next) => {
+app.get('/api/dm/entities/:id/context', requireDmSession, async (req, res, next) => {
   try {
     const kind = req.query.kind || req.query.type || '';
     const paramId = req.params.id;
@@ -344,7 +396,7 @@ app.get('/api/dm/entities/:id/context', dmSecretRequired, async (req, res, next)
   }
 });
 
-app.post('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
+app.post('/api/dm/entities', requireDmSession, async (req, res, next) => {
   try {
     logCrud('Entity create', req);
     const raw = req.body || {};
@@ -362,7 +414,7 @@ app.post('/api/dm/entities', dmSecretRequired, async (req, res, next) => {
   }
 });
 
-app.put('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
+app.put('/api/dm/entities/:id', requireDmSession, async (req, res, next) => {
   try {
     logCrud('Entity update', req, { id: req.params.id });
     const existing = await getEntityForDm(req.params.id);
@@ -384,7 +436,7 @@ app.put('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
   }
 });
 
-app.post('/api/dm/entities/:id/archive', dmSecretRequired, async (req, res, next) => {
+app.post('/api/dm/entities/:id/archive', requireDmSession, async (req, res, next) => {
   try {
     logCrud('Entity archive', req, { id: req.params.id });
     const exists = await getEntityForDm(req.params.id);
@@ -396,7 +448,7 @@ app.post('/api/dm/entities/:id/archive', dmSecretRequired, async (req, res, next
   }
 });
 
-app.delete('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
+app.delete('/api/dm/entities/:id', requireDmSession, async (req, res, next) => {
   try {
     logCrud('Entity delete', req, { id: req.params.id });
     const kind = req.query.kind || req.query.type || '';
@@ -410,6 +462,13 @@ app.delete('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
     }
     const existing = await getEntityForDm(paramId);
     if (!existing) return res.status(404).json({ error: 'Entidad no encontrada.' });
+    if (existing.type === 'poi') {
+      const poiId = isEncodedPoiId(paramId) ? decodePoiId(paramId) : paramId;
+      const poi = await getPoiById(poiId);
+      if (!poi) return res.status(404).json({ error: 'Entidad no encontrada.' });
+      await deletePoi(poiId);
+      return res.status(204).send();
+    }
     await deleteEntity(paramId);
     res.status(204).send();
   } catch (err) {
@@ -418,7 +477,7 @@ app.delete('/api/dm/entities/:id', dmSecretRequired, async (req, res, next) => {
 });
 
 // --- Dossiers: rutas agente ---
-app.get('/api/agent/entities', async (req, res, next) => {
+app.get('/api/agent/entities', requireAgentSession, async (req, res, next) => {
   try {
     const filters = {
       type: req.query.type,
@@ -434,7 +493,7 @@ app.get('/api/agent/entities', async (req, res, next) => {
   }
 });
 
-app.get('/api/agent/entities/:id', async (req, res, next) => {
+app.get('/api/agent/entities/:id', requireAgentSession, async (req, res, next) => {
   try {
     const kind = req.query.kind || req.query.type || '';
     const paramId = req.params.id;
@@ -452,7 +511,7 @@ app.get('/api/agent/entities/:id', async (req, res, next) => {
   }
 });
 
-app.get('/api/agent/entities/:id/context', async (req, res, next) => {
+app.get('/api/agent/entities/:id/context', requireAgentSession, async (req, res, next) => {
   try {
     const kind = req.query.kind || req.query.type || '';
     const paramId = req.params.id;
@@ -480,7 +539,7 @@ app.get('/api/agent/entities/:id/context', async (req, res, next) => {
   }
 });
 
-app.post('/api/agent/entities/:id/unlock', async (req, res, next) => {
+app.post('/api/agent/entities/:id/unlock', requireAgentSession, async (req, res, next) => {
   try {
     const code = (req.body && req.body.code) || '';
     const rawId = req.params.id;
@@ -495,7 +554,7 @@ app.post('/api/agent/entities/:id/unlock', async (req, res, next) => {
 });
 
 // --- Journal ---
-app.get('/api/agent/journal', async (req, res, next) => {
+app.get('/api/agent/journal', requireAgentSession, async (req, res, next) => {
   try {
     const season = req.query.season || 2;
     const session = req.query.session || 0;
@@ -507,7 +566,7 @@ app.get('/api/agent/journal', async (req, res, next) => {
   }
 });
 
-app.post('/api/agent/journal', async (req, res, next) => {
+app.post('/api/agent/journal', requireAgentSession, async (req, res, next) => {
   try {
     const season = req.body?.season ?? 2;
     const session = req.body?.session ?? 0;
@@ -519,7 +578,7 @@ app.post('/api/agent/journal', async (req, res, next) => {
   }
 });
 
-app.get('/api/dm/journal', dmSecretRequired, async (req, res, next) => {
+app.get('/api/dm/journal', requireDmSession, async (req, res, next) => {
   try {
     if (req.query.list) {
       const list = await listJournalEntries();
@@ -535,7 +594,7 @@ app.get('/api/dm/journal', dmSecretRequired, async (req, res, next) => {
   }
 });
 
-app.post('/api/dm/journal', dmSecretRequired, async (req, res, next) => {
+app.post('/api/dm/journal', requireDmSession, async (req, res, next) => {
   try {
     const season = req.body?.season ?? 2;
     const session = req.body?.session ?? 0;
@@ -756,13 +815,7 @@ function validateEntity(payload) {
   return { cleaned, relations };
 }
 
-function isDmRequest(req) {
-  if (!DM_SECRET) return false;
-  const headerSecret = req.header('x-dm-secret');
-  return !!headerSecret && headerSecret === DM_SECRET;
-}
-
-function dmSecretRequired(req, res, next) {
+function validateDmSecret(req, res, next) {
   if (!DM_SECRET) {
     return res.status(500).json({ error: 'DM secret is not configured on the server.' });
   }
@@ -778,9 +831,23 @@ function dmSecretRequired(req, res, next) {
   return next();
 }
 
+function requireDmSession(req, res, next) {
+  if (!isDmSession(req)) {
+    return res.status(401).json({ error: 'DM session is required.' });
+  }
+  return next();
+}
+
+function requireAgentSession(req, res, next) {
+  if (!isAgentSession(req)) {
+    return res.status(401).json({ error: 'Agent session is required.' });
+  }
+  return next();
+}
+
 app.get('/api/pois', async (req, res, next) => {
   try {
-    const isDm = DM_SECRET && req.header('x-dm-secret') === DM_SECRET;
+    const isDm = isDmSession(req);
     const filters = {
       category: req.query.category,
       session_tag: req.query.session_tag
@@ -805,7 +872,7 @@ app.get('/api/pois/:id', async (req, res, next) => {
     const poiId = isEncodedPoiId(req.params.id) ? decodePoiId(req.params.id) : req.params.id;
     const poi = await getPoiById(poiId);
     if (!poi) return res.status(404).json({ error: 'POI not found.' });
-    const isDm = DM_SECRET && req.header('x-dm-secret') === DM_SECRET;
+    const isDm = isDmSession(req);
     const mapped = mapPoiToEntity(poi);
     logCrud('POI get', req, { id: poiId, dm: isDm, visibility: mapped.visibility });
     res.json(isDm ? mapped : filterAgentEntity(mapped));
@@ -814,7 +881,7 @@ app.get('/api/pois/:id', async (req, res, next) => {
   }
 });
 
-app.post('/api/pois', dmSecretRequired, async (req, res, next) => {
+app.post('/api/pois', requireDmSession, async (req, res, next) => {
   try {
     logCrud('POI create', req);
     const { cleaned, entityLinks, linksProvided } = validatePoi(req.body || {});
@@ -829,7 +896,7 @@ app.post('/api/pois', dmSecretRequired, async (req, res, next) => {
   }
 });
 
-app.put('/api/pois/:id', dmSecretRequired, async (req, res, next) => {
+app.put('/api/pois/:id', requireDmSession, async (req, res, next) => {
   try {
     const poiId = isEncodedPoiId(req.params.id) ? decodePoiId(req.params.id) : req.params.id;
     logCrud('POI update', req, { id: poiId });
@@ -849,7 +916,7 @@ app.put('/api/pois/:id', dmSecretRequired, async (req, res, next) => {
   }
 });
 
-app.delete('/api/pois/:id', dmSecretRequired, async (req, res, next) => {
+app.delete('/api/pois/:id', requireDmSession, async (req, res, next) => {
   try {
     const poiId = isEncodedPoiId(req.params.id) ? decodePoiId(req.params.id) : req.params.id;
     logCrud('POI delete', req, { id: poiId });

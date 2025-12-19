@@ -384,7 +384,7 @@ body.dm-hide-top-nav .workspace-nav.primary-nav {
   }
 
   .workspace {
-    min-height: auto;
+    min-height: calc(100vh - 240px);
     height: auto;
   }
 
@@ -1006,6 +1006,7 @@ body:not(.agent-creature-view) #agent-bestiary-card {
   object-fit: contain;
   border-radius: 10px;
   border: 1px solid rgba(0, 255, 136, 0.2);
+  cursor: zoom-in;
 }
 
 .hero-wrapper {
@@ -2014,6 +2015,37 @@ body.agent-creature-view #agent-entity-hero-card {
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.4);
   margin-top: 0.5rem;
+}
+
+/* Grafo relaciones DM: asegura altura visible */
+#dm-graph {
+  min-height: 420px;
+}
+
+.dm-graph-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 1rem;
+}
+
+.dm-graph-toolbar label {
+  font-size: 0.8rem;
+  color: rgba(0, 255, 136, 0.8);
+}
+
+.dm-graph-search {
+  position: relative;
+  min-width: 240px;
+}
+
+.dm-graph-search input {
+  width: 100%;
+}
+
+.graph-layout-buttons {
+  display: flex;
+  gap: 0.35rem;
 }
 
 /* --- Mobile overrides --- */
@@ -3763,6 +3795,77 @@ textarea {
   height: auto;
   border-radius: 3px;
   display: block;
+  cursor: zoom-in;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+
+.lightbox:not(.hidden) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 12, 16, 0.82);
+  backdrop-filter: blur(3px);
+}
+
+.lightbox-body {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  background: #0b171d;
+  border: 1px solid rgba(75, 211, 255, 0.4);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.6);
+  animation: popIn 180ms ease-out;
+}
+
+.lightbox img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(12, 26, 32, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e7f6ff;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+@keyframes popIn {
+  0% {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .dm-note {
@@ -4027,7 +4130,8 @@ body.mode-agent .dm-tabs {
 }
 
 body.mode-dm .agent-view,
-body.mode-dm .agent-tabs {
+body.mode-dm .agent-tabs,
+body.mode-dm .agent-top {
   display: none !important;
 }
 
@@ -4173,6 +4277,7 @@ body.mode-dm .agent-tabs {
   max-width: 160px;
   border-radius: 8px;
   border: 1px solid rgba(0, 255, 136, 0.4);
+  cursor: zoom-in;
 }
 
 .dossier-section {
@@ -4335,6 +4440,7 @@ body.mode-dm .agent-tabs {
   width: 100%;
   border-radius: 0.5rem;
   margin-top: 0.5rem;
+  cursor: zoom-in;
 }
 
 .console-tabs {

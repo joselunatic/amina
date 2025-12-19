@@ -57,7 +57,7 @@ Visit [http://localhost:3002](http://localhost:3002) to access the AMINA console
 
 ### Sr. Verdad Access (DM Command Layer)
 1. From the boot terminal choose **Sr. Verdad Access** and submit the clearance code (same as the old DM secret). You can later hit the **Change Clearance** button on the control panel to re-open the boot overlay and switch roles.
-1. Enter the shared secret in the boot overlay or the control panel. The secret stays only in memory for this session.
+1. Enter the shared secret en el boot overlay (se valida una vez y se guarda la sesión del DJ en cookie HttpOnly; no se expone el secreto al frontend).
 2. DM-only tools appear:
    - Form to create POIs (or edit/delete existing ones).
    - Image URL field so you can attach an external illustration per POI.
@@ -74,9 +74,11 @@ If the backend rejects the secret (`401 Unauthorized`), a red warning appears, t
 ## API Overview
 - `GET /api/pois` (optional `category`, `session_tag` query params)
 - `GET /api/pois/:id`
-- `POST /api/auth/dm` *(requires `x-dm-secret` header, validates clearance without mutating data)*
+- `POST /api/auth/dm` *(requires `x-dm-secret` header, crea sesión de DJ en cookie HttpOnly)*
+- `GET /api/auth/me` *(devuelve rol actual: guest/agent/dm)*
+- `POST /api/auth/logout` *(cierra sesión y limpia la cookie)*
 - `GET /api/auth/agents` *(returns the list of field agents that can log in locally)*
-- `POST /api/auth/agent` *(checks field agent username + password)*
+- `POST /api/auth/agent` *(checks field agent username + password y crea sesión de agente)*
 - `GET /api/messages` *(returns latest broadcast messages for agents)*
 - `POST /api/messages` *(creates a new message; requires `x-dm-secret` header)*
 - `GET /api/event-ticker` *(serves OV ticker items for the footer scroller)*
