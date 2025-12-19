@@ -237,12 +237,6 @@
                   </div>
                 </div>
               </div>
-              <div class="workspace-top agent-top" data-view="relations">
-                <div class="console-card" id="agent-relations-card-top">
-                  <div class="card-title">Relaciones</div>
-                  <div id="agent-graph" class="entity-graph-panel">Selecciona una entidad para ver sus vínculos.</div>
-                </div>
-              </div>
             </div>
           </div>
           <nav class="workspace-nav primary-nav" aria-label="Modo de consola">
@@ -313,6 +307,26 @@
                   <div class="dossier-layout">
                     <div class="dossier-list" id="dossier-list"></div>
                   </div>
+                </div>
+              </div>
+            </div>
+            <div class="workspace-view agent-view" data-view="relations">
+              <div class="console-stack">
+                  <div class="console-card" id="agent-relations-card">
+                    <div class="card-title">Relaciones</div>
+                  <div class="dm-graph-toolbar">
+                    <div class="dm-graph-search">
+                      <label for="agent-graph-search">Buscar entidad</label>
+                      <input type="search" id="agent-graph-search" placeholder="Nombre o callsign…" autocomplete="off" />
+                      <div class="multi-suggestions" id="agent-graph-suggestions"></div>
+                    </div>
+                    <label for="agent-graph-entity">Entidad</label>
+                    <select id="agent-graph-entity">
+                      <option value="">Selecciona entidad</option>
+                    </select>
+                  </div>
+                  <div id="agent-graph" class="entity-graph-panel">Selecciona una entidad para ver sus vínculos.</div>
+                  <div class="graph-entity-summary" id="agent-graph-summary">Toca un nodo para ver detalles.</div>
                 </div>
               </div>
             </div>
@@ -723,19 +737,9 @@
                     <select id="dm-graph-entity">
                       <option value="">Selecciona entidad</option>
                     </select>
-                    <div class="graph-layout-buttons">
-                      <button type="button" data-dm-graph-layout="cose" class="ghost small">Fuerza</button>
-                      <button type="button" data-dm-graph-layout="concentric" class="ghost small">Concentrico</button>
-                    </div>
-                    <div class="graph-legend">
-                      <span class="legend-dot type-npc">PNJ</span>
-                      <span class="legend-dot type-org">Org</span>
-                      <span class="legend-dot type-criatura">Criatura</span>
-                      <span class="legend-dot type-pc">PJ</span>
-                      <span class="legend-dot type-session">Sesiones</span>
-                    </div>
                   </div>
                   <div id="dm-graph" class="entity-graph-panel">Selecciona una entidad en Entidades o aquí para ver el grafo.</div>
+                  <div class="graph-entity-summary" id="dm-graph-summary">Haz clic en un nodo para abrir su contexto.</div>
                 </div>
               </div>
             </div>
@@ -807,6 +811,9 @@
 
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <script src="https://unpkg.com/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
+  <script src="vendor/weaver.min.js"></script>
+  <script src="vendor/cytoscape-spread.js"></script>
+  <script src="vendor/cytoscape-dblclick.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"></script>
   <script src="app.v2.js?v=mel-toggle1" type="module"></script>
 </body>

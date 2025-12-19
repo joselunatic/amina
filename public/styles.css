@@ -2010,16 +2010,193 @@ body.agent-creature-view #agent-entity-hero-card {
 }
 
 .entity-graph-panel {
-  height: 340px;
+  min-height: 560px;
+  height: clamp(520px, 52vh, 720px);
   border: 1px solid rgba(0, 255, 136, 0.25);
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.35);
   margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: stretch;
+  position: relative;
+  overflow: hidden;
 }
 
-/* Grafo relaciones DM: asegura altura visible */
-#dm-graph {
-  min-height: 420px;
+#dm-graph,
+#agent-graph {
+  min-height: 520px;
+  height: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(75, 211, 255, 0.35);
+  background: radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.05), rgba(2, 8, 16, 0.95)),
+    radial-gradient(circle at 80% 30%, rgba(123, 255, 210, 0.08), transparent 40%),
+    #010b13;
+  box-shadow: 0 20px 60px rgba(4, 18, 27, 0.9), inset 0 0 60px rgba(75, 211, 255, 0.18);
+  position: relative;
+  overflow: hidden;
+  animation: membranePulse 6s ease-in-out infinite;
+}
+
+#dm-graph::after,
+#agent-graph::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: inherit;
+  mix-blend-mode: screen;
+  animation: membraneGlow 10s ease-in-out infinite;
+}
+
+#dm-graph::before,
+#agent-graph::before {
+  content: '';
+  position: absolute;
+  inset: -40px;
+  background-image:
+    linear-gradient(90deg, rgba(75, 211, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(123, 255, 210, 0.04) 1px, transparent 1px),
+    radial-gradient(circle at center, rgba(123, 255, 210, 0.12), transparent 55%);
+  background-size: 120px 120px, 140px 140px, cover;
+  opacity: 0.35;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  animation: graphGridShift 18s linear infinite;
+  z-index: 1;
+}
+
+#dm-graph canvas,
+#agent-graph canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  position: relative;
+  z-index: 0;
+}
+
+.graph-summary-panel {
+  background: rgba(3, 12, 20, 0.85);
+  border-radius: 12px;
+  border: 1px solid rgba(75, 211, 255, 0.4);
+  box-shadow: inset 0 0 30px rgba(75, 211, 255, 0.15), 0 10px 30px rgba(0, 0, 0, 0.4);
+  padding: 0.9rem;
+  color: #e5f6ff;
+  transition: filter 0.35s ease, transform 0.25s ease;
+  position: relative;
+}
+
+.graph-summary-panel.graph-summary--restricted {
+  filter: grayscale(0.65);
+  transform: translateY(2px);
+  box-shadow: inset 0 0 40px rgba(255, 116, 146, 0.2), 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+.graph-summary-panel::before {
+  content: attr(data-whisper);
+  position: absolute;
+  width: 50%;
+  left: 1rem;
+  bottom: 0.2rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.graph-summary-whisper {
+  margin-top: 0.65rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.graph-summary-whisper.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.graph-loading-indicator {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.entity-graph-panel.graph-loading .graph-loading-indicator {
+  opacity: 1;
+}
+
+.graph-loading-indicator::after {
+  content: '';
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: rgba(75, 211, 255, 0.9);
+  animation: graph-spinner 0.9s linear infinite;
+  box-shadow: 0 0 18px rgba(75, 211, 255, 0.45);
+}
+
+@keyframes graph-spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(180deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes membranePulse {
+  0% {
+    box-shadow: 0 0 0 rgba(75, 211, 255, 0.2), inset 0 0 0 rgba(75, 211, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 60px rgba(75, 211, 255, 0.35), inset 0 0 40px rgba(75, 211, 255, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(75, 211, 255, 0.2), inset 0 0 0 rgba(75, 211, 255, 0.18);
+  }
+}
+
+@keyframes membraneGlow {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes graphGridShift {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate(-20px, -10px) scale(1.02);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.35;
+  }
 }
 
 .dm-graph-toolbar {
@@ -2041,11 +2218,6 @@ body.agent-creature-view #agent-entity-hero-card {
 
 .dm-graph-search input {
   width: 100%;
-}
-
-.graph-layout-buttons {
-  display: flex;
-  gap: 0.35rem;
 }
 
 /* --- Mobile overrides --- */
@@ -4626,4 +4798,58 @@ body.mode-dm .agent-top {
   width: 100%;
   height: 100%;
   min-height: 320px;
+}
+
+.graph-entity-summary {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, rgba(13, 17, 24, 0.85), rgba(6, 10, 17, 0.9));
+  border: 1px solid rgba(123, 255, 181, 0.25);
+  color: #dfefff;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  box-shadow: 0 20px 45px rgba(3, 6, 12, 0.5);
+  text-transform: none;
+}
+
+.graph-entity-summary strong {
+  color: #74dbff;
+  display: block;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.3rem;
+}
+
+.graph-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+.graph-summary-header {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.graph-summary-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.graph-summary-role {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #7ae4ff;
 }

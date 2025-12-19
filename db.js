@@ -1210,13 +1210,46 @@ async function getEntityContext(entityId, options = {}) {
     [entityId]
   );
 
-  const relations = await all(
-    `SELECT r.*, e.code_name as to_code_name, e.type as to_type, e.alignment as to_alignment
+  const outgoingRelations = await all(
+    `SELECT r.*, e.code_name as to_code_name, e.type as to_type, e.role as to_role, e.alignment as to_alignment, e.image_url as to_image_url, e.visibility as to_visibility
      FROM entity_relations r
      JOIN entities e ON e.id = r.to_entity_id
      WHERE r.from_entity_id = ? ${linkFilter}`,
     [entityId]
   );
+  const incomingRelations = await all(
+    `SELECT r.*, e.id as from_entity_id, e.code_name as from_code_name, e.type as from_type, e.role as from_role, e.alignment as from_alignment, e.image_url as from_image_url, e.visibility as from_visibility
+     FROM entity_relations r
+     JOIN entities e ON e.id = r.from_entity_id
+     WHERE r.to_entity_id = ? ${linkFilter}`,
+    [entityId]
+  );
+  const mappedIncoming = incomingRelations.map((rel) => ({
+    ...rel,
+    from_entity_id: entityId,
+    to_entity_id: rel.from_entity_id,
+    to_code_name: rel.from_code_name,
+    to_type: rel.from_type,
+    to_role: rel.from_role,
+    to_alignment: rel.from_alignment,
+    to_image_url: rel.from_image_url,
+    to_visibility: rel.from_visibility
+  }));
+  const relationCandidates = [...outgoingRelations, ...mappedIncoming];
+  const relationSet = new Set();
+  const relations = [];
+  relationCandidates.forEach((rel) => {
+    const targetId = Number(rel.to_entity_id);
+    if (!targetId || Number.isNaN(targetId)) return;
+    const relationKey = `${Math.min(entityId, targetId)}:${Math.max(entityId, targetId)}:${rel.relation_type || 'relation'}`;
+    if (relationSet.has(relationKey)) return;
+    relationSet.add(relationKey);
+    relations.push({
+      ...rel,
+      from_entity_id: entityId,
+      to_entity_id: targetId
+    });
+  });
 
   return {
     entity,

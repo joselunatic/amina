@@ -84,8 +84,11 @@ const state = {
   lastAgentGraphic: { type: null, id: null },
   melTokens: []
   ,
-  dmGraphLayout: 'cose',
+  dmGraphLayout: 'spread',
   dmGraphFocusId: null
+  ,
+  agentGraphLayout: 'spread',
+  agentGraphFocusId: null
 };
 
 console.log('AMINA app.v2 loaded (mel toggles debug)');
@@ -105,6 +108,7 @@ const FOOTER_CLOCK_INTERVAL = 1000;
 const MEMBRANE_STATUS_TEXT = 'ESTABILIDAD DE MEMBRANA: 92%';
 const TICKER_STATE_KEY = 'amina_ticker_state';
 let dmGraphFuse = null;
+let agentGraphFuse = null;
 
 const dmSecretInput = document.getElementById('dm-secret');
 const dmWarning = document.getElementById('dm-warning');
@@ -223,11 +227,17 @@ const dossierListAdmin = document.getElementById('dossier-list-admin');
 const dossierDetailAdmin = document.getElementById('dossier-detail-admin');
 const dossierSearchAdmin = document.getElementById('dossier-search-admin');
 const agentGraphContainer = document.getElementById('agent-graph');
+const agentGraphSearchInput = document.getElementById('agent-graph-search');
+const agentGraphSuggestions = document.getElementById('agent-graph-suggestions');
+const agentGraphSelect = document.getElementById('agent-graph-entity');
+const agentGraphLayoutButtons = document.querySelectorAll('[data-agent-graph-layout]');
+const agentGraphSummary = document.getElementById('agent-graph-summary');
 const dmGraphContainer = document.getElementById('dm-graph');
 const dmGraphSelect = document.getElementById('dm-graph-entity');
 const dmGraphSearchInput = document.getElementById('dm-graph-search');
 const dmGraphSuggestions = document.getElementById('dm-graph-suggestions');
 const dmGraphLayoutButtons = document.querySelectorAll('[data-dm-graph-layout]');
+const dmGraphSummary = document.getElementById('dm-graph-summary');
 const entityForm = document.getElementById('entity-form');
 const entityIdInput = document.getElementById('entity-id');
 const entityKindInput = document.getElementById('entity-kind');
@@ -576,6 +586,36 @@ function bindEvents() {
       !dmGraphSearchInput.contains(event.target)
     ) {
       clearDmGraphSuggestions();
+    }
+  });
+
+  agentGraphSelect?.addEventListener('change', () => {
+    if (agentGraphSelect) setAgentGraphFocus(agentGraphSelect.value);
+  });
+  agentGraphLayoutButtons?.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const layout = btn.dataset.agentGraphLayout || 'cose';
+      state.agentGraphLayout = layout;
+      agentGraphLayoutButtons.forEach((b) => b.classList.toggle('active', b === btn));
+      renderAgentRelationsGraph();
+    });
+  });
+  if (agentGraphSearchInput) {
+    agentGraphSearchInput.addEventListener('input', (e) => {
+      renderAgentGraphSearchResults(e.target.value);
+    });
+    agentGraphSearchInput.addEventListener('focus', (e) => {
+      if (e.target.value) renderAgentGraphSearchResults(e.target.value);
+    });
+  }
+  document.addEventListener('click', (event) => {
+    if (
+      agentGraphSuggestions &&
+      !agentGraphSuggestions.contains(event.target) &&
+      agentGraphSearchInput &&
+      !agentGraphSearchInput.contains(event.target)
+    ) {
+      clearAgentGraphSuggestions();
     }
   });
 
@@ -2237,7 +2277,11 @@ async function loadEntities() {
     renderFocalPoiCard();
     populateDmGraphOptions();
     if (state.workspaceView === 'relations') {
-      renderDmRelationsGraph();
+      if (state.dmMode) {
+        renderDmRelationsGraph();
+      } else {
+        renderAgentRelationsGraph();
+      }
     }
   } catch (err) {
     logDebug(`Error cargando entidades: ${err.message}`);
@@ -2599,31 +2643,58 @@ function renderSessionChips(sessions) {
   return list.map((tag) => `<span class="badge-soft">${sanitize(tag)}</span>`).join(' ');
 }
 
-function buildGraphElements(ctx = {}) {
+function buildGraphElements(ctx = {}, options = {}) {
   const elements = { nodes: [], edges: [] };
   if (!ctx.entity) return { ...elements, focusId: null };
   const focusId = `e-${ctx.entity.id}`;
+  const poiImageLookup = new Map();
+  (state.pois || []).forEach((poi) => {
+    const id = Number(poi.id);
+    if (!Number.isFinite(id)) return;
+    poiImageLookup.set(id, poi.image_url || '');
+  });
   const seen = new Set();
   const pushNode = (data) => {
     if (seen.has(data.id)) return;
     seen.add(data.id);
     elements.nodes.push({ data });
   };
-  pushNode({
-    id: focusId,
-    label: ctx.entity.code_name || ctx.entity.name || `Entidad ${ctx.entity.id}`,
-    type: ctx.entity.type || 'npc',
-    session: ctx.entity.first_session || ctx.entity.sessions || null
-  });
 
-  (ctx.relations || []).forEach((rel, idx) => {
+  const createNodePayload = (info) => {
+    const fallbackId = info.id ?? info.entityId ?? info.poi_id ?? 'unknown';
+    const nodeId = info.graphId || `e-${fallbackId}`;
+    return {
+      id: nodeId,
+      label: info.code_name || info.name || `Entidad ${fallbackId}`,
+      type: info.type || info.to_type || info.from_type || 'npc',
+      entityId: info.entityId ?? fallbackId,
+      threat: info.threat_level || info.threat,
+      role: info.role || info.to_role || info.from_role || '',
+      visibility: info.visibility || info.to_visibility || info.from_visibility || 'agent_public',
+      image_url: info.image_url || info.to_image_url || info.from_image_url || '',
+      session: info.first_session || info.sessions || info.session || ''
+    };
+  };
+
+  pushNode(createNodePayload(ctx.entity));
+
+  const mode = options.mode || 'dm';
+  const onlyAgentVisible = mode === 'agent';
+  const relationList = (ctx.relations || []).filter((rel) => !onlyAgentVisible || rel.is_public !== false);
+  const poiList = (ctx.pois || []).filter((link) => !onlyAgentVisible || link.is_public !== false);
+
+  relationList.forEach((rel, idx) => {
     const toId = `e-${rel.to_entity_id}`;
-    pushNode({
-      id: toId,
-      label: rel.to_code_name || rel.target_name || `Entidad ${rel.to_entity_id}`,
-      type: rel.to_type || rel.target_type || 'npc',
+    const nodeInfo = {
+      id: rel.to_entity_id,
+      code_name: rel.to_code_name || rel.target_name,
+      type: rel.to_type || rel.target_type,
+      role: rel.to_role || rel.target_role,
+      image_url: rel.to_image_url,
+      visibility: rel.to_visibility,
       session: rel.session_tag || null
-    });
+    };
+    pushNode(createNodePayload(nodeInfo));
     elements.edges.push({
       data: {
         id: `rel-${ctx.entity.id}-${rel.to_entity_id}-${idx}`,
@@ -2631,19 +2702,27 @@ function buildGraphElements(ctx = {}) {
         target: toId,
         relation: rel.relation_type || rel.relation || 'vínculo',
         strength: rel.strength || 1,
-        linkType: 'entity'
+        linkType: 'entity',
+        is_public: rel.is_public !== undefined ? rel.is_public : 1
       }
     });
   });
 
-  (ctx.pois || []).forEach((link, idx) => {
+  poiList.forEach((link, idx) => {
     const poiId = `p-${link.poi_id}`;
-    pushNode({
-      id: poiId,
-      label: link.name || `PdI ${link.poi_id}`,
+    const imageFallback = poiImageLookup.get(Number(link.poi_id)) || '';
+    const poiNodeData = {
+      id: link.poi_id,
+      entityId: link.poi_id,
+      graphId: poiId,
+      code_name: link.name,
       type: 'poi',
-      session: link.session_tag || link.poi_session || null
-    });
+      role: link.category || 'PdI',
+      image_url: link.image_url || imageFallback,
+      visibility: link.visibility,
+      session: link.session_tag || link.poi_session || ''
+    };
+    pushNode(createNodePayload(poiNodeData));
     elements.edges.push({
       data: {
         id: `poi-${ctx.entity.id}-${link.poi_id}-${idx}`,
@@ -2651,7 +2730,8 @@ function buildGraphElements(ctx = {}) {
         target: poiId,
         relation: link.role_at_poi || 'PdI',
         strength: 1,
-        linkType: 'poi'
+        linkType: 'poi',
+        is_public: link.is_public !== undefined ? link.is_public : 1
       }
     });
   });
@@ -2663,11 +2743,23 @@ function getDmGraphPool() {
   return (state.entities || []).filter((e) => e.type !== 'poi');
 }
 
-function formatDmGraphLabel(entity) {
+function getAgentGraphPool() {
+  return (state.entities || []).filter((e) => e.type !== 'poi');
+}
+
+function formatEntityGraphLabel(entity) {
   if (!entity) return 'Entidad';
   const label = entity.code_name || entity.name || 'Entidad';
   const typeLabel = getEntityTypeLabel(entity.type || '');
   return `${label} · ${typeLabel || entity.type || '—'}`;
+}
+
+function formatDmGraphLabel(entity) {
+  return formatEntityGraphLabel(entity);
+}
+
+function formatAgentGraphLabel(entity) {
+  return formatEntityGraphLabel(entity);
 }
 
 function refreshDmGraphFuse() {
@@ -2726,80 +2818,146 @@ function renderDmGraphSearchResults(query) {
   }
 }
 
+const GRAPH_STYLE = [
+  {
+    selector: 'node',
+    style: {
+      'background-color': '#11222a',
+      'background-opacity': 0.92,
+      'label': 'data(label)',
+      'text-valign': 'center',
+      'text-halign': 'center',
+      'text-wrap': 'wrap',
+      'text-max-width': 120,
+      'color': '#e7f6ff',
+      'text-outline-width': 4,
+      'text-outline-color': '#0a141f',
+      'font-size': 10,
+      'width': 52,
+      'height': 52,
+      'border-width': 2,
+      'border-color': '#1f9af4',
+      'overlay-opacity': 0,
+      'overlay-padding': 0,
+      'overlay-color': '#001720'
+    }
+  },
+  {
+    selector: 'node[image_url != ""]',
+    style: {
+      'background-image': 'data(image_url)',
+      'background-fit': 'cover cover'
+    }
+  },
+  {
+    selector: 'node[threat]',
+    style: {
+      'border-color': 'mapData(threat, 1, 5, #63d4ff, #ff5b5b)'
+    }
+  },
+  { selector: 'node[type = "pc"]', style: { 'shape': 'round-rectangle', 'border-color': '#4bd3ff' } },
+  { selector: 'node[type = "npc"]', style: { 'shape': 'ellipse', 'border-color': '#7bffb5' } },
+  { selector: 'node[type = "org"]', style: { 'shape': 'hexagon', 'border-color': '#ffcd70' } },
+  { selector: 'node[type = "criatura"]', style: { 'shape': 'star', 'border-color': '#ff708e' } },
+  {
+    selector: 'node[type = "poi"]',
+    style: {
+      'shape': 'diamond',
+      'border-color': '#a67bff',
+      'width': 46,
+      'height': 46
+    }
+  },
+  {
+    selector: 'node.hovered',
+    style: {
+      'border-color': '#80ffdf',
+      'border-width': 3
+    }
+  },
+  {
+    selector: 'node.focus-ring',
+    style: {
+      'border-color': '#9cf8ff',
+      'border-width': 4,
+      'overlay-color': '#4bd3ff',
+      'overlay-opacity': 0.45,
+      'overlay-padding': 6
+    }
+  },
+  {
+    selector: 'edge',
+    style: {
+      'line-color': '#4bd3ff',
+      'target-arrow-shape': 'triangle',
+      'target-arrow-color': '#4bd3ff',
+      'curve-style': 'bezier',
+      'width': 'mapData(strength, 1, 5, 1, 4)',
+      'opacity': 'mapData(is_public, 0, 1, 0.2, 1)',
+      'label': 'data(relation)',
+      'font-size': 9,
+      'text-background-opacity': 0.6,
+      'text-background-color': '#0f1c27',
+      'text-background-padding': 2,
+      'text-rotation': 'autorotate',
+      'color': '#c1ecff'
+    }
+  },
+  {
+    selector: 'edge[linkType = "poi"]',
+    style: {
+      'line-style': 'dashed',
+      'line-color': '#9b8cff',
+      'target-arrow-color': '#9b8cff'
+    }
+  },
+  {
+    selector: 'edge[is_public = 0]',
+    style: {
+      'line-style': 'dotted',
+      'opacity': 0.35
+    }
+  }
+];
+
+function getGraphBoundingBox(container) {
+  if (!container) return null;
+  const rect = container.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  return { x1: 0, y1: 0, w: rect.width, h: rect.height };
+}
+
+function ensureGraphLoader(container) {
+  if (!container) return null;
+  let loader = container.querySelector('.graph-loading-indicator');
+  if (!loader) {
+    loader = document.createElement('div');
+    loader.className = 'graph-loading-indicator';
+    container.appendChild(loader);
+  }
+  return loader;
+}
+
+function toggleGraphLoader(container, show) {
+  if (!container) return;
+  const loader = ensureGraphLoader(container);
+  container.classList.toggle('graph-loading', !!show);
+  if (!loader) return;
+  loader.classList.toggle('visible', !!show);
+}
+
 function renderEntityGraph(container, ctx, options = {}) {
   if (!container || !ctx || !ctx.entity || typeof cytoscape === 'undefined') return;
-  const { nodes, edges, focusId } = buildGraphElements(ctx);
+  const { nodes, edges, focusId } = buildGraphElements(ctx, options);
   if (!nodes.length) {
     container.textContent = 'Sin relaciones registradas.';
     return;
   }
 
+  const boundingBox = getGraphBoundingBox(container);
   const elements = [...nodes, ...edges];
   let cy = container._cy;
-  const style = [
-    {
-      selector: 'node',
-      style: {
-        'background-color': '#20303b',
-        'label': 'data(label)',
-        'color': '#cde4ff',
-        'font-size': 11,
-        'text-valign': 'center',
-        'text-halign': 'center',
-        'text-wrap': 'wrap',
-        'text-max-width': 120,
-        'border-width': 2,
-        'border-color': '#4bd3ff',
-        'width': 46,
-        'height': 46,
-        'shadow-blur': 8,
-        'shadow-color': '#0b1a24'
-      }
-    },
-    { selector: 'node[type = \"pc\"]', style: { 'shape': 'round-rectangle', 'border-color': '#4bd3ff' } },
-    { selector: 'node[type = \"npc\"]', style: { 'shape': 'ellipse', 'border-color': '#7bffb5' } },
-    { selector: 'node[type = \"org\"]', style: { 'shape': 'hexagon', 'border-color': '#ffcd70' } },
-    { selector: 'node[type = \"criatura\"]', style: { 'shape': 'star', 'border-color': '#ff708e' } },
-    { selector: 'node[type = \"poi\"]', style: { 'shape': 'diamond', 'border-color': '#9b8cff' } },
-    {
-      selector: 'node.focus',
-      style: { 'border-width': 4, 'border-color': '#ffffff', 'background-color': '#0f2d3a' }
-    },
-    {
-      selector: 'edge',
-      style: {
-        'line-color': '#4bd3ff',
-        'target-arrow-shape': 'triangle',
-        'target-arrow-color': '#4bd3ff',
-        'curve-style': 'bezier',
-        'width': 'mapData(strength, 1, 5, 1, 4)',
-        'opacity': 0.85,
-        'label': 'data(relation)',
-        'font-size': 9,
-        'text-background-opacity': 0.6,
-        'text-background-color': '#10202a',
-        'text-background-padding': 2,
-        'text-rotation': 'autorotate',
-        'color': '#bce9ff'
-      }
-    },
-    {
-      selector: 'edge[linkType = \"poi\"]',
-      style: {
-        'line-color': '#9b8cff',
-        'target-arrow-color': '#9b8cff',
-        'line-style': 'dashed'
-      }
-    },
-    {
-      selector: 'edge[linkType = \"entity\"]',
-      style: {
-        'line-style': 'solid',
-        'line-color': '#4bd3ff',
-        'target-arrow-color': '#4bd3ff'
-      }
-    }
-  ];
+  const style = GRAPH_STYLE;
 
   if (!cy) {
     container.innerHTML = '';
@@ -2814,32 +2972,174 @@ function renderEntityGraph(container, ctx, options = {}) {
     cy.elements().remove();
     cy.add(elements);
   }
+  cy.resize();
 
   cy.nodes().removeClass('focus');
+  cy.nodes().removeClass('focus-ring');
   if (focusId) {
-    cy.nodes(`[id = \"${focusId}\"]`).addClass('focus');
+    const focusNode = cy.nodes(`[id = "${focusId}"]`);
+    focusNode.addClass('focus');
+    focusNode.addClass('focus-ring');
   }
 
   const layoutName = options.layout || 'concentric';
-  const layoutOptions =
-    layoutName === 'cose'
-      ? {
-          name: 'cose',
-          padding: 30,
-          nodeRepulsion: 6000,
-          idealEdgeLength: 160,
-          animate: false
-        }
-      : {
-          name: 'concentric',
-          padding: 24,
-          sweep: 2 * Math.PI,
-          startAngle: 1.5 * Math.PI,
-          concentric: (node) => (node.id() === focusId ? 2 : 1),
-          levelWidth: () => 1
-        };
-  cy.elements().layout(layoutOptions).run();
-  cy.fit(undefined, 20);
+  let layoutOptions = {};
+  if (layoutName === 'cose') {
+    layoutOptions = {
+      name: 'cose',
+      padding: 30,
+      nodeRepulsion: 6000,
+      idealEdgeLength: 160,
+      animate: false
+    };
+  } else if (layoutName === 'spread') {
+    const concentricPreset = {
+      name: 'concentric',
+      padding: 20,
+      sweep: 2 * Math.PI,
+      startAngle: 1.5 * Math.PI,
+      concentric: (node) => (node.id() === focusId ? 2 : 1),
+      levelWidth: () => 1
+    };
+    layoutOptions = {
+      name: 'spread',
+      animate: true,
+      minDist: 36,
+      padding: 20,
+      expandingFactor: -0.2,
+      prelayout: concentricPreset,
+      maxExpandIterations: 1,
+      fit: false,
+      randomize: false
+    };
+    if (boundingBox) {
+      layoutOptions.boundingBox = boundingBox;
+    }
+  } else {
+    layoutOptions = {
+      name: 'concentric',
+      padding: 24,
+      sweep: 2 * Math.PI,
+      startAngle: 1.5 * Math.PI,
+      concentric: (node) => (node.id() === focusId ? 2 : 1),
+      levelWidth: () => 1
+    };
+  }
+  toggleGraphLoader(container, true);
+  const layout = cy.elements().layout(layoutOptions);
+  layout.run();
+  layout.once('layoutstop', () => {
+    cy.fit(undefined, 20);
+    toggleGraphLoader(container, false);
+  });
+  const summaryEl = options.mode === 'agent' ? agentGraphSummary : dmGraphSummary;
+  updateGraphSummary(summaryEl, ctx.entity, options.mode);
+  setupGraphInteractions(cy, summaryEl, options.mode);
+}
+
+function triggerGraphWhisper(panel, message) {
+  if (!panel) return;
+  const whisper = panel.querySelector('.graph-summary-whisper');
+  if (!whisper) return;
+  whisper.textContent = message;
+  panel.dataset.whisper = message;
+  whisper.classList.add('active');
+  if (whisper.__whisperTimeout) {
+    clearTimeout(whisper.__whisperTimeout);
+  }
+  whisper.__whisperTimeout = setTimeout(() => whisper.classList.remove('active'), 2200);
+}
+
+function updateGraphSummary(panel, data = {}, mode = 'dm') {
+  if (!panel) return;
+  const label = sanitize(data.label || data.code_name || data.name || 'Entidad');
+  const typeLabel = sanitize(getEntityTypeLabel(data.type));
+  const threat = data.threat ? `Amenaza ${sanitize(String(data.threat))}` : 'Amenaza —';
+  const session = data.session ? `Sesión ${sanitize(data.session)}` : '';
+  const role = data.role ? sanitize(data.role) : '';
+  const visibilityRaw = data.visibility || '';
+  const visibilityLabel = mode === 'agent' && visibilityRaw ? sanitize(visibilityRaw.replace('_', ' ')) : '';
+  const metaElements = [threat, role, session, visibilityLabel].filter(Boolean);
+  const avatar = data.image_url
+    ? `<span class="graph-summary-avatar" style="background-image:url('${sanitizeUrlValue(data.image_url)}')"></span>`
+    : '';
+  panel.innerHTML = `
+    <div class="graph-summary-header">
+      ${avatar}
+      <div>
+        <strong>${label}</strong>
+        <span class="graph-summary-role">${typeLabel}</span>
+      </div>
+    </div>
+    <div class="graph-summary-meta">${metaElements.map((item) => `<span>${item}</span>`).join('')}</div>
+    <div class="graph-summary-whisper" aria-live="polite"></div>
+  `;
+  panel.classList.add('graph-summary-panel');
+  panel.classList.toggle(
+    'graph-summary--restricted',
+    mode === 'agent' && visibilityRaw && visibilityRaw !== 'agent_public'
+  );
+  panel.dataset.nodeVisibility = visibilityRaw;
+  panel.dataset.graphMode = mode;
+  panel.dataset.lastHover = '';
+  triggerGraphWhisper(panel, `Intel preparado para ${label}`);
+}
+
+function setupGraphInteractions(cy, panel, mode = 'dm') {
+  if (!cy) return;
+  cy.off('tap', 'node');
+  cy.off('cxttap', 'node');
+  cy.off('mouseover', 'node');
+  cy.off('mouseout', 'node');
+
+  cy.on('tap', 'node', (event) => {
+    const node = event.target;
+    cy.nodes().removeClass('focus-ring');
+    node.addClass('focus-ring');
+    updateGraphSummary(panel, node.data(), mode);
+    const label = node.data('label') || 'Entidad';
+    triggerGraphWhisper(panel, `Nodo seleccionado · ${label}`);
+    if (panel) {
+      panel.dataset.lastHover = label;
+    }
+  });
+
+  cy.on('cxttap', 'node', (event) => {
+    const node = event.target;
+    const image = node.data('image_url');
+    const title = node.data('label') || 'Imagen ampliada';
+    const maxZoom = typeof cy.maxZoom === 'function' ? cy.maxZoom() : 2;
+    const targetZoom = Math.min(maxZoom, Math.max(1.25, cy.zoom() * 1.05));
+    cy.animate({ center: node.position(), zoom: targetZoom }, { duration: 260, easing: 'ease-in-out' });
+    if (image) {
+      openLightbox(image, title);
+    } else {
+      showMessage(`No hay imagen para ${title}.`, true);
+    }
+  });
+
+  cy.on('mouseover', 'node', (event) => {
+    event.target.addClass('hovered');
+    const label = event.target.data('label') || 'Entidad';
+    triggerGraphWhisper(panel, `Intel rastreada · ${label}`);
+    if (panel) {
+      panel.dataset.lastHover = label;
+    }
+  });
+  cy.on('mouseout', 'node', (event) => {
+    event.target.removeClass('hovered');
+  });
+
+  cy.on('dblclick', 'node', (event) => {
+    const node = event.target;
+    const entityId = Number(node.data('entityId'));
+    if (!entityId) return;
+    if (mode === 'agent') {
+      setAgentGraphFocus(entityId);
+    } else {
+      setDmGraphFocus(entityId);
+    }
+  });
 }
 
 function populateDmGraphOptions() {
@@ -2898,8 +3198,145 @@ async function renderDmRelationsGraph() {
     renderEntityGraph(dmGraphContainer, ctx, { focusId, mode: 'dm', layout: state.dmGraphLayout });
   } catch (err) {
     logDebug(`Grafo relaciones error: ${err.message}`);
+    console.error('Grafo relaciones error', err);
     dmGraphContainer.textContent = 'No se pudo dibujar el grafo.';
   }
+}
+
+function populateAgentGraphOptions() {
+  if (!agentGraphSelect) return;
+  agentGraphSelect.innerHTML = '<option value="">Selecciona entidad</option>';
+  const pool = getAgentGraphPool().sort((a, b) =>
+    (a.code_name || a.name || '').localeCompare(b.code_name || b.name || '')
+  );
+  if (!state.agentGraphFocusId && pool.length) {
+    state.agentGraphFocusId = pool[0].id;
+  }
+  pool.forEach((entity) => {
+    const opt = document.createElement('option');
+    opt.value = entity.id;
+    opt.textContent = formatAgentGraphLabel(entity);
+    agentGraphSelect.appendChild(opt);
+  });
+  if (state.agentGraphFocusId) {
+    agentGraphSelect.value = String(state.agentGraphFocusId);
+    if (agentGraphSearchInput) {
+      const selected = pool.find((p) => p.id === state.agentGraphFocusId);
+      agentGraphSearchInput.value = formatAgentGraphLabel(selected);
+    }
+  }
+  refreshAgentGraphFuse();
+}
+
+function refreshAgentGraphFuse() {
+  const pool = getAgentGraphPool();
+  if (typeof Fuse === 'undefined' || !pool.length) {
+    agentGraphFuse = null;
+    return;
+  }
+  agentGraphFuse = new Fuse(pool, {
+    keys: ['code_name', 'name', 'real_name', 'role', 'type'],
+    threshold: 0.35,
+    includeScore: true
+  });
+}
+
+function clearAgentGraphSuggestions() {
+  if (!agentGraphSuggestions) return;
+  agentGraphSuggestions.innerHTML = '';
+  agentGraphSuggestions.classList.remove('visible');
+}
+
+function renderAgentGraphSearchResults(query) {
+  if (!agentGraphSuggestions) return;
+  agentGraphSuggestions.innerHTML = '';
+  agentGraphSuggestions.classList.remove('visible');
+  const pool = getAgentGraphPool();
+  if (!query) return;
+  const results = agentGraphFuse
+    ? agentGraphFuse.search(query).map((r) => r.item)
+    : pool.filter((item) => {
+        const target = `${item.code_name || ''} ${item.name || ''} ${item.role || ''}`.toLowerCase();
+        return target.includes(query.toLowerCase());
+      });
+  results.slice(0, 8).forEach((item) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = formatAgentGraphLabel(item);
+    btn.addEventListener('click', () => {
+      setAgentGraphFocus(item.id);
+      if (agentGraphSearchInput) {
+        agentGraphSearchInput.value = formatAgentGraphLabel(item);
+      }
+      clearAgentGraphSuggestions();
+    });
+    agentGraphSuggestions.appendChild(btn);
+  });
+  if (agentGraphSuggestions.children.length) {
+    agentGraphSuggestions.classList.add('visible');
+  }
+}
+
+function setAgentGraphFocus(id) {
+  const num = Number(id);
+  state.agentGraphFocusId = Number.isNaN(num) ? null : num;
+  if (agentGraphSelect) {
+    agentGraphSelect.value = state.agentGraphFocusId ? String(state.agentGraphFocusId) : '';
+  }
+  renderAgentRelationsGraph();
+}
+
+async function renderAgentRelationsGraph() {
+  if (!agentGraphContainer) return;
+  if (!state.agent) {
+    agentGraphContainer.textContent = 'Inicia sesión como agente para ver relaciones.';
+    return;
+  }
+  populateAgentGraphOptions();
+  const focusId =
+    state.agentGraphFocusId ||
+    state.activeEntityAgent?.id ||
+    (state.entities.find((e) => e.type !== 'poi')?.id || null);
+  if (!focusId) {
+    agentGraphContainer.textContent = 'No hay entidades para graficar.';
+    return;
+  }
+  if (agentGraphSelect) agentGraphSelect.value = String(focusId);
+  if (agentGraphSearchInput) {
+    const selected = getAgentGraphPool().find((p) => p.id === focusId);
+    if (selected) {
+      agentGraphSearchInput.value = formatAgentGraphLabel(selected);
+    }
+  }
+  agentGraphLayoutButtons?.forEach((b) =>
+    b.classList.toggle('active', b.dataset.agentGraphLayout === state.agentGraphLayout)
+  );
+  try {
+    const response = await fetch(`/api/agent/entities/${focusId}/context`);
+    if (response.status === 401) {
+      handleUnauthorized();
+      return;
+    }
+    if (!response.ok) throw new Error('No se pudo cargar contexto para el grafo de agente.');
+    const ctx = await response.json();
+    renderEntityGraph(agentGraphContainer, ctx, { focusId, mode: 'agent', layout: state.agentGraphLayout });
+  } catch (err) {
+    logDebug(`Grafo de agente error: ${err.message}`);
+    console.error('Grafo de agente error', err);
+    console.error(err.stack);
+    agentGraphContainer.textContent = 'No se pudo dibujar el grafo.';
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.appGraph = window.appGraph || {};
+  Object.assign(window.appGraph, {
+    renderAgentRelationsGraph,
+    renderDmRelationsGraph,
+    setAgentGraphFocus,
+    setDmGraphFocus,
+    setWorkspaceView
+  });
 }
 
 function getEntityTypeLabel(type) {
@@ -3003,7 +3440,11 @@ function setWorkspaceView(view) {
     loadMessages();
   }
   if (view === 'relations') {
-    renderDmRelationsGraph();
+    if (state.dmMode) {
+      renderDmRelationsGraph();
+    } else {
+      renderAgentRelationsGraph();
+    }
   }
 }
 
@@ -4838,7 +5279,8 @@ async function loadAgentContext(id) {
     if (detailTarget) {
       renderDossierDetailView(detailTarget, merged, { dm: false });
     }
-    renderEntityGraph(agentGraphContainer, ctx, { focusId: id });
+    state.agentGraphFocusId = Number(id);
+    renderEntityGraph(agentGraphContainer, ctx, { focusId: id, mode: 'agent', layout: state.agentGraphLayout });
     setCookie('agent_active_entity', id);
   } catch (err) {
     logDebug(`Contexto agente error: ${err.message}`);
