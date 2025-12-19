@@ -1,3 +1,5 @@
+import { GraphAPI } from './graph-api.js';
+
 const categoryIcons = {
   OV_BASE: '🛰️',
   CRIME_SCENE: '☠️',
@@ -230,14 +232,14 @@ const agentGraphContainer = document.getElementById('agent-graph');
 const agentGraphSearchInput = document.getElementById('agent-graph-search');
 const agentGraphSuggestions = document.getElementById('agent-graph-suggestions');
 const agentGraphSelect = document.getElementById('agent-graph-entity');
-const agentGraphLayoutButtons = document.querySelectorAll('[data-agent-graph-layout]');
 const agentGraphSummary = document.getElementById('agent-graph-summary');
 const dmGraphContainer = document.getElementById('dm-graph');
 const dmGraphSelect = document.getElementById('dm-graph-entity');
 const dmGraphSearchInput = document.getElementById('dm-graph-search');
 const dmGraphSuggestions = document.getElementById('dm-graph-suggestions');
-const dmGraphLayoutButtons = document.querySelectorAll('[data-dm-graph-layout]');
 const dmGraphSummary = document.getElementById('dm-graph-summary');
+let dmGraphApi = null;
+let agentGraphApi = null;
 const entityForm = document.getElementById('entity-form');
 const entityIdInput = document.getElementById('entity-id');
 const entityKindInput = document.getElementById('entity-kind');
@@ -562,14 +564,6 @@ function bindEvents() {
   dmGraphSelect?.addEventListener('change', () => {
     setDmGraphFocus(dmGraphSelect.value);
   });
-  dmGraphLayoutButtons?.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const layout = btn.dataset.dmGraphLayout || 'cose';
-      state.dmGraphLayout = layout;
-      dmGraphLayoutButtons.forEach((b) => b.classList.toggle('active', b === btn));
-      renderDmRelationsGraph();
-    });
-  });
   if (dmGraphSearchInput) {
     dmGraphSearchInput.addEventListener('input', (e) => {
       renderDmGraphSearchResults(e.target.value);
@@ -591,14 +585,6 @@ function bindEvents() {
 
   agentGraphSelect?.addEventListener('change', () => {
     if (agentGraphSelect) setAgentGraphFocus(agentGraphSelect.value);
-  });
-  agentGraphLayoutButtons?.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const layout = btn.dataset.agentGraphLayout || 'cose';
-      state.agentGraphLayout = layout;
-      agentGraphLayoutButtons.forEach((b) => b.classList.toggle('active', b === btn));
-      renderAgentRelationsGraph();
-    });
   });
   if (agentGraphSearchInput) {
     agentGraphSearchInput.addEventListener('input', (e) => {
@@ -2643,100 +2629,78 @@ function renderSessionChips(sessions) {
   return list.map((tag) => `<span class="badge-soft">${sanitize(tag)}</span>`).join(' ');
 }
 
-function buildGraphElements(ctx = {}, options = {}) {
-  const elements = { nodes: [], edges: [] };
-  if (!ctx.entity) return { ...elements, focusId: null };
-  const focusId = `e-${ctx.entity.id}`;
-  const poiImageLookup = new Map();
-  (state.pois || []).forEach((poi) => {
-    const id = Number(poi.id);
-    if (!Number.isFinite(id)) return;
-    poiImageLookup.set(id, poi.image_url || '');
-  });
-  const seen = new Set();
-  const pushNode = (data) => {
-    if (seen.has(data.id)) return;
-    seen.add(data.id);
-    elements.nodes.push({ data });
+function createGraphHelpers(overrides = {}) {
+  return {
+    sanitize,
+    sanitizeUrlValue,
+    getEntityTypeLabel,
+    getPoiImageUrl(id) {
+      const poi = state.pois.find((p) => Number(p.id) === Number(id));
+      return poi?.image_url || '';
+    },
+    openLightbox,
+    showMessage,
+    createElement: (tag) => document.createElement(tag),
+    ...overrides
   };
+}
 
-  const createNodePayload = (info) => {
-    const fallbackId = info.id ?? info.entityId ?? info.poi_id ?? 'unknown';
-    const nodeId = info.graphId || `e-${fallbackId}`;
-    return {
-      id: nodeId,
-      label: info.code_name || info.name || `Entidad ${fallbackId}`,
-      type: info.type || info.to_type || info.from_type || 'npc',
-      entityId: info.entityId ?? fallbackId,
-      threat: info.threat_level || info.threat,
-      role: info.role || info.to_role || info.from_role || '',
-      visibility: info.visibility || info.to_visibility || info.from_visibility || 'agent_public',
-      image_url: info.image_url || info.to_image_url || info.from_image_url || '',
-      session: info.first_session || info.sessions || info.session || ''
-    };
-  };
-
-  pushNode(createNodePayload(ctx.entity));
-
-  const mode = options.mode || 'dm';
-  const onlyAgentVisible = mode === 'agent';
-  const relationList = (ctx.relations || []).filter((rel) => !onlyAgentVisible || rel.is_public !== false);
-  const poiList = (ctx.pois || []).filter((link) => !onlyAgentVisible || link.is_public !== false);
-
-  relationList.forEach((rel, idx) => {
-    const toId = `e-${rel.to_entity_id}`;
-    const nodeInfo = {
-      id: rel.to_entity_id,
-      code_name: rel.to_code_name || rel.target_name,
-      type: rel.to_type || rel.target_type,
-      role: rel.to_role || rel.target_role,
-      image_url: rel.to_image_url,
-      visibility: rel.to_visibility,
-      session: rel.session_tag || null
-    };
-    pushNode(createNodePayload(nodeInfo));
-    elements.edges.push({
-      data: {
-        id: `rel-${ctx.entity.id}-${rel.to_entity_id}-${idx}`,
-        source: focusId,
-        target: toId,
-        relation: rel.relation_type || rel.relation || 'vínculo',
-        strength: rel.strength || 1,
-        linkType: 'entity',
-        is_public: rel.is_public !== undefined ? rel.is_public : 1
-      }
-    });
+function ensureDmGraphApi() {
+  if (dmGraphApi) return dmGraphApi;
+  const helpers = createGraphHelpers({
+    onNodeDoubleClick(data, mode) {
+      if (mode === 'agent') return;
+      const entityId = Number(data?.entityId);
+      if (!entityId) return;
+      setDmGraphFocus(entityId);
+    }
   });
-
-  poiList.forEach((link, idx) => {
-    const poiId = `p-${link.poi_id}`;
-    const imageFallback = poiImageLookup.get(Number(link.poi_id)) || '';
-    const poiNodeData = {
-      id: link.poi_id,
-      entityId: link.poi_id,
-      graphId: poiId,
-      code_name: link.name,
-      type: 'poi',
-      role: link.category || 'PdI',
-      image_url: link.image_url || imageFallback,
-      visibility: link.visibility,
-      session: link.session_tag || link.poi_session || ''
-    };
-    pushNode(createNodePayload(poiNodeData));
-    elements.edges.push({
-      data: {
-        id: `poi-${ctx.entity.id}-${link.poi_id}-${idx}`,
-        source: focusId,
-        target: poiId,
-        relation: link.role_at_poi || 'PdI',
-        strength: 1,
-        linkType: 'poi',
-        is_public: link.is_public !== undefined ? link.is_public : 1
-      }
-    });
+  dmGraphApi = new GraphAPI({
+    cytoscape,
+    container: dmGraphContainer,
+    summaryPanel: dmGraphSummary,
+    mode: 'dm',
+    layout: state.dmGraphLayout,
+    helpers
   });
+  dmGraphApi.on('dblclick', ({ data }) => {
+    if (data?.entityId) {
+      setDmGraphFocus(data.entityId);
+    }
+  });
+  if (typeof window !== 'undefined') {
+    window.dmGraphApi = dmGraphApi;
+  }
+  return dmGraphApi;
+}
 
-  return { ...elements, focusId };
+function ensureAgentGraphApi() {
+  if (agentGraphApi) return agentGraphApi;
+  const helpers = createGraphHelpers({
+    onNodeDoubleClick(data, mode) {
+      if (mode !== 'agent') return;
+      const entityId = Number(data?.entityId);
+      if (!entityId) return;
+      setAgentGraphFocus(entityId);
+    }
+  });
+  agentGraphApi = new GraphAPI({
+    cytoscape,
+    container: agentGraphContainer,
+    summaryPanel: agentGraphSummary,
+    mode: 'agent',
+    layout: state.agentGraphLayout,
+    helpers
+  });
+  agentGraphApi.on('dblclick', ({ data }) => {
+    if (data?.entityId) {
+      setAgentGraphFocus(data.entityId);
+    }
+  });
+  if (typeof window !== 'undefined') {
+    window.agentGraphApi = agentGraphApi;
+  }
+  return agentGraphApi;
 }
 
 function getDmGraphPool() {
@@ -2781,7 +2745,7 @@ function setDmGraphFocus(id) {
   if (dmGraphSelect) {
     dmGraphSelect.value = state.dmGraphFocusId ? String(state.dmGraphFocusId) : '';
   }
-  renderDmRelationsGraph();
+  return renderDmRelationsGraph();
 }
 
 function clearDmGraphSuggestions() {
@@ -2816,330 +2780,6 @@ function renderDmGraphSearchResults(query) {
   if (dmGraphSuggestions.children.length) {
     dmGraphSuggestions.classList.add('visible');
   }
-}
-
-const GRAPH_STYLE = [
-  {
-    selector: 'node',
-    style: {
-      'background-color': '#11222a',
-      'background-opacity': 0.92,
-      'label': 'data(label)',
-      'text-valign': 'center',
-      'text-halign': 'center',
-      'text-wrap': 'wrap',
-      'text-max-width': 120,
-      'color': '#e7f6ff',
-      'text-outline-width': 4,
-      'text-outline-color': '#0a141f',
-      'font-size': 10,
-      'width': 52,
-      'height': 52,
-      'border-width': 2,
-      'border-color': '#1f9af4',
-      'overlay-opacity': 0,
-      'overlay-padding': 0,
-      'overlay-color': '#001720'
-    }
-  },
-  {
-    selector: 'node[image_url != ""]',
-    style: {
-      'background-image': 'data(image_url)',
-      'background-fit': 'cover cover'
-    }
-  },
-  {
-    selector: 'node[threat]',
-    style: {
-      'border-color': 'mapData(threat, 1, 5, #63d4ff, #ff5b5b)'
-    }
-  },
-  { selector: 'node[type = "pc"]', style: { 'shape': 'round-rectangle', 'border-color': '#4bd3ff' } },
-  { selector: 'node[type = "npc"]', style: { 'shape': 'ellipse', 'border-color': '#7bffb5' } },
-  { selector: 'node[type = "org"]', style: { 'shape': 'hexagon', 'border-color': '#ffcd70' } },
-  { selector: 'node[type = "criatura"]', style: { 'shape': 'star', 'border-color': '#ff708e' } },
-  {
-    selector: 'node[type = "poi"]',
-    style: {
-      'shape': 'diamond',
-      'border-color': '#a67bff',
-      'width': 46,
-      'height': 46
-    }
-  },
-  {
-    selector: 'node.hovered',
-    style: {
-      'border-color': '#80ffdf',
-      'border-width': 3
-    }
-  },
-  {
-    selector: 'node.focus-ring',
-    style: {
-      'border-color': '#9cf8ff',
-      'border-width': 4,
-      'overlay-color': '#4bd3ff',
-      'overlay-opacity': 0.45,
-      'overlay-padding': 6
-    }
-  },
-  {
-    selector: 'edge',
-    style: {
-      'line-color': '#4bd3ff',
-      'target-arrow-shape': 'triangle',
-      'target-arrow-color': '#4bd3ff',
-      'curve-style': 'bezier',
-      'width': 'mapData(strength, 1, 5, 1, 4)',
-      'opacity': 'mapData(is_public, 0, 1, 0.2, 1)',
-      'label': 'data(relation)',
-      'font-size': 9,
-      'text-background-opacity': 0.6,
-      'text-background-color': '#0f1c27',
-      'text-background-padding': 2,
-      'text-rotation': 'autorotate',
-      'color': '#c1ecff'
-    }
-  },
-  {
-    selector: 'edge[linkType = "poi"]',
-    style: {
-      'line-style': 'dashed',
-      'line-color': '#9b8cff',
-      'target-arrow-color': '#9b8cff'
-    }
-  },
-  {
-    selector: 'edge[is_public = 0]',
-    style: {
-      'line-style': 'dotted',
-      'opacity': 0.35
-    }
-  }
-];
-
-function getGraphBoundingBox(container) {
-  if (!container) return null;
-  const rect = container.getBoundingClientRect();
-  if (!rect.width || !rect.height) return null;
-  return { x1: 0, y1: 0, w: rect.width, h: rect.height };
-}
-
-function ensureGraphLoader(container) {
-  if (!container) return null;
-  let loader = container.querySelector('.graph-loading-indicator');
-  if (!loader) {
-    loader = document.createElement('div');
-    loader.className = 'graph-loading-indicator';
-    container.appendChild(loader);
-  }
-  return loader;
-}
-
-function toggleGraphLoader(container, show) {
-  if (!container) return;
-  const loader = ensureGraphLoader(container);
-  container.classList.toggle('graph-loading', !!show);
-  if (!loader) return;
-  loader.classList.toggle('visible', !!show);
-}
-
-function renderEntityGraph(container, ctx, options = {}) {
-  if (!container || !ctx || !ctx.entity || typeof cytoscape === 'undefined') return;
-  const { nodes, edges, focusId } = buildGraphElements(ctx, options);
-  if (!nodes.length) {
-    container.textContent = 'Sin relaciones registradas.';
-    return;
-  }
-
-  const boundingBox = getGraphBoundingBox(container);
-  const elements = [...nodes, ...edges];
-  let cy = container._cy;
-  const style = GRAPH_STYLE;
-
-  if (!cy) {
-    container.innerHTML = '';
-    cy = cytoscape({
-      container,
-      elements,
-      style,
-      layout: { name: options.layout || 'concentric', padding: 24 }
-    });
-    container._cy = cy;
-  } else {
-    cy.elements().remove();
-    cy.add(elements);
-  }
-  cy.resize();
-
-  cy.nodes().removeClass('focus');
-  cy.nodes().removeClass('focus-ring');
-  if (focusId) {
-    const focusNode = cy.nodes(`[id = "${focusId}"]`);
-    focusNode.addClass('focus');
-    focusNode.addClass('focus-ring');
-  }
-
-  const layoutName = options.layout || 'concentric';
-  let layoutOptions = {};
-  if (layoutName === 'cose') {
-    layoutOptions = {
-      name: 'cose',
-      padding: 30,
-      nodeRepulsion: 6000,
-      idealEdgeLength: 160,
-      animate: false
-    };
-  } else if (layoutName === 'spread') {
-    const concentricPreset = {
-      name: 'concentric',
-      padding: 20,
-      sweep: 2 * Math.PI,
-      startAngle: 1.5 * Math.PI,
-      concentric: (node) => (node.id() === focusId ? 2 : 1),
-      levelWidth: () => 1
-    };
-    layoutOptions = {
-      name: 'spread',
-      animate: true,
-      minDist: 36,
-      padding: 20,
-      expandingFactor: -0.2,
-      prelayout: concentricPreset,
-      maxExpandIterations: 1,
-      fit: false,
-      randomize: false
-    };
-    if (boundingBox) {
-      layoutOptions.boundingBox = boundingBox;
-    }
-  } else {
-    layoutOptions = {
-      name: 'concentric',
-      padding: 24,
-      sweep: 2 * Math.PI,
-      startAngle: 1.5 * Math.PI,
-      concentric: (node) => (node.id() === focusId ? 2 : 1),
-      levelWidth: () => 1
-    };
-  }
-  toggleGraphLoader(container, true);
-  const layout = cy.elements().layout(layoutOptions);
-  layout.run();
-  layout.once('layoutstop', () => {
-    cy.fit(undefined, 20);
-    toggleGraphLoader(container, false);
-  });
-  const summaryEl = options.mode === 'agent' ? agentGraphSummary : dmGraphSummary;
-  updateGraphSummary(summaryEl, ctx.entity, options.mode);
-  setupGraphInteractions(cy, summaryEl, options.mode);
-}
-
-function triggerGraphWhisper(panel, message) {
-  if (!panel) return;
-  const whisper = panel.querySelector('.graph-summary-whisper');
-  if (!whisper) return;
-  whisper.textContent = message;
-  panel.dataset.whisper = message;
-  whisper.classList.add('active');
-  if (whisper.__whisperTimeout) {
-    clearTimeout(whisper.__whisperTimeout);
-  }
-  whisper.__whisperTimeout = setTimeout(() => whisper.classList.remove('active'), 2200);
-}
-
-function updateGraphSummary(panel, data = {}, mode = 'dm') {
-  if (!panel) return;
-  const label = sanitize(data.label || data.code_name || data.name || 'Entidad');
-  const typeLabel = sanitize(getEntityTypeLabel(data.type));
-  const threat = data.threat ? `Amenaza ${sanitize(String(data.threat))}` : 'Amenaza —';
-  const session = data.session ? `Sesión ${sanitize(data.session)}` : '';
-  const role = data.role ? sanitize(data.role) : '';
-  const visibilityRaw = data.visibility || '';
-  const visibilityLabel = mode === 'agent' && visibilityRaw ? sanitize(visibilityRaw.replace('_', ' ')) : '';
-  const metaElements = [threat, role, session, visibilityLabel].filter(Boolean);
-  const avatar = data.image_url
-    ? `<span class="graph-summary-avatar" style="background-image:url('${sanitizeUrlValue(data.image_url)}')"></span>`
-    : '';
-  panel.innerHTML = `
-    <div class="graph-summary-header">
-      ${avatar}
-      <div>
-        <strong>${label}</strong>
-        <span class="graph-summary-role">${typeLabel}</span>
-      </div>
-    </div>
-    <div class="graph-summary-meta">${metaElements.map((item) => `<span>${item}</span>`).join('')}</div>
-    <div class="graph-summary-whisper" aria-live="polite"></div>
-  `;
-  panel.classList.add('graph-summary-panel');
-  panel.classList.toggle(
-    'graph-summary--restricted',
-    mode === 'agent' && visibilityRaw && visibilityRaw !== 'agent_public'
-  );
-  panel.dataset.nodeVisibility = visibilityRaw;
-  panel.dataset.graphMode = mode;
-  panel.dataset.lastHover = '';
-  triggerGraphWhisper(panel, `Intel preparado para ${label}`);
-}
-
-function setupGraphInteractions(cy, panel, mode = 'dm') {
-  if (!cy) return;
-  cy.off('tap', 'node');
-  cy.off('cxttap', 'node');
-  cy.off('mouseover', 'node');
-  cy.off('mouseout', 'node');
-
-  cy.on('tap', 'node', (event) => {
-    const node = event.target;
-    cy.nodes().removeClass('focus-ring');
-    node.addClass('focus-ring');
-    updateGraphSummary(panel, node.data(), mode);
-    const label = node.data('label') || 'Entidad';
-    triggerGraphWhisper(panel, `Nodo seleccionado · ${label}`);
-    if (panel) {
-      panel.dataset.lastHover = label;
-    }
-  });
-
-  cy.on('cxttap', 'node', (event) => {
-    const node = event.target;
-    const image = node.data('image_url');
-    const title = node.data('label') || 'Imagen ampliada';
-    const maxZoom = typeof cy.maxZoom === 'function' ? cy.maxZoom() : 2;
-    const targetZoom = Math.min(maxZoom, Math.max(1.25, cy.zoom() * 1.05));
-    cy.animate({ center: node.position(), zoom: targetZoom }, { duration: 260, easing: 'ease-in-out' });
-    if (image) {
-      openLightbox(image, title);
-    } else {
-      showMessage(`No hay imagen para ${title}.`, true);
-    }
-  });
-
-  cy.on('mouseover', 'node', (event) => {
-    event.target.addClass('hovered');
-    const label = event.target.data('label') || 'Entidad';
-    triggerGraphWhisper(panel, `Intel rastreada · ${label}`);
-    if (panel) {
-      panel.dataset.lastHover = label;
-    }
-  });
-  cy.on('mouseout', 'node', (event) => {
-    event.target.removeClass('hovered');
-  });
-
-  cy.on('dblclick', 'node', (event) => {
-    const node = event.target;
-    const entityId = Number(node.data('entityId'));
-    if (!entityId) return;
-    if (mode === 'agent') {
-      setAgentGraphFocus(entityId);
-    } else {
-      setDmGraphFocus(entityId);
-    }
-  });
 }
 
 function populateDmGraphOptions() {
@@ -3186,7 +2826,6 @@ async function renderDmRelationsGraph() {
       dmGraphSearchInput.value = formatDmGraphLabel(selected);
     }
   }
-  dmGraphLayoutButtons?.forEach((b) => b.classList.toggle('active', b.dataset.dmGraphLayout === state.dmGraphLayout));
   try {
     const response = await fetch(`/api/dm/entities/${focusId}/context`);
     if (response.status === 401) {
@@ -3195,7 +2834,7 @@ async function renderDmRelationsGraph() {
     }
     if (!response.ok) throw new Error('No se pudo cargar contexto para grafo.');
     const ctx = await response.json();
-    renderEntityGraph(dmGraphContainer, ctx, { focusId, mode: 'dm', layout: state.dmGraphLayout });
+    await ensureDmGraphApi().update(ctx, { focusId, mode: 'dm', layout: state.dmGraphLayout });
   } catch (err) {
     logDebug(`Grafo relaciones error: ${err.message}`);
     console.error('Grafo relaciones error', err);
@@ -3283,7 +2922,7 @@ function setAgentGraphFocus(id) {
   if (agentGraphSelect) {
     agentGraphSelect.value = state.agentGraphFocusId ? String(state.agentGraphFocusId) : '';
   }
-  renderAgentRelationsGraph();
+  return renderAgentRelationsGraph();
 }
 
 async function renderAgentRelationsGraph() {
@@ -3308,9 +2947,6 @@ async function renderAgentRelationsGraph() {
       agentGraphSearchInput.value = formatAgentGraphLabel(selected);
     }
   }
-  agentGraphLayoutButtons?.forEach((b) =>
-    b.classList.toggle('active', b.dataset.agentGraphLayout === state.agentGraphLayout)
-  );
   try {
     const response = await fetch(`/api/agent/entities/${focusId}/context`);
     if (response.status === 401) {
@@ -3319,7 +2955,7 @@ async function renderAgentRelationsGraph() {
     }
     if (!response.ok) throw new Error('No se pudo cargar contexto para el grafo de agente.');
     const ctx = await response.json();
-    renderEntityGraph(agentGraphContainer, ctx, { focusId, mode: 'agent', layout: state.agentGraphLayout });
+    await ensureAgentGraphApi().update(ctx, { focusId, mode: 'agent', layout: state.agentGraphLayout });
   } catch (err) {
     logDebug(`Grafo de agente error: ${err.message}`);
     console.error('Grafo de agente error', err);
@@ -3471,7 +3107,7 @@ async function loadDmContext(id) {
     }
     renderDmContext(ctx);
     renderEntitiesMap(ctx);
-    renderEntityGraph(dmGraphContainer, ctx, { focusId: id, mode: 'dm', layout: state.dmGraphLayout });
+    await ensureDmGraphApi().update(ctx, { focusId: id, mode: 'dm', layout: state.dmGraphLayout });
   } catch (err) {
     logDebug(`Contexto DM error: ${err.message}`);
   }
@@ -5280,7 +4916,7 @@ async function loadAgentContext(id) {
       renderDossierDetailView(detailTarget, merged, { dm: false });
     }
     state.agentGraphFocusId = Number(id);
-    renderEntityGraph(agentGraphContainer, ctx, { focusId: id, mode: 'agent', layout: state.agentGraphLayout });
+    await ensureAgentGraphApi().update(ctx, { focusId: id, mode: 'agent', layout: state.agentGraphLayout });
     setCookie('agent_active_entity', id);
   } catch (err) {
     logDebug(`Contexto agente error: ${err.message}`);
