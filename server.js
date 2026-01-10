@@ -23,6 +23,8 @@ const {
   updateEntity,
   archiveEntity,
   getEntityContext,
+  getCampaignGraphContext,
+  getAgentCampaignGraphContext,
   filterAgentEntity,
   unlockEntity,
   replacePoiEntityLinks,
@@ -31,9 +33,13 @@ const {
   deleteEntity,
   upsertJournalEntry,
   getJournalEntry,
-  listJournalEntries
+  listJournalEntries,
+  getAuthUser,
+  listAuthUsersByRole,
+  updateAuthPassword,
+  updateAgentNotesAndLinks
 } = require('./db');
-const crypto = require('crypto');
+const { hashPassword, verifyPassword } = require('./auth');
 
 const app = express();
 const DEFAULT_PORT = 3002;
@@ -50,11 +56,22 @@ const MAPBOX_STYLE =
   process.env.MAPBOX_STYLE_URL || 'mapbox://styles/joselun/cmi3ezivh00gi01s98tef234h';
 const DEBUG_MODE = process.env.DEBUG === 'true';
 const POI_ID_OFFSET = 100000;
+const MIN_PASSWORD_LENGTH = 6;
 
 function redactPayload(payload) {
   if (!payload || typeof payload !== 'object') return payload;
   const clone = Array.isArray(payload) ? payload.map(redactPayload) : { ...payload };
-  const sensitiveKeys = ['x-dm-secret', 'dm_secret', 'code', 'unlock_code', 'locked_hint', 'password', 'passwordHash'];
+  const sensitiveKeys = [
+    'x-dm-secret',
+    'dm_secret',
+    'code',
+    'unlock_code',
+    'locked_hint',
+    'password',
+    'passwordHash',
+    'currentPassword',
+    'newPassword'
+  ];
   Object.keys(clone).forEach((key) => {
     if (sensitiveKeys.includes(key)) {
       clone[key] = '[redacted]';
@@ -83,6 +100,18 @@ function logCrud(label, req, extra = {}) {
     ...extra
   };
   console.log(`[CRUD] ${label}`, meta);
+}
+
+function normalizeUsername(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function validateNewPassword(password) {
+  if (typeof password !== 'string' || password.trim().length < MIN_PASSWORD_LENGTH) {
+    const error = new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+    error.status = 400;
+    throw error;
+  }
 }
 
 app.use(express.json());
@@ -142,63 +171,146 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-app.post('/api/auth/dm', validateDmSecret, (req, res) => {
-  req.session.role = 'dm';
-  req.session.agentId = null;
-  req.session.agentDisplay = null;
-  res.status(204).send();
+app.post('/api/auth/dm', async (req, res, next) => {
+  try {
+    const password = (req.body && req.body.password) || req.header('x-dm-secret');
+    if (!password) {
+      return res.status(400).json({ error: 'Password is required.' });
+    }
+    const dmUser = await getAuthUser('dm', 'dm');
+    if (!dmUser || !dmUser.password_hash) {
+      return res.status(409).json({ error: 'DM password is not configured.' });
+    }
+    if (!verifyPassword(password, dmUser.password_hash, dmUser.password_salt)) {
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+    req.session.role = 'dm';
+    req.session.agentId = null;
+    req.session.agentDisplay = null;
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
 });
 
-const AGENT_USERS = [
-  {
-    username: 'pike',
-    display: 'Howard Pike',
-    passwordHash: crypto.createHash('sha256').update('123456').digest('hex')
-  },
-  {
-    username: 'allen',
-    display: 'Victoria Allen',
-    passwordHash: crypto.createHash('sha256').update('123456').digest('hex')
+app.get('/api/auth/agents', async (req, res, next) => {
+  try {
+    const agents = await listAuthUsersByRole('agent');
+    res.json(
+      agents.map((agent) => ({
+        username: agent.username,
+        display: agent.display,
+        configured: !!agent.password_hash
+      }))
+    );
+  } catch (err) {
+    next(err);
   }
-  ,
-  {
-    username: 'guerrero',
-    display: 'Arnold Guerrero-Hart',
-    passwordHash: crypto.createHash('sha256').update('123456').digest('hex')
-  },
-  {
-    username: 'clutter',
-    display: 'Dwight Clutter',
-    passwordHash: crypto.createHash('sha256').update('123456').digest('hex')
-  },
-  {
-    username: 'redwood',
-    display: 'Karen Redwood',
-    passwordHash: crypto.createHash('sha256').update('123456').digest('hex')
-  }
-];
-
-app.get('/api/auth/agents', (req, res) => {
-  res.json(AGENT_USERS.map(({ username, display }) => ({ username, display })));
 });
 
-app.post('/api/auth/agent', (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required.' });
+app.get('/api/auth/bootstrap', async (req, res, next) => {
+  try {
+    const dmUser = await getAuthUser('dm', 'dm');
+    const agents = await listAuthUsersByRole('agent');
+    res.json({
+      dmConfigured: !!(dmUser && dmUser.password_hash),
+      agents: agents.map((agent) => ({
+        username: agent.username,
+        display: agent.display,
+        configured: !!agent.password_hash
+      }))
+    });
+  } catch (err) {
+    next(err);
   }
-  const user = AGENT_USERS.find((agent) => agent.username === username);
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid credentials.' });
+});
+
+app.post('/api/auth/agent', async (req, res, next) => {
+  try {
+    const { username, password } = req.body || {};
+    const normalized = normalizeUsername(username);
+    if (!normalized || !password) {
+      return res.status(400).json({ error: 'Username and password are required.' });
+    }
+    const user = await getAuthUser('agent', normalized);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+    if (!user.password_hash) {
+      return res.status(409).json({ error: 'Agent password is not configured.' });
+    }
+    if (!verifyPassword(password, user.password_hash, user.password_salt)) {
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+    req.session.role = 'agent';
+    req.session.agentId = user.username;
+    req.session.agentDisplay = user.display;
+    res.json({ username: user.username, display: user.display });
+  } catch (err) {
+    next(err);
   }
-  const hash = crypto.createHash('sha256').update(password).digest('hex');
-  if (hash !== user.passwordHash) {
-    return res.status(401).json({ error: 'Invalid credentials.' });
+});
+
+app.post('/api/auth/dm/password', async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    validateNewPassword(newPassword);
+    const dmUser = await getAuthUser('dm', 'dm');
+    if (!dmUser) {
+      return res.status(404).json({ error: 'DM user not found.' });
+    }
+    if (dmUser.password_hash) {
+      if (!currentPassword) {
+        return res.status(401).json({ error: 'Current password is required.' });
+      }
+      if (!verifyPassword(currentPassword, dmUser.password_hash, dmUser.password_salt)) {
+        return res.status(401).json({ error: 'Invalid current password.' });
+      }
+    }
+    const creds = hashPassword(newPassword);
+    await updateAuthPassword({
+      role: 'dm',
+      username: 'dm',
+      password_hash: creds.hash,
+      password_salt: creds.salt
+    });
+    res.json({ status: 'ok' });
+  } catch (err) {
+    next(err);
   }
-  req.session.role = 'agent';
-  req.session.agentId = user.username;
-  req.session.agentDisplay = user.display;
-  res.json({ username: user.username, display: user.display });
+});
+
+app.post('/api/auth/agent/password', async (req, res, next) => {
+  try {
+    const { username, currentPassword, newPassword } = req.body || {};
+    const normalized = normalizeUsername(username);
+    if (!normalized) {
+      return res.status(400).json({ error: 'Username is required.' });
+    }
+    validateNewPassword(newPassword);
+    const user = await getAuthUser('agent', normalized);
+    if (!user) {
+      return res.status(404).json({ error: 'Agent not found.' });
+    }
+    if (user.password_hash) {
+      if (!currentPassword) {
+        return res.status(401).json({ error: 'Current password is required.' });
+      }
+      if (!verifyPassword(currentPassword, user.password_hash, user.password_salt)) {
+        return res.status(401).json({ error: 'Invalid current password.' });
+      }
+    }
+    const creds = hashPassword(newPassword);
+    await updateAuthPassword({
+      role: 'agent',
+      username: normalized,
+      password_hash: creds.hash,
+      password_salt: creds.salt
+    });
+    res.json({ status: 'ok' });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.get('/api/auth/me', (req, res) => {
@@ -224,7 +336,8 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/messages', async (req, res, next) => {
   try {
-    const agentDisplays = AGENT_USERS.map((a) => a.display);
+    const agentUsers = await listAuthUsersByRole('agent');
+    const agentDisplays = agentUsers.map((a) => a.display);
     const filters = {
       recipient: req.query.recipient,
       session_tag: req.query.session_tag,
@@ -396,6 +509,15 @@ app.get('/api/dm/entities/:id/context', requireDmSession, async (req, res, next)
   }
 });
 
+app.get('/api/dm/graph/campaign', requireDmSession, async (req, res, next) => {
+  try {
+    const ctx = await getCampaignGraphContext();
+    res.json(ctx);
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post('/api/dm/entities', requireDmSession, async (req, res, next) => {
   try {
     logCrud('Entity create', req);
@@ -534,6 +656,75 @@ app.get('/api/agent/entities/:id/context', requireAgentSession, async (req, res,
       pois: Array.isArray(ctx.pois) ? ctx.pois.map((p) => (p.type === 'poi' ? encodePoiIds(p) : p)) : ctx.pois
     };
     res.json(encodedCtx);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/agent/entities/:id/notes', requireAgentSession, async (req, res, next) => {
+  try {
+    const entityId = req.params.id;
+    const base = await getEntityForAgent(entityId);
+    if (!base) return res.status(404).json({ error: 'Entidad no encontrada.' });
+    if (base.visibility === 'locked') {
+      return res.status(403).json({ error: 'Entidad bloqueada.' });
+    }
+    if (base.type === 'poi') {
+      return res.status(400).json({ error: 'Las notas de agente solo aplican a entidades.' });
+    }
+
+    const rawPoiLinks = Array.isArray(req.body?.poi_links) ? req.body.poi_links : [];
+    const rawRelations = Array.isArray(req.body?.relations) ? req.body.relations : [];
+    const agentNotes = typeof req.body?.agent_notes === 'string' ? req.body.agent_notes.trim() : '';
+
+    const poiLinks = [];
+    for (const link of rawPoiLinks) {
+      const poiId = Number(link.poi_id);
+      if (!poiId || Number.isNaN(poiId)) continue;
+      const poi = await getPoiById(poiId);
+      if (!poi || poi.visibility !== 'agent_public') continue;
+      poiLinks.push({
+        poi_id: poiId,
+        role_at_poi: link.role_at_poi ? String(link.role_at_poi).trim() : null,
+        session_tag: link.session_tag ? String(link.session_tag).trim() : null
+      });
+    }
+    const dedupedPoiLinks = Array.from(
+      new Map(poiLinks.map((link) => [link.poi_id, link])).values()
+    );
+
+    const relations = [];
+    for (const rel of rawRelations) {
+      const targetId = Number(rel.to_entity_id);
+      if (!targetId || Number.isNaN(targetId)) continue;
+      if (Number(targetId) === Number(entityId)) continue;
+      const target = await getEntityForAgent(targetId);
+      if (!target || target.visibility === 'locked') continue;
+      relations.push({
+        to_entity_id: targetId,
+        relation_type: rel.relation_type ? String(rel.relation_type).trim() : null,
+        strength: rel.strength ? Number(rel.strength) : null
+      });
+    }
+    const dedupedRelations = Array.from(
+      new Map(relations.map((rel) => [rel.to_entity_id, rel])).values()
+    );
+
+    const updated = await updateAgentNotesAndLinks(entityId, agentNotes, {
+      poi_links: dedupedPoiLinks,
+      relations: dedupedRelations
+    });
+    const ctx = await getEntityContext(entityId, { includePrivate: false });
+    res.json({ status: 'ok', entity: updated, context: ctx });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/agent/graph/campaign', requireAgentSession, async (req, res, next) => {
+  try {
+    const ctx = await getAgentCampaignGraphContext();
+    res.json(ctx);
   } catch (err) {
     next(err);
   }
@@ -813,22 +1004,6 @@ function validateEntity(payload) {
   }
 
   return { cleaned, relations };
-}
-
-function validateDmSecret(req, res, next) {
-  if (!DM_SECRET) {
-    return res.status(500).json({ error: 'DM secret is not configured on the server.' });
-  }
-
-  const headerSecret = req.header('x-dm-secret');
-  if (!headerSecret) {
-    return res.status(401).json({ error: 'DM secret header is required.' });
-  }
-  if (headerSecret !== DM_SECRET) {
-    return res.status(401).json({ error: 'Invalid DM secret.' });
-  }
-
-  return next();
 }
 
 function requireDmSession(req, res, next) {

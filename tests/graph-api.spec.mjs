@@ -92,13 +92,28 @@ function createMockPanel() {
     classList: createClassList(),
     __whisperTimeout: null
   };
+  const attributes = new Map();
+  const dataset = {};
   return {
     innerHTML: '',
-    dataset: {},
+    dataset,
     classList,
     querySelector(selector) {
       if (selector === '.graph-summary-whisper') return whisper;
       return null;
+    },
+    setAttribute(name, value) {
+      const stringValue = value == null ? '' : String(value);
+      attributes.set(name, stringValue);
+      if (name.startsWith('data-')) {
+        const key = name
+          .slice(5)
+          .replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+        dataset[key] = stringValue;
+      }
+    },
+    getAttribute(name) {
+      return attributes.has(name) ? attributes.get(name) : null;
     }
   };
 }
@@ -247,6 +262,9 @@ async function testDblclickHandler() {
   await updatePromise;
   cy.trigger('dblclick', {
     target: {
+      id() {
+        return 'node-1';
+      },
       addClass() {},
       removeClass() {},
       data() {

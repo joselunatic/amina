@@ -137,6 +137,45 @@ button:hover {
     margin-bottom: 10px;
 }
 
+@media (max-width: 900px) {
+    body {
+        padding: 12px;
+    }
+
+    .main-container {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .intel-column {
+        max-width: 100%;
+    }
+
+    .control-section {
+        padding: 12px;
+    }
+
+    input[type="text"],
+    select,
+    button {
+        width: 100%;
+    }
+
+    .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    #dm-map {
+        height: 280px;
+    }
+
+    .marker-selector {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
+}
+
 /* POI Marker styles for DM map */
 .dm-poi-marker {
     width: 16px;

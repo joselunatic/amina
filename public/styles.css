@@ -431,6 +431,10 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
 }
 
 @media (max-width: 900px) {
+  body.is-mobile .workspace-nav {
+    display: none;
+  }
+
   body.is-mobile:not(.map-view) .view-left {
     display: none;
   }
@@ -450,6 +454,9 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   body.is-mobile .mail-toolbar {
     flex-direction: column;
     gap: 0.5rem;
+  }
+  body.is-mobile .mail-layout {
+    display: flex;
   }
   body.is-mobile .mail-toolbar .mail-actions {
     justify-content: space-between;
@@ -516,10 +523,6 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   display: block;
 }
 
-.mobile-map-topbar {
-  display: none;
-}
-
 .mode-agent .map-shell {
   display: none !important;
 }
@@ -561,15 +564,33 @@ body.mode-dm[data-workspace-view='journal'] .journal-nav {
   top: 0.6rem;
   z-index: 150;
   display: flex;
-  gap: 0.25rem;
-  flex-wrap: nowrap;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: stretch;
   max-width: 70%;
-  overflow-x: auto;
+  overflow: visible;
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(0, 255, 136, 0.25);
-  padding: 0.3rem 0.35rem;
-  border-radius: 999px;
+  padding: 0.35rem 0.45rem;
+  border-radius: 0.8rem;
   box-shadow: 0 10px 18px rgba(0, 0, 0, 0.35);
+}
+
+.map-filter-chips {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+}
+
+.map-filters .map-geocoder {
+  margin-top: 0.15rem;
+}
+
+.map-filters .mapboxgl-ctrl-geocoder {
+  width: 100%;
+  min-width: 0;
 }
 
 .map-style-switch {
@@ -2121,6 +2142,46 @@ body.agent-creature-view #agent-entity-hero-card {
   transform: translateY(0);
 }
 
+.graph-hover-card {
+  position: absolute;
+  left: var(--hover-left, 50%);
+  top: var(--hover-top, 50%);
+  transform: translate(-50%, -120%);
+  pointer-events: none;
+  max-width: 240px;
+  width: min(240px, 65vw);
+  background: rgba(5, 11, 26, 0.95);
+  border: 1px solid rgba(75, 211, 255, 0.5);
+  border-radius: 12px;
+  padding: 0.85rem;
+  color: #f3fcff;
+  box-shadow: 0 16px 40px rgba(5, 9, 15, 0.85);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 5;
+}
+
+.graph-hover-card.visible {
+  opacity: 1;
+  transform: translate(-50%, -130%);
+}
+
+.graph-hover-card-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #7ef3ff;
+  margin-bottom: 0.25rem;
+  letter-spacing: 0.02em;
+}
+
+.graph-hover-card-text {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: rgba(250, 252, 255, 0.85);
+}
+
 .graph-loading-indicator {
   position: absolute;
   inset: 0;
@@ -2211,6 +2272,11 @@ body.agent-creature-view #agent-entity-hero-card {
   color: rgba(0, 255, 136, 0.8);
 }
 
+.graph-fullscreen-btn {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .dm-graph-search {
   position: relative;
   min-width: 240px;
@@ -2291,6 +2357,10 @@ body.agent-creature-view #agent-entity-hero-card {
   .main-column {
     padding-bottom: 220px;
   }
+}
+
+body.is-mobile[data-mobile-tab='map'] .main-column {
+  padding-bottom: 32px;
 }
 
 body.crt::before {
@@ -2517,6 +2587,53 @@ body.crt::after {
   font-family: 'Fira Code', monospace;
 }
 
+@media (max-width: 900px) {
+  .boot-screen {
+    align-items: flex-start;
+    padding: 1.25rem 0.75rem 2rem;
+    overflow-y: auto;
+  }
+
+  .boot-monitor {
+    flex-direction: column;
+    gap: 1rem;
+    width: min(560px, 94vw);
+  }
+
+  .boot-frame {
+    padding: 0.75rem;
+  }
+
+  .boot-crt {
+    height: 34vh;
+    min-height: 220px;
+    padding: 1rem;
+  }
+
+  #boot-output {
+    font-size: 1.05rem;
+  }
+
+  .boot-console {
+    padding: 0.9rem;
+  }
+
+  .boot-console-header {
+    font-size: 0.65rem;
+    letter-spacing: 0.12rem;
+  }
+
+  .boot-menu button,
+  .boot-actions button,
+  .agent-login button {
+    padding: 0.75rem 0.6rem;
+  }
+
+  .command-actions {
+    flex-direction: column;
+  }
+}
+
 .command-menu {
   display: none;
   position: relative;
@@ -2684,12 +2801,18 @@ body.booting .crt-screen {
     display: flex;
     justify-content: space-around;
     align-items: center;
-    padding: 0.4rem 0.65rem;
+    padding: 0.2rem 0.5rem;
     background: radial-gradient(circle at 50% -30%, rgba(0, 255, 136, 0.25), rgba(0, 0, 0, 0.85));
     border: 1px solid rgba(0, 255, 136, 0.15);
     border-radius: 1rem;
     box-shadow: 0 0 20px rgba(0, 255, 136, 0.25), inset 0 0 15px rgba(0, 0, 0, 0.55);
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.05rem;
+    position: fixed;
+    left: 50%;
+    bottom: 0.1rem;
+    transform: translateX(-50%);
+    width: min(520px, calc(100% - 1rem));
+    z-index: 120;
   }
 
   .mobile-tab {
@@ -2703,10 +2826,11 @@ body.booting .crt-screen {
     border-radius: 0.9rem;
     background: rgba(0, 10, 5, 0.7);
     color: #d6ffe7;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     letter-spacing: 0.02em;
     text-transform: uppercase;
     transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    min-height: 46px;
   }
 
   .mobile-tab-icon {
@@ -2716,6 +2840,16 @@ body.booting .crt-screen {
     border: 1px solid rgba(0, 255, 136, 0.4);
     background: linear-gradient(145deg, rgba(0, 255, 136, 0.2), rgba(0, 255, 136, 0.05));
     box-shadow: inset 0 0 8px rgba(0, 255, 136, 0.3), 0 0 8px rgba(0, 255, 136, 0.2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #8df7c9;
+  }
+
+  .mobile-tab-icon svg {
+    width: 16px;
+    height: 16px;
+    display: block;
   }
 
   .mobile-tab.active {
@@ -2728,34 +2862,44 @@ body.booting .crt-screen {
     font-weight: 600;
   }
 
-  .mobile-map-topbar {
+  .amina-topbar {
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.85rem 0.85rem 0 0;
+  }
+
+  .top-ticker {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.35rem;
-    padding: 0.5rem 0.65rem 0.2rem;
-    position: relative;
-    z-index: 3;
-    background: linear-gradient(180deg, rgba(0, 15, 12, 0.9), rgba(0, 15, 12, 0.6));
-    border-radius: 1rem 1rem 0.75rem 0.75rem;
-    border: 1px solid rgba(0, 255, 136, 0.18);
-    box-shadow: 0 0 18px rgba(0, 255, 136, 0.15);
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    row-gap: 0.4rem;
+    column-gap: 0.5rem;
+    align-items: center;
   }
 
-  .mobile-map-topbar .map-tab {
-    border: 1px solid rgba(0, 255, 136, 0.2);
-    background: rgba(0, 10, 5, 0.75);
-    color: #d6ffe7;
-    padding: 0.45rem 0.5rem;
-    border-radius: 0.65rem;
-    font-weight: 700;
-    font-size: 0.75rem;
-    letter-spacing: 0.02em;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  .top-ticker-label {
+    font-size: 0.5rem;
+    letter-spacing: 0.25em;
   }
 
-  .mobile-map-topbar .map-tab.active {
-    border-color: rgba(0, 255, 136, 0.6);
-    box-shadow: 0 0 10px rgba(0, 255, 136, 0.35), inset 0 0 8px rgba(0, 255, 136, 0.2);
+  .top-ticker-track {
+    grid-column: 1 / -1;
+  }
+
+  #ticker-track {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+  }
+
+  body.is-mobile .app-shell {
+    padding-bottom: 0.35rem;
+  }
+
+  body.is-mobile .app-footer {
+    display: none;
+  }
+
+  body.is-mobile[data-mobile-tab='map'] .view-right {
+    margin-bottom: 0;
   }
 
   .map-panel {
@@ -2764,12 +2908,22 @@ body.booting .crt-screen {
     border: 1px solid rgba(0, 255, 136, 0.2);
     box-shadow: 0 0 25px rgba(0, 255, 136, 0.25);
     background: radial-gradient(circle at 50% 20%, rgba(0, 255, 136, 0.07), rgba(0, 0, 0, 0.9));
+    height: 62vh;
+  }
+
+  body.is-mobile[data-mobile-tab='map'] .map-panel {
+    height: 90vh;
   }
 
   .map-panel #map {
-    height: 50vh;
-    min-height: 320px;
+    height: 100%;
+    min-height: 0;
     border-radius: 1rem;
+  }
+
+  body.is-mobile[data-mobile-tab='map'] .map-panel #map {
+    height: 100% !important;
+    min-height: 0 !important;
   }
 
   .mobile-focal-card {
@@ -2918,8 +3072,17 @@ body.booting .crt-screen {
     padding: 0.6rem;
     border-radius: 0.9rem;
     box-shadow: inset 0 0 12px rgba(0, 255, 136, 0.12);
-    max-height: 260px;
+    max-height: 292px;
     overflow-y: auto;
+  }
+
+
+  body.is-mobile[data-mobile-tab='database'] #dossier-card .dossier-type {
+    display: none;
+  }
+
+  body.is-mobile[data-mobile-tab='database'] #dossier-card .dossier-filter-group {
+    gap: 0.4rem;
   }
 
   body.is-mobile[data-mobile-tab='database'] .dossier-card-row {
@@ -2928,6 +3091,7 @@ body.booting .crt-screen {
     padding: 0.65rem;
     border-radius: 0.7rem;
     color: #d7f7e6;
+    min-height: 52px;
   }
 
   body.is-mobile[data-mobile-tab='database'] .dossier-card-row.active {
@@ -3026,6 +3190,12 @@ body.booting .crt-screen {
   font-size: 1.15rem;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.logout-button .power-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .logout-button:hover {
@@ -3380,6 +3550,56 @@ body.mobile-mode .brand-watermark {
   font-size: 0.65rem;
   letter-spacing: 0.15em;
   color: rgba(0, 255, 136, 0.7);
+}
+
+@media (max-width: 900px) {
+  .unlock-panel {
+    width: min(420px, 92vw);
+    min-width: 0;
+  }
+
+  .entity-delete-overlay {
+    padding: 0.75rem;
+  }
+
+  .entity-delete-panel {
+    width: 100%;
+    max-width: 100%;
+    max-height: 80vh;
+    padding: 1rem;
+  }
+
+  .inbox-overlay {
+    padding: 0.75rem;
+  }
+
+  .inbox-panel {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    padding: 1rem;
+  }
+
+  .inbox-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .inbox-title {
+    font-size: 1.4rem;
+    letter-spacing: 0.25rem;
+  }
+
+  .inbox-subtitle {
+    letter-spacing: 0.2em;
+  }
+
+  .inbox-messages {
+    grid-template-columns: 1fr;
+    max-height: none;
+    flex: 1 1 auto;
+  }
 }
 
 
@@ -4264,6 +4484,27 @@ textarea {
 .mapboxgl-popup-tip {
   display: none;
 }
+
+.mapboxgl-ctrl-geocoder {
+  display: block;
+  min-width: 280px;
+  font-family: 'Fira Code', monospace;
+}
+
+.mapboxgl-ctrl-geocoder--input {
+  color: var(--text);
+}
+
+.mapboxgl-ctrl-geocoder,
+.mapboxgl-ctrl-geocoder .mapboxgl-ctrl-geocoder--input {
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(0, 255, 136, 0.35);
+  border-radius: 0.6rem;
+}
+
+.mapboxgl-ctrl-geocoder .mapboxgl-ctrl-geocoder--input {
+  padding: 0.5rem 0.75rem;
+}
 .agent-console,
 .dm-console {
   flex: 1;
@@ -4414,6 +4655,69 @@ body.mode-dm .agent-top {
   border-radius: 10px;
   background: rgba(7, 12, 15, 0.7);
   min-height: 220px;
+}
+
+.agent-dossier-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0.4rem;
+  flex-wrap: wrap;
+}
+
+.agent-dossier-tab {
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  background: rgba(4, 7, 9, 0.6);
+  color: rgba(0, 255, 136, 0.9);
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.agent-dossier-tab.active {
+  border-color: var(--accent);
+  background: rgba(0, 255, 136, 0.18);
+}
+
+.agent-dossier-panel {
+  display: none;
+}
+
+.agent-dossier-panel.active {
+  display: block;
+}
+
+.agent-notes-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.agent-notes-empty {
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: rgba(7, 12, 15, 0.6);
+  color: var(--muted);
+}
+
+.agent-notes-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+#agent-entity-detail-card {
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+#agent-entity-detail-card .agent-dossier-panel {
+  max-height: 42vh;
+  overflow: auto;
+  padding-bottom: 0.75rem;
 }
 
 .dossier-detail-header {
@@ -4701,6 +5005,22 @@ body.mode-dm .agent-top {
   color: var(--text);
   font-family: 'Fira Code', monospace;
   padding: 0.75rem;
+}
+
+.mission-notes {
+  min-height: 140px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  border-radius: 0.6rem;
+  padding: 0.75rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.mission-notes.is-editing {
+  border-color: rgba(0, 255, 136, 0.6);
+  box-shadow: 0 0 14px rgba(0, 255, 136, 0.2);
 }
 
 .dm-form-title {

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+const { hashPassword } = require('./auth');
 
 const DB_PATH = path.join(__dirname, 'schuylkill.db');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
@@ -27,6 +28,15 @@ const VEIL_VALUES = ['intact', 'frayed', 'torn'];
 const ENTITY_TYPES = ['pc', 'npc', 'org', 'criatura'];
 const REL_VISIBILITY = ['public', 'dm'];
 const POI_VISIBILITY = ['agent_public', 'locked'];
+
+const DEFAULT_AGENT_USERS = [
+  { username: 'pike', display: 'Howard Pike' },
+  { username: 'allen', display: 'Victoria Allen' },
+  { username: 'guerrero', display: 'Arnold Guerrero-Hart' },
+  { username: 'clutter', display: 'Dwight Clutter' },
+  { username: 'redwood', display: 'Karen Redwood' }
+];
+const DEFAULT_DM_USER = { username: 'dm', display: 'Sr. Verdad' };
 
 const seedData = [
   {
@@ -332,6 +342,8 @@ async function initialize() {
   await ensureMessageReadByColumn();
   await ensureMessageDeletedByColumn();
   await ensureJournalTable();
+  await ensureAuthUsersTable();
+  await ensureAuthSeed();
   await ensurePoiVisibilityColumns();
 
   await ensureEntitiesTables();
@@ -720,6 +732,83 @@ async function ensureJournalTable() {
   `);
 }
 
+async function ensureAuthUsersTable() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS auth_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      role TEXT NOT NULL CHECK(role IN ('dm', 'agent')),
+      username TEXT NOT NULL,
+      display TEXT NOT NULL,
+      password_hash TEXT,
+      password_salt TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(role, username)
+    )
+  `);
+}
+
+async function getAuthUser(role, username) {
+  return get('SELECT * FROM auth_users WHERE role = ? AND username = ?', [role, username]);
+}
+
+async function listAuthUsersByRole(role) {
+  return all('SELECT * FROM auth_users WHERE role = ? ORDER BY display ASC', [role]);
+}
+
+async function createAuthUser({ role, username, display, password_hash, password_salt }) {
+  await run(
+    `
+    INSERT INTO auth_users (role, username, display, password_hash, password_salt)
+    VALUES (?, ?, ?, ?, ?)
+  `,
+    [role, username, display, password_hash || null, password_salt || null]
+  );
+  return getAuthUser(role, username);
+}
+
+async function updateAuthPassword({ role, username, password_hash, password_salt }) {
+  await run(
+    `
+    UPDATE auth_users
+    SET password_hash = ?, password_salt = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE role = ? AND username = ?
+  `,
+    [password_hash || null, password_salt || null, role, username]
+  );
+  return getAuthUser(role, username);
+}
+
+async function ensureAuthSeed() {
+  const defaultAgentPassword = process.env.AGENT_DEFAULT_PASSWORD || '123456';
+  const defaultDmPassword = process.env.DM_SECRET || process.env.DM_DEFAULT_PASSWORD || '';
+
+  const dmUser = await getAuthUser('dm', DEFAULT_DM_USER.username);
+  if (!dmUser) {
+    const dmCreds = defaultDmPassword ? hashPassword(defaultDmPassword) : null;
+    await createAuthUser({
+      role: 'dm',
+      username: DEFAULT_DM_USER.username,
+      display: DEFAULT_DM_USER.display,
+      password_hash: dmCreds ? dmCreds.hash : null,
+      password_salt: dmCreds ? dmCreds.salt : null
+    });
+  }
+
+  for (const agent of DEFAULT_AGENT_USERS) {
+    const existing = await getAuthUser('agent', agent.username);
+    if (existing) continue;
+    const agentCreds = defaultAgentPassword ? hashPassword(defaultAgentPassword) : null;
+    await createAuthUser({
+      role: 'agent',
+      username: agent.username,
+      display: agent.display,
+      password_hash: agentCreds ? agentCreds.hash : null,
+      password_salt: agentCreds ? agentCreds.salt : null
+    });
+  }
+}
+
 async function ensureEntitiesTables() {
   // Tabla principal de entidades. Incluye campos nuevos para modo bloqueado, hints y visibilidad.
   await run(`
@@ -758,6 +847,7 @@ async function ensureEntitiesTables() {
   await ensureColumn('mel', 'TEXT', '');
   await ensureColumn('public_summary', 'TEXT', '');
   await ensureColumn('dm_notes', 'TEXT', '');
+  await ensureColumn('agent_notes', 'TEXT', '');
   await ensureColumn('visibility', "TEXT NOT NULL DEFAULT 'agent_public'", '');
   await ensureColumn('unlock_code', 'TEXT', '');
   await ensureColumn('locked_hint', 'TEXT', '');
@@ -983,7 +1073,8 @@ function mapRow(row) {
     alignment: row.alignment || row.allegiance || '',
     mel: row.mel || '',
     public_summary: row.public_summary || row.public_note || '',
-    dm_notes: row.dm_notes || row.dm_note || ''
+    dm_notes: row.dm_notes || row.dm_note || '',
+    agent_notes: row.agent_notes || ''
   };
 }
 
@@ -1125,6 +1216,7 @@ function filterAgentEntity(entity) {
       image_url: entity.image_url,
       mel: filterMelForAgent(entity.mel || ''),
       public_summary: entity.public_summary || '',
+      agent_notes: entity.agent_notes || '',
       visibility: entity.visibility,
       locked_hint: entity.locked_hint || '',
       poi_latitude: entity.poi_latitude ?? entity.latitude,
@@ -1151,6 +1243,7 @@ function filterAgentEntity(entity) {
     last_session: entity.last_session,
     sessions: entity.sessions,
     public_summary: entity.public_summary || '',
+    agent_notes: entity.agent_notes || '',
     visibility: entity.visibility,
     locked_hint: entity.locked_hint || ''
   };
@@ -1198,7 +1291,7 @@ async function getEntityContext(entityId, options = {}) {
   const linkFilter = includePrivate ? '' : 'AND is_public = 1';
 
   const pois = await all(
-    `SELECT l.*, p.name, p.session_tag as poi_session, p.latitude, p.longitude
+    `SELECT l.*, p.name, p.session_tag as poi_session, p.latitude, p.longitude, p.public_note
      FROM entity_poi_links l
      JOIN pois p ON p.id = l.poi_id
      WHERE l.entity_id = ? ${linkFilter}`,
@@ -1211,45 +1304,48 @@ async function getEntityContext(entityId, options = {}) {
   );
 
   const outgoingRelations = await all(
-    `SELECT r.*, e.code_name as to_code_name, e.type as to_type, e.role as to_role, e.alignment as to_alignment, e.image_url as to_image_url, e.visibility as to_visibility
+    `SELECT r.*, e.code_name as to_code_name, e.type as to_type, e.role as to_role, e.alignment as to_alignment, e.image_url as to_image_url, e.visibility as to_visibility, e.public_summary as to_public_summary, e.public_note as to_public_note
      FROM entity_relations r
      JOIN entities e ON e.id = r.to_entity_id
      WHERE r.from_entity_id = ? ${linkFilter}`,
     [entityId]
   );
   const incomingRelations = await all(
-    `SELECT r.*, e.id as from_entity_id, e.code_name as from_code_name, e.type as from_type, e.role as from_role, e.alignment as from_alignment, e.image_url as from_image_url, e.visibility as from_visibility
+    `SELECT r.*, e.id as from_entity_id, e.code_name as from_code_name, e.type as from_type, e.role as from_role, e.alignment as from_alignment, e.image_url as from_image_url, e.visibility as from_visibility, e.public_summary as from_public_summary, e.public_note as from_public_note
      FROM entity_relations r
      JOIN entities e ON e.id = r.from_entity_id
      WHERE r.to_entity_id = ? ${linkFilter}`,
     [entityId]
   );
-  const mappedIncoming = incomingRelations.map((rel) => ({
-    ...rel,
-    from_entity_id: entityId,
-    to_entity_id: rel.from_entity_id,
-    to_code_name: rel.from_code_name,
-    to_type: rel.from_type,
-    to_role: rel.from_role,
-    to_alignment: rel.from_alignment,
-    to_image_url: rel.from_image_url,
-    to_visibility: rel.from_visibility
-  }));
-  const relationCandidates = [...outgoingRelations, ...mappedIncoming];
-  const relationSet = new Set();
-  const relations = [];
-  relationCandidates.forEach((rel) => {
+  const relationsByTarget = new Map();
+  outgoingRelations.forEach((rel) => {
     const targetId = Number(rel.to_entity_id);
     if (!targetId || Number.isNaN(targetId)) return;
-    const relationKey = `${Math.min(entityId, targetId)}:${Math.max(entityId, targetId)}:${rel.relation_type || 'relation'}`;
-    if (relationSet.has(relationKey)) return;
-    relationSet.add(relationKey);
-    relations.push({
+    relationsByTarget.set(targetId, {
       ...rel,
       from_entity_id: entityId,
       to_entity_id: targetId
     });
   });
+  incomingRelations.forEach((rel) => {
+    const targetId = Number(rel.from_entity_id);
+    if (!targetId || Number.isNaN(targetId)) return;
+    if (relationsByTarget.has(targetId)) return;
+    relationsByTarget.set(targetId, {
+      ...rel,
+      from_entity_id: entityId,
+      to_entity_id: targetId,
+      to_code_name: rel.from_code_name,
+      to_type: rel.from_type,
+      to_role: rel.from_role,
+      to_alignment: rel.from_alignment,
+      to_image_url: rel.from_image_url,
+      to_visibility: rel.from_visibility,
+      to_public_summary: rel.from_public_summary,
+      to_public_note: rel.from_public_note
+    });
+  });
+  const relations = Array.from(relationsByTarget.values());
 
   return {
     entity,
@@ -1259,12 +1355,199 @@ async function getEntityContext(entityId, options = {}) {
   };
 }
 
+async function getCampaignGraphContext() {
+  const entities = await all('SELECT * FROM entities WHERE archived = 0');
+  const entityIdSet = new Set(entities.map((entity) => entity.id));
+  const nodes = entities.map((entity) => ({
+    id: entity.id,
+    entityId: entity.id,
+    graphId: `e-${entity.id}`,
+    code_name: entity.code_name || entity.name || `Entidad ${entity.id}`,
+    type: entity.type || 'npc',
+    role: entity.role || '',
+    visibility: entity.visibility || 'agent_public',
+    image_url: entity.image_url || '',
+    session: entity.sessions || '',
+    public_summary: entity.public_summary || entity.dm_notes || '',
+    threat: entity.threat_level,
+    alignment: entity.alignment || ''
+  }));
+
+  const edges = [];
+  const relations = await all('SELECT * FROM entity_relations');
+  relations.forEach((rel, index) => {
+    if (!entityIdSet.has(rel.from_entity_id) || !entityIdSet.has(rel.to_entity_id)) return;
+    const isPublic = rel.is_public !== 0;
+    edges.push({
+      data: {
+        id: rel.id ? `rel-${rel.id}` : `rel-${index}`,
+        source: `e-${rel.from_entity_id}`,
+        target: `e-${rel.to_entity_id}`,
+        relation: rel.relation_type || rel.relation || 'vínculo',
+        strength: rel.strength || 1,
+        linkType: 'entity',
+        is_public: isPublic ? 1 : 0
+      }
+    });
+  });
+
+  const poiLinks = await all(
+    `SELECT l.*, p.name, p.category, p.public_note, p.image_url
+     FROM entity_poi_links l
+     JOIN pois p ON p.id = l.poi_id`
+  );
+  const poiNodes = new Map();
+  poiLinks.forEach((link, idx) => {
+    if (!entityIdSet.has(link.entity_id)) return;
+    if (!poiNodes.has(link.poi_id)) {
+      poiNodes.set(link.poi_id, {
+        id: link.poi_id,
+        graphId: `p-${link.poi_id}`,
+        entityId: link.poi_id,
+        code_name: link.name || 'PdI',
+        type: 'poi',
+        role: link.category || 'PdI',
+        visibility: link.visibility || 'agent_public',
+        image_url: link.image_url || '',
+        public_summary: link.public_note || '',
+        session: link.session_tag || link.poi_session || ''
+      });
+    }
+    edges.push({
+      data: {
+        id: `poi-${link.entity_id}-${link.poi_id}-${idx}`,
+        source: `e-${link.entity_id}`,
+        target: `p-${link.poi_id}`,
+        relation: link.role_at_poi || 'PdI',
+        strength: 1,
+        linkType: 'poi',
+        is_public: link.is_public !== 0 ? 1 : 0
+      }
+    });
+  });
+
+  const allNodes = [...nodes, ...poiNodes.values()];
+  const firstEntityNode = allNodes.find(
+    (node) => node.entityId && node.type !== 'poi'
+  );
+  const graphFocusId = firstEntityNode?.graphId || firstEntityNode?.id || null;
+
+  return {
+    entity: {
+      id: 'campaign',
+      code_name: 'Campaña',
+      type: 'org',
+      role: 'Vista global',
+      visibility: 'agent_public',
+      public_summary: 'Mapa completo de relaciones y PdI activos.'
+    },
+    graph: {
+      nodes: allNodes.map((node) => ({ data: node })),
+      edges
+    },
+    graphFocusId
+  };
+}
+
+async function getAgentCampaignGraphContext() {
+  const entities = await all("SELECT * FROM entities WHERE archived = 0 AND visibility = 'agent_public'");
+  const entityIdSet = new Set(entities.map((entity) => entity.id));
+
+  const nodes = entities.map((entity) => ({
+    id: entity.id,
+    entityId: entity.id,
+    graphId: `e-${entity.id}`,
+    code_name: entity.code_name || entity.name || `Entidad ${entity.id}`,
+    type: entity.type || 'npc',
+    role: entity.role || '',
+    visibility: entity.visibility || 'agent_public',
+    image_url: entity.image_url || '',
+    session: entity.sessions || '',
+    public_summary: entity.public_summary || entity.dm_notes || '',
+    threat: entity.threat_level,
+    alignment: entity.alignment || ''
+  }));
+
+  const edges = [];
+  const relations = await all('SELECT * FROM entity_relations');
+  relations.forEach((rel, index) => {
+    if (!entityIdSet.has(rel.from_entity_id) || !entityIdSet.has(rel.to_entity_id)) return;
+    edges.push({
+      data: {
+        id: rel.id ? `rel-${rel.id}` : `rel-${index}`,
+        source: `e-${rel.from_entity_id}`,
+        target: `e-${rel.to_entity_id}`,
+        relation: rel.relation_type || rel.relation || 'vínculo',
+        strength: rel.strength || 1,
+        linkType: 'entity',
+        is_public: rel.is_public !== 0 ? 1 : 0
+      }
+    });
+  });
+
+  const poiLinks = await all(
+    `SELECT l.*, p.name, p.category, p.public_note, p.image_url
+     FROM entity_poi_links l
+     JOIN pois p ON p.id = l.poi_id
+     WHERE p.visibility = 'agent_public'`
+  );
+  const poiNodes = new Map();
+  poiLinks.forEach((link, idx) => {
+    if (!entityIdSet.has(link.entity_id)) return;
+    if (!poiNodes.has(link.poi_id)) {
+      poiNodes.set(link.poi_id, {
+        id: link.poi_id,
+        graphId: `p-${link.poi_id}`,
+        entityId: link.poi_id,
+        code_name: link.name || 'PdI',
+        type: 'poi',
+        role: link.category || 'PdI',
+        visibility: link.visibility || 'agent_public',
+        image_url: link.image_url || '',
+        public_summary: link.public_note || '',
+        session: link.session_tag || link.poi_session || ''
+      });
+    }
+    edges.push({
+      data: {
+        id: `poi-${link.entity_id}-${link.poi_id}-${idx}`,
+        source: `e-${link.entity_id}`,
+        target: `p-${link.poi_id}`,
+        relation: link.role_at_poi || 'PdI',
+        strength: 1,
+        linkType: 'poi',
+        is_public: link.is_public !== 0 ? 1 : 0
+      }
+    });
+  });
+
+  const allNodes = [...nodes, ...poiNodes.values()];
+  const firstEntityNode = allNodes.find((node) => node.entityId && node.type !== 'poi');
+  const graphFocusId = firstEntityNode?.graphId || firstEntityNode?.id || null;
+
+  return {
+    entity: {
+      id: 'campaign-agent',
+      code_name: 'Campaña Agente',
+      type: 'org',
+      role: 'Vista de agentes',
+      visibility: 'agent_public',
+      public_summary: 'Mapa global visible para agentes.'
+    },
+    graph: {
+      nodes: allNodes.map((node) => ({ data: node })),
+      edges
+    },
+    graphFocusId
+  };
+}
+
 async function createEntity(entity, relations = {}) {
   return withTransaction(async () => {
     const result = await run(
       `INSERT INTO entities
-        (type, code_name, name, real_name, role, status, alignment, threat_level, image_url, first_session, last_session, sessions, mel, public_summary, dm_notes, visibility, unlock_code, locked_hint, archived)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (type, code_name, name, real_name, role, status, alignment, threat_level, image_url, first_session, last_session, sessions, mel, public_summary, dm_notes, agent_notes, visibility, unlock_code, locked_hint, archived)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       , [
         entity.type,
         entity.code_name || entity.name,
@@ -1281,6 +1564,7 @@ async function createEntity(entity, relations = {}) {
         entity.mel || null,
         entity.public_summary || null,
         entity.dm_notes || null,
+        entity.agent_notes || null,
         normalizeVisibility(entity.visibility),
         entity.unlock_code || null,
         entity.locked_hint || null,
@@ -1295,6 +1579,11 @@ async function createEntity(entity, relations = {}) {
 
 async function updateEntity(id, entity, relations = {}) {
   return withTransaction(async () => {
+    let agentNotesValue = entity.agent_notes;
+    if (agentNotesValue === undefined) {
+      const existing = await get('SELECT agent_notes FROM entities WHERE id = ?', [id]);
+      agentNotesValue = existing?.agent_notes || null;
+    }
     await run(
       `UPDATE entities SET
         type = ?,
@@ -1312,6 +1601,7 @@ async function updateEntity(id, entity, relations = {}) {
         mel = ?,
         public_summary = ?,
         dm_notes = ?,
+        agent_notes = ?,
         visibility = ?,
         unlock_code = ?,
         locked_hint = ?,
@@ -1334,6 +1624,7 @@ async function updateEntity(id, entity, relations = {}) {
         entity.mel || null,
         entity.public_summary || null,
         entity.dm_notes || null,
+        agentNotesValue,
         normalizeVisibility(entity.visibility),
         entity.unlock_code || null,
         entity.locked_hint || null,
@@ -1384,6 +1675,37 @@ async function replaceEntityLinks(entityId, relations = {}) {
       , [entityId, rel.to_entity_id, rel.relation_type || null, rel.strength || null, rel.is_public ? 1 : 0]
     );
   }
+}
+
+async function updateAgentNotesAndLinks(entityId, agentNotes, relations = {}) {
+  const { poi_links = [], relations: rels = [] } = relations || {};
+  return withTransaction(async () => {
+    await run('UPDATE entities SET agent_notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [
+      agentNotes || '',
+      entityId
+    ]);
+    await run('DELETE FROM entity_poi_links WHERE entity_id = ? AND is_public = 1', [entityId]);
+    await run('DELETE FROM entity_relations WHERE from_entity_id = ? AND is_public = 1', [entityId]);
+
+    for (const link of poi_links) {
+      if (!link.poi_id) continue;
+      await run(
+        `INSERT INTO entity_poi_links (entity_id, poi_id, role_at_poi, session_tag, is_public)
+        VALUES (?, ?, ?, ?, 1)`
+        , [entityId, link.poi_id, link.role_at_poi || null, link.session_tag || null]
+      );
+    }
+
+    for (const rel of rels) {
+      if (!rel.to_entity_id) continue;
+      await run(
+        `INSERT INTO entity_relations (from_entity_id, to_entity_id, relation_type, strength, is_public)
+        VALUES (?, ?, ?, ?, 1)`
+        , [entityId, rel.to_entity_id, rel.relation_type || null, rel.strength || null]
+      );
+    }
+    return getEntityForAgent(entityId);
+  });
 }
 
 async function unlockEntity(id, code) {
@@ -1447,12 +1769,19 @@ module.exports = {
   deleteEntity,
   mapPoiToEntity,
   getEntityContext,
+  getCampaignGraphContext,
+  getAgentCampaignGraphContext,
   filterAgentEntity,
   unlockEntity,
   ENTITY_TYPES,
   upsertJournalEntry,
   getJournalEntry,
-  listJournalEntries
+  listJournalEntries,
+  getAuthUser,
+  listAuthUsersByRole,
+  createAuthUser,
+  updateAuthPassword,
+  updateAgentNotesAndLinks
 };
 
 initialize().catch((err) => {

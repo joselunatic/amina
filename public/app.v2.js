@@ -27,6 +27,18 @@ const veilLabels = {
   frayed: 'Deshilachado',
   torn: 'Roto'
 };
+const AGENT_GRAPH_SCOPE = {
+  ENTITY: 'entity',
+  CAMPAIGN: 'campaign'
+};
+const AGENT_GRAPH_CAMPAIGN_VALUE = AGENT_GRAPH_SCOPE.CAMPAIGN;
+const AGENT_GRAPH_CAMPAIGN_LABEL = 'Campaña agentes · grafo público';
+const DM_GRAPH_SCOPE = {
+  ENTITY: 'entity',
+  CAMPAIGN: 'campaign'
+};
+const DM_GRAPH_CAMPAIGN_VALUE = DM_GRAPH_SCOPE.CAMPAIGN;
+const DM_GRAPH_CAMPAIGN_LABEL = 'Campaña · grafo global';
 
 const state = {
   map: null,
@@ -34,6 +46,10 @@ const state = {
   poiMarkers: new Map(),
   dmMode: false,
   agent: null,
+  authBootstrap: {
+    dmConfigured: false,
+    agents: {}
+  },
   agents: [],
   messages: [],
   editingPoiId: null,
@@ -78,6 +94,7 @@ const state = {
   activeEntityContext: null,
   entityMarkers: [],
   workspaceView: 'map',
+  agentDossierPanel: 'dossier',
   graphs: {
     agent: null,
     dm: null
@@ -87,10 +104,11 @@ const state = {
   melTokens: []
   ,
   dmGraphLayout: 'spread',
-  dmGraphFocusId: null
-  ,
+  dmGraphFocusId: null,
+  dmGraphScope: DM_GRAPH_SCOPE.ENTITY,
   agentGraphLayout: 'spread',
-  agentGraphFocusId: null
+  agentGraphFocusId: null,
+  agentGraphScope: AGENT_GRAPH_SCOPE.ENTITY
 };
 
 console.log('AMINA app.v2 loaded (mel toggles debug)');
@@ -136,6 +154,15 @@ const bootPlayerBtn = document.getElementById('boot-player');
 const bootDmBtn = document.getElementById('boot-dm');
 const bootDmForm = document.getElementById('boot-dm-form');
 const bootDmSecretInput = document.getElementById('boot-dm-secret');
+const bootDmChangeBtn = document.getElementById('boot-dm-change');
+const bootDmPasswordPanel = document.getElementById('boot-dm-password-panel');
+const bootDmCurrentWrap = document.getElementById('boot-dm-current-wrap');
+const bootDmCurrentInput = document.getElementById('boot-dm-current');
+const bootDmNewInput = document.getElementById('boot-dm-new');
+const bootDmConfirmInput = document.getElementById('boot-dm-confirm');
+const bootDmSaveBtn = document.getElementById('boot-dm-save');
+const bootDmCancelBtn = document.getElementById('boot-dm-cancel');
+const bootDmPassStatus = document.getElementById('boot-dm-pass-status');
 const bootCancelBtn = document.getElementById('boot-cancel');
 const bootStatus = document.getElementById('boot-status');
 const bootOutput = document.getElementById('boot-output');
@@ -145,6 +172,15 @@ const agentSelect = document.getElementById('agent-select');
 const agentPassInput = document.getElementById('agent-pass');
 const agentLoginButton = document.getElementById('agent-login-button');
 const agentLoginStatus = document.getElementById('agent-login-status');
+const agentPasswordToggle = document.getElementById('agent-password-toggle');
+const agentPasswordPanel = document.getElementById('agent-password-panel');
+const agentPassCurrentWrap = document.getElementById('agent-pass-current-wrap');
+const agentPassCurrent = document.getElementById('agent-pass-current');
+const agentPassNew = document.getElementById('agent-pass-new');
+const agentPassConfirm = document.getElementById('agent-pass-confirm');
+const agentPassSave = document.getElementById('agent-pass-save');
+const agentPassCancel = document.getElementById('agent-pass-cancel');
+const agentPassStatus = document.getElementById('agent-pass-status');
 const collapsibleToggles = document.querySelectorAll('.collapsible-toggle');
 let bootSequenceId = 0;
 const messageForm = document.getElementById('message-form');
@@ -222,6 +258,71 @@ let tickerAnimationDuration = 0;
 let tickerDatasetSignature = '';
 let mapResizeTimeout = null;
 const agentTabs = document.getElementById('agent-tabs');
+const DEFAULT_MISSION_BRIEF = 'Esperando directivas.';
+
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+function buildPoiGeocoderResults(query) {
+  const needle = (query || '').trim().toLowerCase();
+  if (!needle) return [];
+  return (state.pois || [])
+    .filter((poi) => {
+      const target = `${poi.name || ''} ${poi.session_tag || ''} ${poi.public_note || ''}`.toLowerCase();
+      return target.includes(needle);
+    })
+    .filter((poi) => Number.isFinite(Number(poi.longitude)) && Number.isFinite(Number(poi.latitude)))
+    .slice(0, 8)
+    .map((poi) => ({
+      type: 'Feature',
+      id: String(poi.id ?? poi.name ?? Math.random()),
+      geometry: {
+        type: 'Point',
+        coordinates: [Number(poi.longitude), Number(poi.latitude)]
+      },
+      center: [Number(poi.longitude), Number(poi.latitude)],
+      place_name: `${poi.name || 'PdI'}${poi.session_tag ? ` · ${poi.session_tag}` : ''}`,
+      text: poi.name || 'PdI',
+      place_type: ['poi'],
+      relevance: 1,
+      properties: {
+        id: poi.id,
+        category: poi.category || '',
+        session_tag: poi.session_tag || ''
+      }
+    }));
+}
+
+function getAgentJournalText() {
+  if (!agentJournalPublicInput) return '';
+  return (agentJournalPublicInput.innerText || '').trim();
+}
+
+function setAgentJournalText(text) {
+  if (!agentJournalPublicInput) return;
+  if (agentJournalPublicInput.isContentEditable) return;
+  agentJournalPublicInput.textContent = text || DEFAULT_MISSION_BRIEF;
+}
+
+function setAgentJournalEditing(isEditing) {
+  if (!agentJournalPublicInput || !agentJournalSaveBtn) return;
+  agentJournalPublicInput.contentEditable = isEditing ? 'true' : 'false';
+  agentJournalPublicInput.classList.toggle('is-editing', isEditing);
+  agentJournalSaveBtn.textContent = isEditing ? 'Guardar' : 'Editar';
+  if (isEditing) {
+    if (!state.missionNotes && agentJournalPublicInput.textContent.trim() === DEFAULT_MISSION_BRIEF) {
+      agentJournalPublicInput.textContent = '';
+    }
+    agentJournalPublicInput.focus();
+  } else if (!state.missionNotes) {
+    agentJournalPublicInput.textContent = DEFAULT_MISSION_BRIEF;
+  }
+}
 const dossierList = document.getElementById('dossier-list');
 const dossierDetail = document.getElementById('dossier-detail');
 const dossierSearch = document.getElementById('dossier-search');
@@ -233,11 +334,13 @@ const agentGraphSearchInput = document.getElementById('agent-graph-search');
 const agentGraphSuggestions = document.getElementById('agent-graph-suggestions');
 const agentGraphSelect = document.getElementById('agent-graph-entity');
 const agentGraphSummary = document.getElementById('agent-graph-summary');
+const agentGraphFullscreenBtn = document.getElementById('agent-graph-fullscreen');
 const dmGraphContainer = document.getElementById('dm-graph');
 const dmGraphSelect = document.getElementById('dm-graph-entity');
 const dmGraphSearchInput = document.getElementById('dm-graph-search');
 const dmGraphSuggestions = document.getElementById('dm-graph-suggestions');
 const dmGraphSummary = document.getElementById('dm-graph-summary');
+const dmGraphFullscreenBtn = document.getElementById('dm-graph-fullscreen');
 let dmGraphApi = null;
 let agentGraphApi = null;
 const entityForm = document.getElementById('entity-form');
@@ -443,6 +546,29 @@ function bindEvents() {
   poiCancelButton?.addEventListener('click', resetPoiForm);
   pickButton?.addEventListener('click', togglePickMode);
   entityTypeInput?.addEventListener('change', () => updateEntityFormMode(entityTypeInput.value));
+  agentPasswordToggle?.addEventListener('click', () => {
+    if (agentPasswordPanel?.classList.contains('hidden')) {
+      showAgentPasswordPanel();
+    } else {
+      hideAgentPasswordPanel();
+    }
+  });
+  agentPassSave?.addEventListener('click', handleAgentPasswordSave);
+  agentPassCancel?.addEventListener('click', hideAgentPasswordPanel);
+  agentSelect?.addEventListener('change', () => {
+    agentLoginStatus.textContent = '';
+    if (agentPassStatus) agentPassStatus.textContent = '';
+    updateAgentPasswordPanel();
+  });
+  bootDmChangeBtn?.addEventListener('click', () => {
+    if (bootDmPasswordPanel?.classList.contains('hidden')) {
+      showDmPasswordPanel();
+    } else {
+      hideDmPasswordPanel();
+    }
+  });
+  bootDmSaveBtn?.addEventListener('click', handleDmPasswordSave);
+  bootDmCancelBtn?.addEventListener('click', hideDmPasswordPanel);
   if (clearanceResetBtn) {
     clearanceResetBtn.addEventListener('click', () => performLogout());
   }
@@ -450,12 +576,14 @@ function bindEvents() {
   bootDmBtn.addEventListener('click', () => {
     bootMenu.classList.add('hidden');
     bootDmForm.classList.add('visible');
+    hideDmPasswordPanel();
     bootDmSecretInput.focus();
   });
   bootCancelBtn.addEventListener('click', () => {
     bootDmForm.classList.remove('visible');
     bootDmSecretInput.value = '';
     bootStatus.textContent = '';
+    hideDmPasswordPanel();
     bootMenu.classList.remove('hidden');
   });
   bootDmForm.addEventListener('submit', handleBootDmSubmit);
@@ -507,10 +635,22 @@ function bindEvents() {
   }
   journalSeasonInput?.addEventListener('change', loadJournalEntry);
   journalSessionInput?.addEventListener('change', loadJournalEntry);
-  agentJournalLoadBtn?.addEventListener('click', loadAgentJournal);
-  agentJournalSaveBtn?.addEventListener('click', handleAgentJournalSave);
+  agentJournalSaveBtn?.addEventListener('click', async () => {
+    if (!agentJournalPublicInput || !agentJournalSaveBtn) return;
+    if (!agentJournalPublicInput.isContentEditable) {
+      setAgentJournalEditing(true);
+      return;
+    }
+    const ok = await handleAgentJournalSave();
+    if (ok) {
+      setAgentJournalEditing(false);
+    }
+  });
+  const autoLoadAgentJournal = debounce(loadAgentJournal, 250);
   agentJournalSeasonInput?.addEventListener('change', loadAgentJournal);
   agentJournalSessionInput?.addEventListener('change', loadAgentJournal);
+  agentJournalSeasonInput?.addEventListener('input', autoLoadAgentJournal);
+  agentJournalSessionInput?.addEventListener('input', autoLoadAgentJournal);
   if (msgBoxInboxBtn) {
     msgBoxInboxBtn.addEventListener('click', () => {
       state.messageFilters.box = '';
@@ -554,16 +694,12 @@ function bindEvents() {
   }
 
   if (mobileMapTopbar) {
-    mobileMapTopbar.addEventListener('click', (event) => {
-      const tab = event.target.closest('.map-tab');
-      if (!tab) return;
-      mobileMapTopbar.querySelectorAll('.map-tab').forEach((btn) => btn.classList.remove('active'));
-      tab.classList.add('active');
-    });
+    mobileMapTopbar.remove();
   }
   dmGraphSelect?.addEventListener('change', () => {
     setDmGraphFocus(dmGraphSelect.value);
   });
+  dmGraphFullscreenBtn?.addEventListener('click', () => toggleGraphFullscreen(dmGraphContainer));
   if (dmGraphSearchInput) {
     dmGraphSearchInput.addEventListener('input', (e) => {
       renderDmGraphSearchResults(e.target.value);
@@ -586,6 +722,7 @@ function bindEvents() {
   agentGraphSelect?.addEventListener('change', () => {
     if (agentGraphSelect) setAgentGraphFocus(agentGraphSelect.value);
   });
+  agentGraphFullscreenBtn?.addEventListener('click', () => toggleGraphFullscreen(agentGraphContainer));
   if (agentGraphSearchInput) {
     agentGraphSearchInput.addEventListener('input', (e) => {
       renderAgentGraphSearchResults(e.target.value);
@@ -700,8 +837,16 @@ function bindEvents() {
     }
   });
   setupMultiSelect(entityPoisSelect, () => state.pois || [], 'poi');
-  setupMultiSelect(entityLinksSelect, () => (state.entities || []).filter((e) => e.type !== 'poi'), 'entity');
-  setupMultiSelect(poiEntityLinksSelect, () => (state.entities || []).filter((e) => e.type !== 'poi'), 'entity');
+  setupMultiSelect(
+    { ...entityLinksSelect, showRelationType: true, allowRelationEdit: true },
+    () => (state.entities || []).filter((e) => e.type !== 'poi'),
+    'entity'
+  );
+  setupMultiSelect(
+    { ...poiEntityLinksSelect, showRelationType: true, allowRelationEdit: true },
+    () => (state.entities || []).filter((e) => e.type !== 'poi'),
+    'entity'
+  );
   if (entityVisibilityInput) {
     entityVisibilityInput.addEventListener('change', toggleUnlockFields);
     toggleUnlockFields();
@@ -791,6 +936,32 @@ async function setupMap() {
 
   state.map.addControl(new mapboxgl.NavigationControl());
   state.map.addControl(new mapboxgl.FullscreenControl({ container: mapPanelEl || undefined }));
+  if (typeof MapboxGeocoder !== 'undefined') {
+    const geocoder = new MapboxGeocoder({
+      accessToken: mapboxgl.accessToken,
+      mapboxgl,
+      marker: false,
+      placeholder: 'Buscar PdI...',
+      localGeocoder: buildPoiGeocoderResults,
+      limit: 8,
+      filter: (feature) => Boolean(feature?.properties?.id)
+    });
+    state.mapGeocoder = geocoder;
+    geocoder.on('result', (event) => {
+      const id = event?.result?.properties?.id;
+      if (!id) return;
+      const poi = state.pois.find((item) => Number(item.id) === Number(id));
+      if (poi) setFocalPoi(poi);
+    });
+    if (mapFilters) {
+      state.map.addControl(geocoder, 'top-left');
+      const geocoderEl = geocoder.container || geocoder.onAdd(state.map);
+      geocoderEl.classList.add('map-geocoder');
+      mapFilters.appendChild(geocoderEl);
+    } else {
+      state.map.addControl(geocoder, 'top-left');
+    }
+  }
   // Remove hillshade layer if the style references a missing source layer to avoid console spam
   state.map.on('styledata', () => {
     try {
@@ -1329,19 +1500,26 @@ function renderPoiItem(poi, target) {
 function renderMapFilters(container) {
   const target = container || mapFilters;
   if (!target) return;
+  const existingGeocoder = target.querySelector('.map-geocoder');
   target.innerHTML = '';
+  const chipsWrap = document.createElement('div');
+  chipsWrap.className = 'map-filter-chips';
   const allBtn = document.createElement('button');
   allBtn.textContent = 'Todos';
   allBtn.className = 'filter-chip active';
   allBtn.dataset.category = '';
-  target.appendChild(allBtn);
+  chipsWrap.appendChild(allBtn);
   Object.entries(categoryLabels).forEach(([value, label]) => {
     const btn = document.createElement('button');
     btn.textContent = label;
     btn.className = 'filter-chip';
     btn.dataset.category = value;
-    target.appendChild(btn);
+    chipsWrap.appendChild(btn);
   });
+  target.appendChild(chipsWrap);
+  if (existingGeocoder) {
+    target.appendChild(existingGeocoder);
+  }
   target.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-category]');
     if (!btn) return;
@@ -1661,6 +1839,7 @@ function showBootScreen() {
   bootDmForm.classList.remove('visible');
   bootDmSecretInput.value = '';
   bootStatus.textContent = '';
+  hideDmPasswordPanel();
   bootMenu?.classList.remove('hidden');
   logDebug('Showing boot screen (change clearance)');
   startBootSequence();
@@ -1695,11 +1874,16 @@ async function handleBootDmSubmit(event) {
     const response = await fetch('/api/auth/dm', {
       method: 'POST',
       headers: {
-        'x-dm-secret': secret
-      }
+        'x-dm-secret': secret,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ password: secret })
     });
     if (!response.ok) {
-      if (response.status === 500) {
+      if (response.status === 409) {
+        bootStatus.textContent = 'Contraseña no configurada. Configúrala primero.';
+        showDmPasswordPanel();
+      } else if (response.status === 500) {
         const data = await response.json().catch(() => ({ error: 'Servidor mal configurado' }));
         bootStatus.textContent = data.error || 'Error del servidor.';
         logDebug('Error de autenticación de DJ: ' + (data.error || 'Error del servidor'));
@@ -2019,14 +2203,54 @@ async function handleMessageSubmit(event) {
   showMessage('Mensaje emitido.');
 }
 
+async function loadAuthBootstrap() {
+  try {
+    const response = await fetch('/api/auth/bootstrap');
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('bootstrap_not_found');
+      }
+      throw new Error('Fallo al cargar estado de autenticacion');
+    }
+    const data = await response.json();
+    state.authBootstrap.dmConfigured = !!data.dmConfigured;
+    state.authBootstrap.agents = (data.agents || []).reduce((acc, agent) => {
+      acc[agent.username] = { configured: !!agent.configured };
+      return acc;
+    }, {});
+    state.agents = data.agents || [];
+    populateAgentSelect();
+    updateAgentPasswordPanel();
+    updateDmPasswordPanel();
+    logDebug('Estado de autenticacion cargado.');
+  } catch (err) {
+    if (err.message === 'bootstrap_not_found') {
+      try {
+        const fallback = await fetch('/api/auth/agents');
+        if (fallback.ok) {
+          state.agents = await fallback.json();
+          state.authBootstrap.agents = state.agents.reduce((acc, agent) => {
+            acc[agent.username] = { configured: true };
+            return acc;
+          }, {});
+          populateAgentSelect();
+          updateAgentPasswordPanel();
+          updateDmPasswordPanel();
+          logDebug('Estado de autenticacion cargado via fallback.');
+          return;
+        }
+      } catch (fallbackErr) {
+        console.warn(fallbackErr);
+      }
+    }
+    console.warn(err);
+    logDebug(`Error en estado de autenticacion: ${err.message}`);
+  }
+}
+
 async function loadAgentList() {
   try {
-    const response = await fetch('/api/auth/agents');
-    if (!response.ok) {
-      throw new Error('Fallo al cargar la lista de agentes');
-    }
-    state.agents = await response.json();
-    populateAgentSelect();
+    await loadAuthBootstrap();
     logDebug(`Cargados ${state.agents.length} agentes.`);
   } catch (err) {
     console.warn(err);
@@ -2079,6 +2303,8 @@ function showAgentLogin() {
   agentLoginDiv.classList.add('visible');
   agentLoginStatus.textContent = '';
   agentPassInput.value = '';
+  hideAgentPasswordPanel();
+  updateAgentPasswordPanel();
   agentSelect?.focus();
 }
 
@@ -2086,6 +2312,28 @@ function hideAgentLogin() {
   agentLoginDiv.classList.remove('visible');
   agentLoginDiv.classList.add('hidden');
   bootMenu.classList.remove('hidden');
+  hideAgentPasswordPanel();
+}
+
+function isAgentConfigured(username) {
+  return !!state.authBootstrap.agents?.[username]?.configured;
+}
+
+function updateAgentPasswordPanel() {
+  if (!agentPasswordPanel || !agentPassCurrentWrap || !agentSelect) return;
+  const configured = isAgentConfigured(agentSelect.value);
+  agentPassCurrentWrap.classList.toggle('hidden', !configured);
+  if (!configured) {
+    agentPassCurrent.value = '';
+  }
+}
+
+function updateDmPasswordPanel() {
+  if (!bootDmPasswordPanel || !bootDmCurrentWrap) return;
+  bootDmCurrentWrap.classList.toggle('hidden', !state.authBootstrap.dmConfigured);
+  if (!state.authBootstrap.dmConfigured && bootDmCurrentInput) {
+    bootDmCurrentInput.value = '';
+  }
 }
 
 function showCommandMenu() {
@@ -2136,7 +2384,12 @@ async function handleAgentLogin() {
   });
 
   if (!response.ok) {
-    agentLoginStatus.textContent = 'Credenciales inválidas.';
+    if (response.status === 409) {
+      agentLoginStatus.textContent = 'Agente sin contraseña configurada.';
+      showAgentPasswordPanel();
+    } else {
+      agentLoginStatus.textContent = 'Credenciales inválidas.';
+    }
     logDebug('Fallo en el login del agente ' + username);
     return;
   }
@@ -2147,6 +2400,113 @@ async function handleAgentLogin() {
   hideAgentLogin();
   hideBootScreen();
   showMessage('Vista de agente de campo cargada.');
+}
+
+function resetAgentPasswordForm() {
+  if (agentPassCurrent) agentPassCurrent.value = '';
+  if (agentPassNew) agentPassNew.value = '';
+  if (agentPassConfirm) agentPassConfirm.value = '';
+  if (agentPassStatus) agentPassStatus.textContent = '';
+}
+
+function showAgentPasswordPanel() {
+  if (!agentPasswordPanel) return;
+  agentPasswordPanel.classList.remove('hidden');
+  updateAgentPasswordPanel();
+}
+
+function hideAgentPasswordPanel() {
+  if (!agentPasswordPanel) return;
+  agentPasswordPanel.classList.add('hidden');
+  resetAgentPasswordForm();
+}
+
+async function handleAgentPasswordSave() {
+  const username = agentSelect?.value;
+  const currentPassword = agentPassCurrent.value.trim();
+  const newPassword = agentPassNew.value.trim();
+  const confirm = agentPassConfirm.value.trim();
+  if (!username) {
+    agentPassStatus.textContent = 'Selecciona un agente.';
+    return;
+  }
+  if (!newPassword || newPassword.length < 6) {
+    agentPassStatus.textContent = 'La nueva contraseña debe tener al menos 6 caracteres.';
+    return;
+  }
+  if (newPassword !== confirm) {
+    agentPassStatus.textContent = 'Las contraseñas no coinciden.';
+    return;
+  }
+  const payload = { username, newPassword };
+  if (currentPassword) payload.currentPassword = currentPassword;
+  try {
+    const response = await fetch('/api/auth/agent/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      agentPassStatus.textContent = error.error || 'No se pudo guardar la contraseña.';
+      return;
+    }
+    agentPassStatus.textContent = 'Contraseña actualizada.';
+    await loadAuthBootstrap();
+  } catch (err) {
+    agentPassStatus.textContent = 'No se pudo guardar la contraseña.';
+  }
+}
+
+function resetDmPasswordForm() {
+  if (bootDmCurrentInput) bootDmCurrentInput.value = '';
+  if (bootDmNewInput) bootDmNewInput.value = '';
+  if (bootDmConfirmInput) bootDmConfirmInput.value = '';
+  if (bootDmPassStatus) bootDmPassStatus.textContent = '';
+}
+
+function showDmPasswordPanel() {
+  if (!bootDmPasswordPanel) return;
+  bootDmPasswordPanel.classList.remove('hidden');
+  updateDmPasswordPanel();
+}
+
+function hideDmPasswordPanel() {
+  if (!bootDmPasswordPanel) return;
+  bootDmPasswordPanel.classList.add('hidden');
+  resetDmPasswordForm();
+}
+
+async function handleDmPasswordSave() {
+  const currentPassword = bootDmCurrentInput?.value.trim();
+  const newPassword = bootDmNewInput?.value.trim();
+  const confirm = bootDmConfirmInput?.value.trim();
+  if (!newPassword || newPassword.length < 6) {
+    bootDmPassStatus.textContent = 'La nueva contraseña debe tener al menos 6 caracteres.';
+    return;
+  }
+  if (newPassword !== confirm) {
+    bootDmPassStatus.textContent = 'Las contraseñas no coinciden.';
+    return;
+  }
+  const payload = { newPassword };
+  if (currentPassword) payload.currentPassword = currentPassword;
+  try {
+    const response = await fetch('/api/auth/dm/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      bootDmPassStatus.textContent = error.error || 'No se pudo guardar la contraseña.';
+      return;
+    }
+    bootDmPassStatus.textContent = 'Contraseña actualizada.';
+    await loadAuthBootstrap();
+  } catch (err) {
+    bootDmPassStatus.textContent = 'No se pudo guardar la contraseña.';
+  }
 }
 
 function typeLine(text, token, speed = 30) {
@@ -2274,12 +2634,13 @@ async function loadEntities() {
   }
 }
 
-function filterEntities(filters = {}, options = {}) {
+function filterEntityList(list = [], filters = {}, options = {}) {
   const includeArchived = options.includeArchived || false;
+  const ignoreType = options.ignoreType || false;
   const query = (filters.q || '').toLowerCase().trim();
-  const base = state.entities.filter((entity) => {
+  const base = list.filter((entity) => {
     if (!includeArchived && entity.archived) return false;
-    if (filters.type && entity.type !== filters.type) return false;
+    if (!ignoreType && filters.type && entity.type !== filters.type) return false;
     if (filters.status && entity.status !== filters.status) return false;
     return true;
   });
@@ -2288,26 +2649,32 @@ function filterEntities(filters = {}, options = {}) {
   if (typeof Fuse === 'undefined') {
     // fallback simple match
     return base.filter((entity) => {
-      const target = `${entity.code_name || ''} ${entity.name || ''} ${entity.real_name || ''} ${entity.role || ''} ${entity.public_summary || ''}`.toLowerCase();
+      const target = `${entity.code_name || ''} ${entity.name || ''} ${entity.real_name || ''} ${entity.role || ''} ${entity.public_summary || ''} ${entity.public_note || ''} ${entity.category || ''} ${entity.sessions || ''}`.toLowerCase();
       return target.includes(query);
     });
   }
 
   const fuse = new Fuse(base, {
     keys: [
-      { name: 'code_name', weight: 0.3 },
-      { name: 'name', weight: 0.2 },
-      { name: 'real_name', weight: 0.1 },
+      { name: 'code_name', weight: 0.28 },
+      { name: 'name', weight: 0.22 },
+      { name: 'real_name', weight: 0.08 },
       { name: 'role', weight: 0.15 },
       { name: 'status', weight: 0.1 },
       { name: 'alignment', weight: 0.05 },
       { name: 'public_summary', weight: 0.05 },
-      { name: 'sessions', weight: 0.05 }
+      { name: 'public_note', weight: 0.05 },
+      { name: 'category', weight: 0.04 },
+      { name: 'sessions', weight: 0.03 }
     ],
     threshold: 0.34,
     ignoreLocation: true
   });
   return fuse.search(query).map((res) => res.item);
+}
+
+function filterEntities(filters = {}, options = {}) {
+  return filterEntityList(state.entities, filters, options);
 }
 
 function mapPoiToAdminItem(poi) {
@@ -2337,6 +2704,40 @@ function mapPoiToAdminItem(poi) {
     poi_id: poi.id,
     veil_status: poi.veil_status
   };
+}
+
+function mapPoiToAgentItem(poi) {
+  return {
+    kind: 'poi',
+    id: poi.id,
+    type: 'poi',
+    code_name: poi.name,
+    name: poi.name,
+    role: categoryLabels[poi.category] || poi.category,
+    status: poi.session_tag || '',
+    alignment: poi.veil_status,
+    veil_status: poi.veil_status,
+    threat_level: poi.threat_level,
+    image_url: poi.image_url,
+    sessions: poi.session_tag || '',
+    public_summary: poi.public_note || '',
+    public_note: poi.public_note || '',
+    category: poi.category,
+    latitude: poi.latitude,
+    longitude: poi.longitude,
+    visibility: poi.visibility || 'agent_public',
+    unlock_code: poi.unlock_code || '',
+    locked_hint: poi.locked_hint || ''
+  };
+}
+
+function buildAgentEntityPool() {
+  const base = state.entities.slice();
+  const hasPoi = base.some((entity) => (entity.type || entity.kind) === 'poi');
+  if (!hasPoi && Array.isArray(state.pois) && state.pois.length) {
+    return base.concat(state.pois.map(mapPoiToAgentItem));
+  }
+  return base;
 }
 
 function filterPoisForAdmin(filters = {}) {
@@ -2376,20 +2777,58 @@ function renderAgentDossiers() {
   const detailTarget = agentDossierDetail || dossierDetail;
   const canRenderLegacyDetail = !!detailTarget;
   if (!listTarget) return;
+  const isMobileDatabase = isMobileView() && state.mobileTab === 'database';
+  const filters = {
+    ...state.entityFiltersAgent,
+    type: isMobileDatabase ? '' : state.entityFiltersAgent.type
+  };
+  if (isMobileDatabase && state.entityFiltersAgent.type) {
+    state.entityFiltersAgent.type = '';
+  }
   highlightDossierType('agent', state.entityFiltersAgent.type);
-  const entities = filterEntities(state.entityFiltersAgent, { includeArchived: false });
+  const pool = isMobileDatabase ? buildAgentEntityPool() : state.entities;
+  const entities = filterEntityList(pool, filters, {
+    includeArchived: false,
+    ignoreType: isMobileDatabase
+  });
+  const hasQuery = (filters.q || '').trim().length > 0;
   listTarget.innerHTML = '';
-  if (!entities.length) {
-    const empty = document.createElement('div');
-    empty.className = 'dossier-empty';
-    empty.textContent = 'Sin entidades con estos filtros.';
-    listTarget.appendChild(empty);
-    if (detailTarget) detailTarget.textContent = 'Selecciona una entidad para ver su dossier.';
+  if (isMobileDatabase) {
+    listTarget.style.display = hasQuery ? 'grid' : 'none';
+  } else {
+    listTarget.style.display = '';
+  }
+  if (isMobileDatabase && !hasQuery) {
+    if (detailTarget) {
+      detailTarget.textContent = 'Busca una entidad o PdI para ver su dossier.';
+    }
     renderAgentEntityDetailCard(null);
     return;
   }
+  if (!entities.length) {
+    const empty = document.createElement('div');
+    empty.className = 'dossier-empty';
+    empty.textContent = isMobileDatabase
+      ? 'Usa el buscador para encontrar dossiers y PdI.'
+      : 'Sin entidades con estos filtros.';
+    listTarget.appendChild(empty);
+    if (detailTarget) {
+      detailTarget.textContent = isMobileDatabase
+        ? 'Busca una entidad o PdI para ver su dossier.'
+        : 'Selecciona una entidad para ver su dossier.';
+    }
+    if (!isMobileDatabase) {
+      renderAgentEntityDetailCard(null);
+    }
+    return;
+  }
 
-  if (!state.activeEntityAgent || !entities.find((e) => e.id === state.activeEntityAgent.id)) {
+  if (isMobileDatabase) {
+    if (state.activeEntityAgent && !entities.find((e) => e.id === state.activeEntityAgent.id)) {
+      state.activeEntityAgent = null;
+      setCookie('agent_active_entity', '');
+    }
+  } else if (!state.activeEntityAgent || !entities.find((e) => e.id === state.activeEntityAgent.id)) {
     state.activeEntityAgent = entities[0];
     setCookie('agent_active_entity', state.activeEntityAgent.id);
   }
@@ -2645,6 +3084,44 @@ function createGraphHelpers(overrides = {}) {
   };
 }
 
+// Fullscreen helpers keep a graph panel visible without re-rendering the layout; they toggle the DOM Fullscreen API.
+function getFullscreenElement() {
+  return (
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    document.mozFullScreenElement ||
+    document.msFullscreenElement ||
+    null
+  );
+}
+
+function requestFullscreen(container) {
+  if (!container) return;
+  if (container.requestFullscreen) return container.requestFullscreen();
+  if (container.webkitRequestFullscreen) return container.webkitRequestFullscreen();
+  if (container.mozRequestFullScreen) return container.mozRequestFullScreen();
+  if (container.msRequestFullscreen) return container.msRequestFullscreen();
+  return null;
+}
+
+function exitFullscreen() {
+  if (document.exitFullscreen) return document.exitFullscreen();
+  if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
+  if (document.mozCancelFullScreen) return document.mozCancelFullScreen();
+  if (document.msExitFullscreen) return document.msExitFullscreen();
+  return null;
+}
+
+function toggleGraphFullscreen(container) {
+  if (!container) return;
+  const activeElement = getFullscreenElement();
+  if (activeElement === container) {
+    exitFullscreen();
+    return;
+  }
+  requestFullscreen(container);
+}
+
 function ensureDmGraphApi() {
   if (dmGraphApi) return dmGraphApi;
   const helpers = createGraphHelpers({
@@ -2740,6 +3217,18 @@ function refreshDmGraphFuse() {
 }
 
 function setDmGraphFocus(id) {
+  if (id === DM_GRAPH_CAMPAIGN_VALUE) {
+    state.dmGraphScope = DM_GRAPH_SCOPE.CAMPAIGN;
+    state.dmGraphFocusId = null;
+    if (dmGraphSelect) {
+      dmGraphSelect.value = DM_GRAPH_CAMPAIGN_VALUE;
+    }
+    if (dmGraphSearchInput) {
+      dmGraphSearchInput.value = DM_GRAPH_CAMPAIGN_LABEL;
+    }
+    return renderDmCampaignGraph();
+  }
+  state.dmGraphScope = DM_GRAPH_SCOPE.ENTITY;
   const num = Number(id);
   state.dmGraphFocusId = Number.isNaN(num) ? null : num;
   if (dmGraphSelect) {
@@ -2756,6 +3245,7 @@ function clearDmGraphSuggestions() {
 
 function renderDmGraphSearchResults(query) {
   if (!dmGraphSuggestions || !dmGraphSearchInput) return;
+  if (state.dmGraphScope === DM_GRAPH_SCOPE.CAMPAIGN) return;
   dmGraphSuggestions.innerHTML = '';
   dmGraphSuggestions.classList.remove('visible');
   const pool = getDmGraphPool();
@@ -2785,10 +3275,14 @@ function renderDmGraphSearchResults(query) {
 function populateDmGraphOptions() {
   if (!dmGraphSelect) return;
   dmGraphSelect.innerHTML = '<option value="">Selecciona entidad</option>';
+  const campaignOpt = document.createElement('option');
+  campaignOpt.value = DM_GRAPH_CAMPAIGN_VALUE;
+  campaignOpt.textContent = DM_GRAPH_CAMPAIGN_LABEL;
+  dmGraphSelect.appendChild(campaignOpt);
   const pool = getDmGraphPool().sort((a, b) =>
     (a.code_name || a.name || '').localeCompare(b.code_name || b.name || '')
   );
-  if (!state.dmGraphFocusId && pool.length) {
+  if (state.dmGraphScope === DM_GRAPH_SCOPE.ENTITY && !state.dmGraphFocusId && pool.length) {
     state.dmGraphFocusId = pool[0].id;
   }
   pool.forEach((entity) => {
@@ -2797,14 +3291,24 @@ function populateDmGraphOptions() {
     opt.textContent = formatDmGraphLabel(entity);
     dmGraphSelect.appendChild(opt);
   });
+  refreshDmGraphFuse();
+  if (state.dmGraphScope === DM_GRAPH_SCOPE.CAMPAIGN) {
+    dmGraphSelect.value = DM_GRAPH_CAMPAIGN_VALUE;
+    if (dmGraphSearchInput) {
+      dmGraphSearchInput.value = DM_GRAPH_CAMPAIGN_LABEL;
+    }
+    return;
+  }
   if (state.dmGraphFocusId) {
     dmGraphSelect.value = String(state.dmGraphFocusId);
     if (dmGraphSearchInput) {
       const selected = pool.find((p) => p.id === state.dmGraphFocusId);
       dmGraphSearchInput.value = formatDmGraphLabel(selected);
     }
+  } else {
+    if (dmGraphSelect) dmGraphSelect.value = '';
+    if (dmGraphSearchInput) dmGraphSearchInput.value = '';
   }
-  refreshDmGraphFuse();
 }
 
 async function renderDmRelationsGraph() {
@@ -2813,7 +3317,11 @@ async function renderDmRelationsGraph() {
     dmGraphContainer.textContent = 'Activa el modo Sr. Verdad para ver relaciones.';
     return;
   }
+  if (state.dmGraphScope === DM_GRAPH_SCOPE.CAMPAIGN) {
+    return renderDmCampaignGraph();
+  }
   populateDmGraphOptions();
+  state.dmGraphScope = DM_GRAPH_SCOPE.ENTITY;
   const focusId = state.dmGraphFocusId || (state.entities.find((e) => e.type !== 'poi')?.id || null);
   if (!focusId) {
     dmGraphContainer.textContent = 'No hay entidades para graficar.';
@@ -2842,13 +3350,50 @@ async function renderDmRelationsGraph() {
   }
 }
 
+async function renderDmCampaignGraph() {
+  if (!dmGraphContainer) return;
+  if (!state.dmMode) {
+    dmGraphContainer.textContent = 'Activa el modo Sr. Verdad para ver relaciones.';
+    return;
+  }
+  state.dmGraphScope = DM_GRAPH_SCOPE.CAMPAIGN;
+  try {
+    const response = await fetch('/api/dm/graph/campaign');
+    if (response.status === 401) {
+      performLogout({ message: 'Sesión expirada. Vuelve a autenticarte.' });
+      return;
+    }
+    if (!response.ok) throw new Error('No se pudo cargar el grafo de campaña.');
+    const ctx = await response.json();
+    const nodes = ctx.graph?.nodes || [];
+    const candidate = nodes.find((node) => {
+      const data = node.data || node;
+      return data.entityId && data.type !== 'poi';
+    });
+    const focusId =
+      ctx.graphFocusId ||
+      candidate?.data?.graphId ||
+      candidate?.data?.id ||
+      (nodes[0]?.data?.graphId || nodes[0]?.data?.id || null);
+    await ensureDmGraphApi().update(ctx, { focusId, mode: 'dm', layout: state.dmGraphLayout });
+  } catch (err) {
+    logDebug(`Grafo campaña error: ${err.message}`);
+    console.error('Grafo campaña error', err);
+    dmGraphContainer.textContent = 'No se pudo dibujar el grafo de campaña.';
+  }
+}
+
 function populateAgentGraphOptions() {
   if (!agentGraphSelect) return;
   agentGraphSelect.innerHTML = '<option value="">Selecciona entidad</option>';
+  const campaignOpt = document.createElement('option');
+  campaignOpt.value = AGENT_GRAPH_CAMPAIGN_VALUE;
+  campaignOpt.textContent = AGENT_GRAPH_CAMPAIGN_LABEL;
+  agentGraphSelect.appendChild(campaignOpt);
   const pool = getAgentGraphPool().sort((a, b) =>
     (a.code_name || a.name || '').localeCompare(b.code_name || b.name || '')
   );
-  if (!state.agentGraphFocusId && pool.length) {
+  if (state.agentGraphScope === AGENT_GRAPH_SCOPE.ENTITY && !state.agentGraphFocusId && pool.length) {
     state.agentGraphFocusId = pool[0].id;
   }
   pool.forEach((entity) => {
@@ -2857,11 +3402,23 @@ function populateAgentGraphOptions() {
     opt.textContent = formatAgentGraphLabel(entity);
     agentGraphSelect.appendChild(opt);
   });
+  if (state.agentGraphScope === AGENT_GRAPH_SCOPE.CAMPAIGN) {
+    agentGraphSelect.value = AGENT_GRAPH_CAMPAIGN_VALUE;
+    if (agentGraphSearchInput) {
+      agentGraphSearchInput.value = AGENT_GRAPH_CAMPAIGN_LABEL;
+    }
+    return;
+  }
   if (state.agentGraphFocusId) {
     agentGraphSelect.value = String(state.agentGraphFocusId);
     if (agentGraphSearchInput) {
       const selected = pool.find((p) => p.id === state.agentGraphFocusId);
       agentGraphSearchInput.value = formatAgentGraphLabel(selected);
+    }
+  } else {
+    agentGraphSelect.value = '';
+    if (agentGraphSearchInput) {
+      agentGraphSearchInput.value = '';
     }
   }
   refreshAgentGraphFuse();
@@ -2888,6 +3445,7 @@ function clearAgentGraphSuggestions() {
 
 function renderAgentGraphSearchResults(query) {
   if (!agentGraphSuggestions) return;
+  if (state.agentGraphScope === AGENT_GRAPH_SCOPE.CAMPAIGN) return;
   agentGraphSuggestions.innerHTML = '';
   agentGraphSuggestions.classList.remove('visible');
   const pool = getAgentGraphPool();
@@ -2917,6 +3475,18 @@ function renderAgentGraphSearchResults(query) {
 }
 
 function setAgentGraphFocus(id) {
+  if (id === AGENT_GRAPH_CAMPAIGN_VALUE) {
+    state.agentGraphScope = AGENT_GRAPH_SCOPE.CAMPAIGN;
+    state.agentGraphFocusId = null;
+    if (agentGraphSelect) {
+      agentGraphSelect.value = AGENT_GRAPH_CAMPAIGN_VALUE;
+    }
+    if (agentGraphSearchInput) {
+      agentGraphSearchInput.value = AGENT_GRAPH_CAMPAIGN_LABEL;
+    }
+    return renderAgentCampaignGraph();
+  }
+  state.agentGraphScope = AGENT_GRAPH_SCOPE.ENTITY;
   const num = Number(id);
   state.agentGraphFocusId = Number.isNaN(num) ? null : num;
   if (agentGraphSelect) {
@@ -2931,6 +3501,10 @@ async function renderAgentRelationsGraph() {
     agentGraphContainer.textContent = 'Inicia sesión como agente para ver relaciones.';
     return;
   }
+  if (state.agentGraphScope === AGENT_GRAPH_SCOPE.CAMPAIGN) {
+    return renderAgentCampaignGraph();
+  }
+  state.agentGraphScope = AGENT_GRAPH_SCOPE.ENTITY;
   populateAgentGraphOptions();
   const focusId =
     state.agentGraphFocusId ||
@@ -2961,6 +3535,34 @@ async function renderAgentRelationsGraph() {
     console.error('Grafo de agente error', err);
     console.error(err.stack);
     agentGraphContainer.textContent = 'No se pudo dibujar el grafo.';
+  }
+}
+
+async function renderAgentCampaignGraph() {
+  if (!agentGraphContainer) return;
+  if (!state.agent) {
+    agentGraphContainer.textContent = 'Inicia sesión como agente para ver relaciones.';
+    return;
+  }
+  state.agentGraphScope = AGENT_GRAPH_SCOPE.CAMPAIGN;
+  try {
+    const response = await fetch('/api/agent/graph/campaign');
+    if (response.status === 401) {
+      handleUnauthorized();
+      return;
+    }
+    if (!response.ok) throw new Error('No se pudo cargar el grafo de campaña.');
+    const ctx = await response.json();
+    const focusId =
+      ctx.graphFocusId ||
+      ctx.graph?.nodes?.[0]?.data?.graphId ||
+      ctx.graph?.nodes?.[0]?.data?.id ||
+      null;
+    await ensureAgentGraphApi().update(ctx, { focusId, mode: 'agent', layout: state.agentGraphLayout });
+  } catch (err) {
+    logDebug(`Grafo campaña agente error: ${err.message}`);
+    console.error('Grafo campaña agente error', err);
+    agentGraphContainer.textContent = 'No se pudo dibujar el grafo de campaña para agentes.';
   }
 }
 
@@ -4029,14 +4631,12 @@ async function handleJournalSave() {
 
 function renderMissionCards() {
   if (missionBriefText) {
-    missionBriefText.textContent = state.missionNotes || 'Esperando directivas.';
+    missionBriefText.textContent = state.missionNotes || DEFAULT_MISSION_BRIEF;
   }
   if (journalPublicInput && journalPublicInput !== document.activeElement) {
     journalPublicInput.value = state.missionNotes;
   }
-  if (agentJournalPublicInput && agentJournalPublicInput !== document.activeElement) {
-    agentJournalPublicInput.value = state.missionNotes;
-  }
+  setAgentJournalText(state.missionNotes || DEFAULT_MISSION_BRIEF);
 }
 
 async function loadAgentJournal() {
@@ -4045,17 +4645,18 @@ async function loadAgentJournal() {
   const session = Number(agentJournalSessionInput?.value) || state.agentJournalSession || 0;
   state.agentJournalSeason = season;
   state.agentJournalSession = session;
+  if (agentJournalPublicInput?.isContentEditable) {
+    setAgentJournalEditing(false);
+  }
   try {
     const res = await fetch(`/api/agent/journal?season=${season}&session=${session}`);
     if (!res.ok) throw new Error('No se pudo cargar journal de agente');
     const data = await res.json();
     state.missionNotes = data.public_note || data.public_summary || '';
     if (missionBriefText) {
-      missionBriefText.textContent = state.missionNotes || 'Esperando directivas.';
+      missionBriefText.textContent = state.missionNotes || DEFAULT_MISSION_BRIEF;
     }
-    if (agentJournalPublicInput && agentJournalPublicInput !== document.activeElement) {
-      agentJournalPublicInput.value = state.missionNotes;
-    }
+    setAgentJournalText(state.missionNotes || DEFAULT_MISSION_BRIEF);
   } catch (err) {
     logDebug(`Journal agente load error: ${err.message}`);
     showMessage('No se pudo cargar el journal.', true);
@@ -4065,10 +4666,12 @@ async function loadAgentJournal() {
 async function handleAgentJournalSave() {
   if (!agentJournalSaveBtn) return;
   setSavingButton(agentJournalSaveBtn, true, 'Guardando…');
+  const draft = getAgentJournalText();
+  const noteText = draft === DEFAULT_MISSION_BRIEF ? '' : draft;
   const payload = {
     season: Number(agentJournalSeasonInput?.value) || state.agentJournalSeason || 2,
     session: Number(agentJournalSessionInput?.value) || state.agentJournalSession || 0,
-    public_note: agentJournalPublicInput?.value?.trim() || ''
+    public_note: noteText
   };
   try {
     const res = await fetch('/api/agent/journal', {
@@ -4083,11 +4686,14 @@ async function handleAgentJournalSave() {
     state.agentJournalSeason = payload.season;
     state.agentJournalSession = payload.session;
     state.missionNotes = payload.public_note;
-    if (missionBriefText) missionBriefText.textContent = state.missionNotes || 'Esperando directivas.';
+    if (missionBriefText) missionBriefText.textContent = state.missionNotes || DEFAULT_MISSION_BRIEF;
+    setAgentJournalText(state.missionNotes || DEFAULT_MISSION_BRIEF);
     showMessage('Journal de agente guardado.');
+    return true;
   } catch (err) {
     logDebug(`Journal agente save error: ${err.message}`);
     showMessage('No se pudo guardar el journal.', true);
+    return false;
   } finally {
     setSavingButton(agentJournalSaveBtn, false);
   }
@@ -4236,7 +4842,7 @@ function parseEntityLinksInput(value) {
 
 function parseMultiSelect(raw, kind = 'entity') {
   if (!raw) return [];
-  return raw
+  const parsed = raw
     .split(',')
     .map((v) => v.trim())
     .filter(Boolean)
@@ -4265,6 +4871,18 @@ function parseMultiSelect(raw, kind = 'entity') {
       };
     })
     .filter(Boolean);
+  if (kind === 'poi') {
+    const seen = new Map();
+    parsed.forEach((entry) => {
+      seen.set(entry.poi_id, entry);
+    });
+    return Array.from(seen.values());
+  }
+  const seen = new Map();
+  parsed.forEach((entry) => {
+    seen.set(entry.to_entity_id, entry);
+  });
+  return Array.from(seen.values());
 }
 
 function buildMultiTokens(items, kind = 'entity') {
@@ -4288,15 +4906,21 @@ function buildMultiTokens(items, kind = 'entity') {
     .filter(Boolean);
 }
 
-function getTokenLabel(item, kind = 'entity') {
+function getTokenLabel(item, kind = 'entity', options = {}) {
+  const showVisibility = options.showVisibility !== false;
+  const showRelationType = options.showRelationType === true;
   if (kind === 'poi') {
     const name = item.code_name || item.name || item.title || `PdI #${item.id || item.poi_id}`;
+    if (!showVisibility) return name;
     const vis = item.is_public === false ? 'solo DM' : 'agentes';
     return vis ? `${name} · ${vis}` : name;
   }
   const name = item.code_name || item.name || item.title || `Entidad #${item.id || item.to_entity_id}`;
+  const rel = item.relation_type ? String(item.relation_type).trim() : '';
+  const withRel = showRelationType && rel ? `${name} - ${rel}` : name;
+  if (!showVisibility) return withRel;
   const vis = item.is_public === false ? 'solo DM' : 'agentes';
-  return vis ? `${name} · ${vis}` : name;
+  return vis ? `${withRel} · ${vis}` : withRel;
 }
 
 function tokensFromHidden(hidden) {
@@ -4314,6 +4938,11 @@ function writeTokens(hidden, tokens) {
 function setupMultiSelect(config, dataFn, mode = 'entity') {
   if (!config || !config.input || !config.suggestions || !config.chips || !config.hidden) return;
   const { input, suggestions, chips, hidden } = config;
+  const allowVisibilityToggle = config.allowVisibilityToggle !== false;
+  const forcedVisibility = config.forceVisibility || '';
+  const showVisibilityLabel = config.showVisibilityLabel !== false;
+  const showRelationType = config.showRelationType === true;
+  const allowRelationEdit = config.allowRelationEdit !== false;
 
   function renderSuggestions(list) {
     suggestions.innerHTML = '';
@@ -4339,7 +4968,7 @@ function setupMultiSelect(config, dataFn, mode = 'entity') {
     const tokens = tokensFromHidden(hidden);
     const role = item.role_at_poi || '';
     const session = item.session_tag || item.session || '';
-    const visToken = item.is_public === false ? 'dm' : 'public';
+    const visToken = forcedVisibility || (item.is_public === false ? 'dm' : 'public');
     const token = mode === 'poi'
       ? `${item.id || item.poi_id}|${role}:${session}|${visToken}`
       : `${item.id || item.to_entity_id || item.target_id}|${item.relation_type || item.relation || ''}|${visToken}`;
@@ -4358,8 +4987,18 @@ function setupMultiSelect(config, dataFn, mode = 'entity') {
   function renderChips(tokens) {
     chips.innerHTML = '';
     const dataList = dataFn() || [];
-    tokens.forEach((token) => {
+    const normalizedTokens = forcedVisibility
+      ? tokens.map((token) => {
+        const [idPart, extraPart = ''] = token.split('|');
+        return `${idPart}|${extraPart}|${forcedVisibility}`;
+      })
+      : tokens;
+    if (forcedVisibility && normalizedTokens.join(',') !== tokens.join(',')) {
+      writeTokens(hidden, normalizedTokens);
+    }
+    normalizedTokens.forEach((token) => {
       const [id, extra, visibility = 'public'] = token.split('|');
+      const displayVisibility = forcedVisibility || visibility;
       const match = dataList.find((item) => String(item.id || item.poi_id || item.to_entity_id || item.target_id) === id);
       const roleParts = (extra || '').split(':');
       const label = match
@@ -4369,9 +5008,10 @@ function setupMultiSelect(config, dataFn, mode = 'entity') {
             relation_type: extra,
             role_at_poi: roleParts[0] || '',
             session_tag: roleParts[1] || match.session_tag,
-            is_public: visibility !== 'dm'
+            is_public: displayVisibility !== 'dm'
           },
-          mode
+          mode,
+          { showVisibility: showVisibilityLabel, showRelationType }
         )
         : token;
       const chip = document.createElement('span');
@@ -4380,16 +5020,33 @@ function setupMultiSelect(config, dataFn, mode = 'entity') {
       labelSpan.className = 'chip-label';
       labelSpan.textContent = label;
       chip.appendChild(labelSpan);
+      if (mode === 'entity' && allowRelationEdit) {
+        labelSpan.title = 'Editar relación';
+        labelSpan.style.cursor = 'pointer';
+        labelSpan.addEventListener('click', () => {
+          const current = extra || '';
+          const next = window.prompt('Tipo de relación', current);
+          if (next === null) return;
+          const trimmed = next.trim();
+          if (!trimmed) return;
+          const tokensCurrent = tokensFromHidden(hidden);
+          const newToken = `${id}|${trimmed}|${visibility}`;
+          const filtered = tokensCurrent.filter((t) => !t.startsWith(`${id}|`));
+          filtered.push(newToken);
+          writeTokens(hidden, filtered);
+          renderChips(filtered);
+        });
+      }
       const actions = document.createElement('div');
       actions.className = 'chip-actions';
-      if (mode === 'entity' || mode === 'poi') {
+      if ((mode === 'entity' || mode === 'poi') && allowVisibilityToggle && !forcedVisibility) {
         const toggle = document.createElement('button');
         toggle.type = 'button';
-        toggle.textContent = visibility === 'dm' ? 'DM' : 'AG';
-        toggle.title = visibility === 'dm' ? 'Solo DM' : 'Visible agentes';
+        toggle.textContent = displayVisibility === 'dm' ? 'DM' : 'AG';
+        toggle.title = displayVisibility === 'dm' ? 'Solo DM' : 'Visible agentes';
         toggle.addEventListener('click', () => {
           const tokensCurrent = tokensFromHidden(hidden);
-          const nextVis = visibility === 'dm' ? 'public' : 'dm';
+          const nextVis = displayVisibility === 'dm' ? 'public' : 'dm';
           const idx = tokensCurrent.indexOf(token);
           if (idx >= 0) {
             tokensCurrent.splice(idx, 1, `${id}|${extra}|${nextVis}`);
@@ -4979,6 +5636,128 @@ function updateAgentCreatureLayout(entity) {
   document.body.classList.toggle('agent-creature-view', !!isCreature);
 }
 
+function setAgentDossierPanel(panel, root) {
+  const target = panel || 'dossier';
+  state.agentDossierPanel = target;
+  if (!root) return;
+  root.querySelectorAll('[data-agent-dossier-tab]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.agentDossierTab === target);
+  });
+  root.querySelectorAll('[data-agent-dossier-panel]').forEach((pane) => {
+    pane.classList.toggle('active', pane.dataset.agentDossierPanel === target);
+  });
+}
+
+function bindAgentDossierTabs(root) {
+  if (!root) return;
+  root.querySelectorAll('[data-agent-dossier-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setAgentDossierPanel(btn.dataset.agentDossierTab, root);
+    });
+  });
+  setAgentDossierPanel(state.agentDossierPanel || 'dossier', root);
+}
+
+function initAgentNotesEditor(root, entity, ctx) {
+  if (!root) return;
+  const panel = root.querySelector('[data-agent-dossier-panel="notes"]');
+  if (!panel) return;
+  if (!entity || entity.visibility === 'locked' || entity.type === 'poi') return;
+
+  const notesInput = panel.querySelector('[data-agent-notes-input]');
+  const status = panel.querySelector('[data-agent-notes-status]');
+  const saveBtn = panel.querySelector('[data-agent-notes-save]');
+  const poisSearch = panel.querySelector('[data-agent-pois-search]');
+  const poisSuggestions = panel.querySelector('[data-agent-pois-suggestions]');
+  const poisChips = panel.querySelector('[data-agent-pois-chips]');
+  const poisHidden = panel.querySelector('[data-agent-pois-hidden]');
+  const linksSearch = panel.querySelector('[data-agent-links-search]');
+  const linksSuggestions = panel.querySelector('[data-agent-links-suggestions]');
+  const linksChips = panel.querySelector('[data-agent-links-chips]');
+  const linksHidden = panel.querySelector('[data-agent-links-hidden]');
+
+  if (notesInput) notesInput.value = entity.agent_notes || '';
+  const poiTokens = buildMultiTokens(ctx?.pois || [], 'poi');
+  const linkTokens = buildMultiTokens(ctx?.relations || [], 'entity');
+  if (poisHidden) poisHidden.value = poiTokens.join(',');
+  if (linksHidden) linksHidden.value = linkTokens.join(',');
+
+  const poiConfig = {
+    input: poisSearch,
+    suggestions: poisSuggestions,
+    chips: poisChips,
+    hidden: poisHidden,
+    allowVisibilityToggle: false,
+    forceVisibility: 'public',
+    showVisibilityLabel: false
+  };
+  const linkConfig = {
+    input: linksSearch,
+    suggestions: linksSuggestions,
+    chips: linksChips,
+    hidden: linksHidden,
+    allowVisibilityToggle: false,
+    forceVisibility: 'public',
+    showVisibilityLabel: false,
+    showRelationType: true,
+    allowRelationEdit: true
+  };
+
+  setupMultiSelect(
+    poiConfig,
+    () => (state.pois || []).filter((p) => p.visibility === 'agent_public'),
+    'poi'
+  );
+  setupMultiSelect(
+    linkConfig,
+    () => (state.entities || []).filter((e) => e.type !== 'poi' && e.visibility === 'agent_public'),
+    'entity'
+  );
+
+  if (poisHidden && poiConfig.renderChips) {
+    poiConfig.renderChips(tokensFromHidden(poisHidden));
+  }
+  if (linksHidden && linkConfig.renderChips) {
+    linkConfig.renderChips(tokensFromHidden(linksHidden));
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      if (!entity?.id) return;
+      if (status) status.textContent = '';
+      const payload = {
+        agent_notes: notesInput?.value.trim() || '',
+        poi_links: parseMultiSelect(poisHidden?.value, 'poi'),
+        relations: parseMultiSelect(linksHidden?.value, 'entity')
+      };
+      setSavingButton(saveBtn, true, 'Guardando…');
+      try {
+        const response = await fetch(`/api/agent/entities/${entity.id}/notes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (response.status === 401) {
+          performLogout({ message: 'Sesión expirada. Vuelve a autenticarte.' });
+          return;
+        }
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          if (status) status.textContent = error.error || 'No se pudo guardar.';
+          return;
+        }
+        if (status) status.textContent = 'Notas actualizadas.';
+        state.agentDossierPanel = 'notes';
+        await loadAgentContext(entity.id);
+      } catch (err) {
+        if (status) status.textContent = 'No se pudo guardar.';
+      } finally {
+        setSavingButton(saveBtn, false);
+      }
+    });
+  }
+}
+
 function renderAgentEntityDetailCard(entity, ctx = {}) {
   const panels = Array.from(document.querySelectorAll('.agent-entities-top'));
   if (!panels.length) return;
@@ -5033,12 +5812,26 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
     if (!detail || !hero) return;
 
     if (!hasEntity) {
-      detail.innerHTML =
-        '<div class="card-title">Detalle de entidad</div><div class="muted">Selecciona un dossier en la lista para ver sus notas.</div>';
+      detail.innerHTML = `
+        <div class="card-title">Detalle de entidad</div>
+        <div class="agent-dossier-tabs">
+          <button type="button" class="agent-dossier-tab active" data-agent-dossier-tab="dossier">Dossier</button>
+          <button type="button" class="agent-dossier-tab" data-agent-dossier-tab="notes">Notas agentes</button>
+        </div>
+        <div class="agent-dossier-panels">
+          <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
+            <div class="muted">Selecciona un dossier en la lista para ver sus notas.</div>
+          </div>
+          <div class="agent-dossier-panel" data-agent-dossier-panel="notes">
+            <div class="agent-notes-empty">Selecciona una entidad para ver notas de agente.</div>
+          </div>
+        </div>
+      `;
       hero.classList.remove('map-only', 'hidden');
       hero.innerHTML = '<div class="dm-entity-hero-body muted">Sin imagen disponible.</div>';
       if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
       renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+      bindAgentDossierTabs(detail);
       return;
     }
 
@@ -5046,13 +5839,24 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
       if (locked) {
         detail.innerHTML = `
           <div class="card-title">PdI</div>
-          <div class="dossier-detail locked">
-            <div class="locked-placeholder small">LOCKED</div>
-            <div class="dossier-title">${callsign || 'PdI bloqueado'}</div>
-            <p class="muted">PROTOCOLO OV-RESTRINGIDO // Membrana clasificada. Credenciales de campo requeridas.</p>
-            <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
+          <div class="agent-dossier-tabs">
+            <button type="button" class="agent-dossier-tab active" data-agent-dossier-tab="dossier">Dossier</button>
+            <button type="button" class="agent-dossier-tab" data-agent-dossier-tab="notes">Notas agentes</button>
+          </div>
+          <div class="agent-dossier-panels">
+            <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
+              <div class="dossier-detail locked">
+                <div class="locked-placeholder small">LOCKED</div>
+                <div class="dossier-title">${callsign || 'PdI bloqueado'}</div>
+                <p class="muted">PROTOCOLO OV-RESTRINGIDO // Membrana clasificada. Credenciales de campo requeridas.</p>
+                <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
           entity.locked_hint || ''
         )}">Desbloquear</button>
+              </div>
+            </div>
+            <div class="agent-dossier-panel" data-agent-dossier-panel="notes">
+              <div class="agent-notes-empty">Notas de agente no disponibles para PdI bloqueado.</div>
+            </div>
           </div>
         `;
         hero.classList.remove('map-only');
@@ -5069,41 +5873,64 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
         `;
         if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
         renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+        bindAgentDossierTabs(detail);
         return;
       }
       detail.innerHTML = `
         <div class="card-title">PdI</div>
-        <div class="dm-detail-grid">
-          <div class="dm-detail-box wide">
-            <div class="dm-detail-label">Callsign</div>
-            <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
-            <div class="dm-detail-label">Categoría</div>
-            <div class="dm-detail-value">${categoryLabel}</div>
-          </div>
-          <div class="dm-detail-box medium">
-            <div class="dm-detail-label">Amenaza</div>
-            <div class="dm-detail-value">${threat}</div>
-            <div class="dm-detail-label">Velo</div>
-            <div class="dm-detail-value">${sanitize(formatVeilLabel(entity.veil_status || entity.alignment || '—'))}</div>
-            ${sessionTag ? `<div class="dm-detail-label">Sesión</div><div class="dm-detail-value">${sessionTag}</div>` : ''}
-          </div>
-        <div class="dm-detail-box scroll full">
-          <div class="dm-detail-label">Resumen público</div>
-          <div class="dm-detail-value multiline">${summary}</div>
+        <div class="agent-dossier-tabs">
+          <button type="button" class="agent-dossier-tab active" data-agent-dossier-tab="dossier">Dossier</button>
+          <button type="button" class="agent-dossier-tab" data-agent-dossier-tab="notes">Notas agentes</button>
         </div>
-      </div>
+        <div class="agent-dossier-panels">
+          <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
+            <div class="dm-detail-grid">
+              <div class="dm-detail-box wide">
+                <div class="dm-detail-label">Callsign</div>
+                <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
+                <div class="dm-detail-label">Categoría</div>
+                <div class="dm-detail-value">${categoryLabel}</div>
+              </div>
+              <div class="dm-detail-box medium">
+                <div class="dm-detail-label">Amenaza</div>
+                <div class="dm-detail-value">${threat}</div>
+                <div class="dm-detail-label">Velo</div>
+                <div class="dm-detail-value">${sanitize(formatVeilLabel(entity.veil_status || entity.alignment || '—'))}</div>
+                ${sessionTag ? `<div class="dm-detail-label">Sesión</div><div class="dm-detail-value">${sessionTag}</div>` : ''}
+              </div>
+              <div class="dm-detail-box scroll full">
+                <div class="dm-detail-label">Resumen público</div>
+                <div class="dm-detail-value multiline">${summary}</div>
+              </div>
+            </div>
+          </div>
+          <div class="agent-dossier-panel" data-agent-dossier-panel="notes">
+            <div class="agent-notes-empty">Notas de agente no disponibles para PdI.</div>
+          </div>
+        </div>
       `;
     } else {
       if (locked) {
         detail.innerHTML = `
           <div class="card-title">Dossier</div>
-          <div class="dossier-detail locked">
-            <div class="locked-placeholder small">LOCKED</div>
-            <div class="dossier-title">${callsign || 'Entidad bloqueada'}</div>
-            <p class="muted">DOSSIER SELLADO // Nivel Ordo Veritatis: Restringido. Credenciales de campo requeridas.</p>
-            <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
+          <div class="agent-dossier-tabs">
+            <button type="button" class="agent-dossier-tab active" data-agent-dossier-tab="dossier">Dossier</button>
+            <button type="button" class="agent-dossier-tab" data-agent-dossier-tab="notes">Notas agentes</button>
+          </div>
+          <div class="agent-dossier-panels">
+            <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
+              <div class="dossier-detail locked">
+                <div class="locked-placeholder small">LOCKED</div>
+                <div class="dossier-title">${callsign || 'Entidad bloqueada'}</div>
+                <p class="muted">DOSSIER SELLADO // Nivel Ordo Veritatis: Restringido. Credenciales de campo requeridas.</p>
+                <button type="button" class="ghost" data-unlock-target="${entity.id}" data-unlock-hint="${sanitize(
           entity.locked_hint || ''
         )}">Desbloquear</button>
+              </div>
+            </div>
+            <div class="agent-dossier-panel" data-agent-dossier-panel="notes">
+              <div class="agent-notes-empty">Notas de agente no disponibles para dossiers bloqueados.</div>
+            </div>
           </div>
         `;
         hero.classList.remove('map-only');
@@ -5121,31 +5948,70 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
         `;
         if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
         renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+        bindAgentDossierTabs(detail);
         return;
       }
       detail.innerHTML = `
         <div class="card-title">Dossier</div>
-        <div class="dm-detail-grid">
-          <div class="dm-detail-box wide">
-            <div class="dm-detail-label">Callsign</div>
-            <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
-            <div class="dm-detail-label">Rol / función</div>
-            <div class="dm-detail-value">${role}</div>
-          </div>
-          <div class="dm-detail-box medium">
-            <div class="dm-detail-label">Estado</div>
-            <div class="dm-detail-value">${status}</div>
-            <div class="dm-detail-label">Alineación</div>
-            <div class="dm-detail-value">${alignment}</div>
-            <div class="dm-detail-label">Amenaza</div>
-            <div class="dm-detail-value">${threat}</div>
-            <div class="dm-detail-badges">${badgeRow}</div>
-          </div>
-        <div class="dm-detail-box scroll full">
-          <div class="dm-detail-label">Resumen público</div>
-          <div class="dm-detail-value multiline">${summary}</div>
+        <div class="agent-dossier-tabs">
+          <button type="button" class="agent-dossier-tab active" data-agent-dossier-tab="dossier">Dossier</button>
+          <button type="button" class="agent-dossier-tab" data-agent-dossier-tab="notes">Notas agentes</button>
         </div>
-      </div>
+        <div class="agent-dossier-panels">
+          <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
+            <div class="dm-detail-grid">
+              <div class="dm-detail-box wide">
+                <div class="dm-detail-label">Callsign</div>
+                <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
+                <div class="dm-detail-label">Rol / función</div>
+                <div class="dm-detail-value">${role}</div>
+              </div>
+              <div class="dm-detail-box medium">
+                <div class="dm-detail-label">Estado</div>
+                <div class="dm-detail-value">${status}</div>
+                <div class="dm-detail-label">Alineación</div>
+                <div class="dm-detail-value">${alignment}</div>
+                <div class="dm-detail-label">Amenaza</div>
+                <div class="dm-detail-value">${threat}</div>
+                <div class="dm-detail-badges">${badgeRow}</div>
+              </div>
+              <div class="dm-detail-box scroll full">
+                <div class="dm-detail-label">Resumen público</div>
+                <div class="dm-detail-value multiline">${summary}</div>
+              </div>
+            </div>
+          </div>
+          <div class="agent-dossier-panel" data-agent-dossier-panel="notes">
+            <div class="agent-notes-form" data-agent-notes-entity="${sanitize(String(entity.id))}">
+              <div>
+                <div class="section-title">Notas agentes</div>
+                <textarea rows="6" placeholder="Escribe observaciones de campo..." data-agent-notes-input></textarea>
+              </div>
+              <div>
+                <div class="section-title">PdIs vinculados</div>
+                <div class="multi-select">
+                  <input type="search" placeholder="Buscar PdI..." autocomplete="off" data-agent-pois-search />
+                  <div class="multi-suggestions" data-agent-pois-suggestions></div>
+                  <div class="multi-chips" data-agent-pois-chips></div>
+                </div>
+                <input type="hidden" data-agent-pois-hidden />
+              </div>
+              <div>
+                <div class="section-title">Conexiones</div>
+                <div class="multi-select">
+                  <input type="search" placeholder="Buscar PJ/PNJ/Org..." autocomplete="off" data-agent-links-search />
+                  <div class="multi-suggestions" data-agent-links-suggestions></div>
+                  <div class="multi-chips" data-agent-links-chips></div>
+                </div>
+                <input type="hidden" data-agent-links-hidden />
+              </div>
+              <div class="agent-notes-actions">
+                <button type="button" class="ghost" data-agent-notes-save>Guardar</button>
+              </div>
+              <p class="muted" data-agent-notes-status></p>
+            </div>
+          </div>
+        </div>
       `;
     }
 
@@ -5178,6 +6044,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
     }
       if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
       renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+      bindAgentDossierTabs(detail);
       return;
     }
 
@@ -5190,6 +6057,8 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
         bestiaryRoot.classList.add('bestiary-promoted');
       }
       renderBestiary(entity, { variant: 'agent', root: bestiaryRoot });
+      bindAgentDossierTabs(detail);
+      initAgentNotesEditor(detail, entity, ctx);
       return;
     }
 
@@ -5211,6 +6080,8 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
     `;
     if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
     renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
+    bindAgentDossierTabs(detail);
+    initAgentNotesEditor(detail, entity, ctx);
   });
 
   state.lastAgentGraphic = {

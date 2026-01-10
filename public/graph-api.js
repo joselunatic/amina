@@ -183,6 +183,12 @@ export class GraphAPI {
     this.doubleClickWindow = 450;
     this.doubleClickCandidate = null;
     this.lastDoubleClick = { nodeId: null, time: 0 };
+    this.hoverCard = null;
+    if (this.container && typeof this.container.style !== 'undefined') {
+      if (!this.container.style.position || this.container.style.position === 'static') {
+        this.container.style.position = 'relative';
+      }
+    }
   }
 
   on(event, handler) {
@@ -222,7 +228,8 @@ export class GraphAPI {
   rebuildElements(ctx, options = {}) {
     const elements = { nodes: [], edges: [] };
     if (!ctx || !ctx.entity) return { ...elements, focusId: null };
-    const focusId = `e-${ctx.entity.id}`;
+    const fallbackFocusId = ctx.entity ? `e-${ctx.entity.id}` : null;
+    const focusId = fallbackFocusId;
     const seen = new Set();
     const pushNode = (data) => {
       if (seen.has(data.id)) return;
@@ -232,18 +239,51 @@ export class GraphAPI {
     const createNodePayload = (info) => {
       const fallbackId = info.id ?? info.entityId ?? info.poi_id ?? 'unknown';
       const nodeId = info.graphId || `e-${fallbackId}`;
+      const summaryText =
+        info.public_summary ||
+        info.publicSummary ||
+        info.summary ||
+        info.public_note ||
+        info.note ||
+        info.dm_notes ||
+        '';
       return {
         id: nodeId,
         label: info.code_name || info.name || `Entidad ${fallbackId}`,
         type: info.type || info.to_type || info.from_type || 'npc',
         entityId: info.entityId ?? fallbackId,
         threat: info.threat_level || info.threat,
-        role: info.role || info.to_role || info.from_role || '',
-        visibility: info.visibility || info.to_visibility || info.from_visibility || 'agent_public',
-        image_url: info.image_url || info.to_image_url || info.from_image_url || '',
-        session: info.first_session || info.sessions || info.session || ''
+      role: info.role || info.to_role || info.from_role || '',
+      visibility: info.visibility || info.to_visibility || info.from_visibility || 'agent_public',
+      image_url: info.image_url || info.to_image_url || info.from_image_url || '',
+      session: info.first_session || info.sessions || info.session || '',
+      publicSummary: summaryText.trim()
       };
     };
+
+    const graphNodes = ctx.graph?.nodes || [];
+    const graphEdges = ctx.graph?.edges || [];
+    const graphFocusId = ctx.graphFocusId || null;
+    if (graphNodes.length) {
+      graphNodes.forEach((node) => pushNode(createNodePayload(node.data || node)));
+      graphEdges.forEach((edge, idx) => {
+        const edgeData = edge.data || edge;
+        if (!edgeData.source || !edgeData.target) return;
+        elements.edges.push({
+          data: {
+            id: edgeData.id || `graph-edge-${idx}`,
+            source: edgeData.source,
+            target: edgeData.target,
+            relation: edgeData.relation || edgeData.label || 'vínculo',
+            strength: edgeData.strength || 1,
+            linkType: edgeData.linkType || 'entity',
+            is_public: edgeData.is_public !== undefined ? edgeData.is_public : 1
+          }
+        });
+      });
+      const computedFocusId = options.focusId || graphFocusId || fallbackFocusId;
+      return { ...elements, focusId: computedFocusId };
+    }
 
     pushNode(createNodePayload(ctx.entity));
     const mode = options.mode || this.mode;
@@ -261,6 +301,9 @@ export class GraphAPI {
         visibility: rel.to_visibility,
         session: rel.session_tag || null
       };
+      if (rel.to_public_summary || rel.to_public_note) {
+        nodeInfo.public_summary = rel.to_public_summary || rel.to_public_note;
+      }
       pushNode(createNodePayload(nodeInfo));
       elements.edges.push({
         data: {
@@ -289,6 +332,9 @@ export class GraphAPI {
         visibility: link.visibility,
         session: link.session_tag || link.poi_session || ''
       };
+      if (link.public_note) {
+        poiNodeData.public_summary = link.public_note;
+      }
       pushNode(createNodePayload(poiNodeData));
       elements.edges.push({
         data: {
@@ -345,6 +391,57 @@ export class GraphAPI {
       this.cy.fit?.(undefined, 20);
     });
     this.resizeObserver.observe(this.container);
+  }
+
+  ensureHoverCard() {
+    if (this.hoverCard) return this.hoverCard;
+    if (!this.container) return null;
+    const card = this.helpers.createElement('div');
+    card.classList = card.classList || createClassList();
+    card.classList.add('graph-hover-card');
+    card.style = card.style || {};
+    card.style.pointerEvents = 'none';
+    this.container.appendChild(card);
+    this.hoverCard = card;
+    return card;
+  }
+
+  hideHoverCard() {
+    if (!this.hoverCard) return;
+    this.hoverCard.classList?.remove('visible');
+  }
+
+  showHoverCard(node) {
+    if (!node || !this.container) {
+      this.hideHoverCard();
+      return;
+    }
+    const summaryRaw = node.data('publicSummary') || '';
+    if (!summaryRaw) {
+      this.hideHoverCard();
+      return;
+    }
+    const card = this.ensureHoverCard();
+    if (!card) return;
+    const sanitize = this.helpers.sanitize;
+    const label = sanitize(node.data('label') || node.data('code_name') || 'Entidad');
+    const snippet = summaryRaw.trim().length > 220 ? `${summaryRaw.trim().slice(0, 220)}…` : summaryRaw.trim();
+    card.innerHTML = `
+      <div class="graph-hover-card-label">${label}</div>
+      <p class="graph-hover-card-text">${sanitize(snippet)}</p>
+    `;
+    const pos = node.renderedPosition();
+    if (!pos) {
+      this.hideHoverCard();
+      return;
+    }
+    const width = this.container.clientWidth || 0;
+    const height = this.container.clientHeight || 0;
+    const clampX = Math.min(Math.max(pos.x, 32), width - 32);
+    const clampY = Math.min(Math.max(pos.y, 40), height - 40);
+    card.style.left = `${clampX}px`;
+    card.style.top = `${clampY}px`;
+    card.classList?.add('visible');
   }
 
   getLayoutOptions(layoutName, focusId) {
@@ -426,10 +523,21 @@ export class GraphAPI {
       'graph-summary--restricted',
       mode === 'agent' && visibilityRaw && visibilityRaw !== 'agent_public'
     );
-    const panelDataset = panel.dataset || {};
-    panelDataset.nodeVisibility = visibilityRaw;
-    panelDataset.graphMode = mode;
-    panelDataset.lastHover = '';
+    const updateDataAttribute = (name, value) => {
+      if (!panel) return;
+      const stringValue = value == null ? '' : String(value);
+      if (typeof panel.setAttribute === 'function') {
+        panel.setAttribute(name, stringValue);
+        return;
+      }
+      if (panel.dataset) {
+        const key = name.replace(/^data-/, '').replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+        panel.dataset[key] = stringValue;
+      }
+    };
+    updateDataAttribute('data-node-visibility', visibilityRaw);
+    updateDataAttribute('data-graph-mode', mode);
+    updateDataAttribute('data-last-hover', '');
     const whisper = panel.querySelector('.graph-summary-whisper');
     if (whisper) {
       whisper.textContent = `Intel preparado para ${label}`;
@@ -489,6 +597,7 @@ export class GraphAPI {
   setupInteractions(mode) {
     if (!this.cy) return;
     this.clearPendingDoubleClick();
+    this.hideHoverCard();
     const cy = this.cy;
     cy.off?.('tap', 'node');
     cy.off?.('click', 'node');
@@ -505,6 +614,7 @@ export class GraphAPI {
       this.updateSummary(node.data(), mode);
       const label = node.data('label') || 'Entidad';
       this.invokeHandlers('tap', { event, node, label, data: node.data() });
+      this.queueDoubleClick(node, event, mode);
     });
     cy.on?.('click', 'node', (event) => {
       this.queueDoubleClick(event.target, event, mode);
@@ -524,13 +634,16 @@ export class GraphAPI {
       this.invokeHandlers('cxttap', { event, node, data: node.data() });
     });
     cy.on?.('mouseover', 'node', (event) => {
-      event.target.addClass('hovered');
-      const label = event.target.data('label') || 'Entidad';
-      this.invokeHandlers('mouseover', { event, label, data: event.target.data() });
+      const node = event.target;
+      node.addClass('hovered');
+      const label = node.data('label') || 'Entidad';
+      this.invokeHandlers('mouseover', { event, label, data: node.data() });
+      this.showHoverCard(node);
     });
     cy.on?.('mouseout', 'node', (event) => {
       event.target.removeClass('hovered');
       this.invokeHandlers('mouseout', { event, data: event.target.data() });
+      this.hideHoverCard();
     });
     cy.on?.('dblclick', 'node', (event) => {
       const node = event.target;
@@ -587,6 +700,11 @@ export class GraphAPI {
   resetContainer() {
     if (!this.container) return;
     this.clearPendingDoubleClick();
+    if (this.hoverCard) {
+      this.hideHoverCard();
+      this.hoverCard.remove();
+      this.hoverCard = null;
+    }
     if (typeof this.container.innerHTML !== 'undefined') {
       this.container.innerHTML = '';
     } else {

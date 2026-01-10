@@ -7,6 +7,10 @@
   <title>AMINA // Análisis de Misiones e Investigación de Nuevas Amenazas</title>
   <link rel="icon" href="favicon.ico" />
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <link
+    href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="styles.css" />
 </head>
 
@@ -35,6 +39,22 @@
             <label for="agent-pass">Contraseña de Agente</label>
             <input type="password" id="agent-pass" autocomplete="off" />
             <button type="button" id="agent-login-button">Autorizar</button>
+            <button type="button" id="agent-password-toggle" class="ghost small">Configurar contraseña</button>
+            <div id="agent-password-panel" class="agent-password-panel hidden">
+              <div id="agent-pass-current-wrap">
+                <label for="agent-pass-current">Contraseña actual</label>
+                <input type="password" id="agent-pass-current" autocomplete="off" />
+              </div>
+              <label for="agent-pass-new">Nueva contraseña</label>
+              <input type="password" id="agent-pass-new" autocomplete="off" />
+              <label for="agent-pass-confirm">Confirmar contraseña</label>
+              <input type="password" id="agent-pass-confirm" autocomplete="off" />
+              <div class="boot-actions">
+                <button type="button" id="agent-pass-save">Guardar</button>
+                <button type="button" id="agent-pass-cancel">Cancelar</button>
+              </div>
+              <p id="agent-pass-status" class="boot-status"></p>
+            </div>
             <p id="agent-login-status" class="boot-status"></p>
           </div>
           <div id="command-menu" class="command-menu hidden text-left">
@@ -54,6 +74,22 @@
             <div class="boot-actions">
               <button type="submit">ACCEDER</button>
               <button type="button" id="boot-cancel">CANCELAR</button>
+            </div>
+            <button type="button" id="boot-dm-change" class="ghost small">Configurar contraseña</button>
+            <div id="boot-dm-password-panel" class="boot-dm-password hidden">
+              <div id="boot-dm-current-wrap">
+                <label for="boot-dm-current">Contraseña actual</label>
+                <input type="password" id="boot-dm-current" autocomplete="off" />
+              </div>
+              <label for="boot-dm-new">Nueva contraseña</label>
+              <input type="password" id="boot-dm-new" autocomplete="off" />
+              <label for="boot-dm-confirm">Confirmar contraseña</label>
+              <input type="password" id="boot-dm-confirm" autocomplete="off" />
+              <div class="boot-actions">
+                <button type="button" id="boot-dm-save">Guardar</button>
+                <button type="button" id="boot-dm-cancel">Cancelar</button>
+              </div>
+              <p id="boot-dm-pass-status" class="boot-status"></p>
             </div>
             <p id="boot-status" class="boot-status"></p>
           </form>
@@ -87,7 +123,16 @@
           </div>
         </div>
         <button id="logout-button" class="logout-button" aria-label="Cambiar el modo de sesión">
-          ⏻
+          <svg class="power-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path
+              d="M12 3v8m5.657-5.657a8 8 0 1 1-11.314 0"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
         </button>
       </div>
     </header>
@@ -98,11 +143,6 @@
             <div class="view-left">
               <div class="map-shell">
                 <section class="map-panel" id="map-panel">
-                  <div class="mobile-map-topbar" id="mobile-map-topbar">
-                    <button type="button" class="map-tab active" data-map-feed="feed">FEED</button>
-                    <button type="button" class="map-tab" data-map-feed="global">GLOBAL</button>
-                    <button type="button" class="map-tab" data-map-feed="auto">AUTOMATED DATA</button>
-                  </div>
                   <div id="map"></div>
                   <div class="map-style-switch">
                     <button type="button" data-style="config-default" class="ghost small">Base</button>
@@ -170,15 +210,26 @@
                 <div class="dm-entities-top agent-entities-top">
                   <div class="console-card dm-entity-detail-card" id="agent-entity-detail-card">
                     <div class="card-title">Detalle de entidad</div>
-                    <div class="dm-entity-detail-body">
-                      <div class="dm-entity-detail-grid">
-                        <div class="dm-entity-map-container">
-                          <div id="agent-entity-detail-map" class="dm-entities-map" aria-label="Mapa de entidad"></div>
+                    <div class="agent-dossier-tabs">
+                      <button type="button" class="agent-dossier-tab active" data-agent-dossier-tab="dossier">Dossier</button>
+                      <button type="button" class="agent-dossier-tab" data-agent-dossier-tab="notes">Notas agentes</button>
+                    </div>
+                    <div class="agent-dossier-panels">
+                      <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
+                        <div class="dm-entity-detail-body">
+                          <div class="dm-entity-detail-grid">
+                            <div class="dm-entity-map-container">
+                              <div id="agent-entity-detail-map" class="dm-entities-map" aria-label="Mapa de entidad"></div>
+                            </div>
+                            <div class="dm-entity-detail-pane">
+                              <div class="dm-detail-badge-row"></div>
+                              <div class="dossier-detail" id="dossier-detail">Selecciona una entidad para ver su dossier.</div>
+                            </div>
+                          </div>
                         </div>
-                        <div class="dm-entity-detail-pane">
-                          <div class="dm-detail-badge-row"></div>
-                          <div class="dossier-detail" id="dossier-detail">Selecciona una entidad para ver su dossier.</div>
-                        </div>
+                      </div>
+                      <div class="agent-dossier-panel" data-agent-dossier-panel="notes">
+                        <div class="agent-notes-empty">Selecciona una entidad para ver notas de agente.</div>
                       </div>
                     </div>
                   </div>
@@ -273,17 +324,18 @@
                             <label for="agent-journal-session">Sesión</label>
                             <input type="number" id="agent-journal-session" min="0" max="99" value="0" />
                           </div>
-                          <div class="flex-col equal">
-                            <label>&nbsp;</label>
-                            <button type="button" id="agent-journal-load" class="ghost small">Cargar</button>
-                          </div>
                         </div>
                       </div>
-                      <div id="mission-brief-text">Esperando directivas.</div>
                       <label for="agent-journal-public">Notas de misión (agente)</label>
-                      <textarea id="agent-journal-public" rows="4" placeholder="Notas visibles para agentes"></textarea>
+                      <div
+                        id="agent-journal-public"
+                        class="mission-notes"
+                        role="textbox"
+                        aria-multiline="true"
+                        contenteditable="false"
+                      >Esperando directivas.</div>
                       <div class="form-actions">
-                        <button type="button" id="agent-journal-save" class="ghost">Guardar notas</button>
+                        <button type="button" id="agent-journal-save" class="ghost">Editar</button>
                       </div>
                     </div>
                   </div>
@@ -324,6 +376,9 @@
                     <select id="agent-graph-entity">
                       <option value="">Selecciona entidad</option>
                     </select>
+                    <button type="button" class="ghost small graph-fullscreen-btn" id="agent-graph-fullscreen">
+                      Pantalla completa
+                    </button>
                   </div>
                   <div id="agent-graph" class="entity-graph-panel">Selecciona una entidad para ver sus vínculos.</div>
                   <div class="graph-entity-summary" id="agent-graph-summary">Toca un nodo para ver detalles.</div>
@@ -737,6 +792,9 @@
                     <select id="dm-graph-entity">
                       <option value="">Selecciona entidad</option>
                     </select>
+                    <button type="button" class="ghost small graph-fullscreen-btn" id="dm-graph-fullscreen">
+                      Pantalla completa
+                    </button>
                   </div>
                   <div id="dm-graph" class="entity-graph-panel">Selecciona una entidad en Entidades o aquí para ver el grafo.</div>
                   <div class="graph-entity-summary" id="dm-graph-summary">Haz clic en un nodo para abrir su contexto.</div>
@@ -749,19 +807,64 @@
     </main>
     <nav class="mobile-nav" id="mobile-nav">
       <button type="button" class="mobile-tab active" data-mobile-tab="map">
-        <span class="mobile-tab-icon"></span>
+        <span class="mobile-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path
+              d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle cx="12" cy="11" r="2.5" fill="none" stroke="currentColor" stroke-width="2" />
+          </svg>
+        </span>
         <span class="mobile-tab-label">Mapa</span>
       </button>
       <button type="button" class="mobile-tab" data-mobile-tab="pois">
-        <span class="mobile-tab-icon"></span>
+        <span class="mobile-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2" />
+            <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2" />
+            <path d="M12 4v3M20 12h-3M12 20v-3M4 12h3" fill="none" stroke="currentColor" stroke-width="2" />
+          </svg>
+        </span>
         <span class="mobile-tab-label">PdI</span>
       </button>
       <button type="button" class="mobile-tab" data-mobile-tab="database">
-        <span class="mobile-tab-icon"></span>
+        <span class="mobile-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path
+              d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M4 7v5c0 1.7 3.6 3 8 3s8-1.3 8-3V7"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+          </svg>
+        </span>
         <span class="mobile-tab-label">Base</span>
       </button>
       <button type="button" class="mobile-tab" data-mobile-tab="console">
-        <span class="mobile-tab-icon"></span>
+        <span class="mobile-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="2" />
+            <path d="M7 10l3 2-3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M12 14h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </span>
         <span class="mobile-tab-label">Consola</span>
       </button>
     </nav>
@@ -810,6 +913,7 @@
   </div>
 
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
   <script src="https://unpkg.com/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
   <script src="vendor/weaver.min.js"></script>
   <script src="vendor/cytoscape-spread.js"></script>
