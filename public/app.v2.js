@@ -1,4 +1,5 @@
 import { GraphAPI } from './graph-api.js';
+import { createBase3d } from './modules/base3d.js';
 
 const categoryIcons = {
   OV_BASE: '🛰️',
@@ -39,6 +40,88 @@ const DM_GRAPH_SCOPE = {
 };
 const DM_GRAPH_CAMPAIGN_VALUE = DM_GRAPH_SCOPE.CAMPAIGN;
 const DM_GRAPH_CAMPAIGN_LABEL = 'Campaña · grafo global';
+const DM_ACTOR = 'MrTruth';
+const DM_DEFAULT_SENDER = 'Sr. Verdad';
+
+// Character sheet model: general pools are rapid 1d6 modifiers; investigation pools are deliberate consumables;
+// refresh restores current to max across both types.
+const CHARACTER_SHEET_DEFAULTS = {
+  healthMax: 10,
+  stabilityMax: 8,
+  generalMax: 4,
+  investigationMax: 1
+};
+const CHARACTER_SHEET_GENERAL_SKILLS = [
+  'Atletismo',
+  'Conducir',
+  'Escaramuza',
+  'Infiltración',
+  'Preparación',
+  'Vigilancia',
+  'Desarmado',
+  'Mecánica',
+  'Primeros auxilios',
+  'Psiquiatría'
+];
+const CHARACTER_SHEET_INVESTIGATION_GROUPS = {
+  academicas: {
+    label: 'Académicas',
+    skills: [
+      'Antropología',
+      'Arquitectura',
+      'Conocimiento local',
+      'Contabilidad',
+      'Cultura general',
+      'Derecho',
+      'Historia',
+      'Historia del arte',
+      'Historia natural',
+      'Idiomas',
+      'Investigar',
+      'Lingüística',
+      'Ocultismo',
+      'Patología',
+      'Psicología forense'
+    ]
+  },
+  interpersonales: {
+    label: 'Interpersonales',
+    skills: [
+      'Adular',
+      'Bajos fondos',
+      'Burocracia',
+      'Consolar',
+      'Detección de mentiras',
+      'Interrogar',
+      'Intimidar',
+      'Jerga policial',
+      'Ligar',
+      'Negociar',
+      'Suplantar'
+    ]
+  },
+  tecnicas: {
+    label: 'Técnicas',
+    skills: [
+      'Análisis de documentos',
+      'Astronomía',
+      'Balística',
+      'Criptografía',
+      'Entomología forense',
+      'Explosivos',
+      'Fotografía',
+      'Huellas dactilares',
+      'Medicina forense',
+      'Química',
+      'Recoger pruebas',
+      'Recuperar datos',
+      'Vigilancia electrónica'
+    ]
+  }
+};
+const CHARACTER_SHEET_INVESTIGATION_MAX_OVERRIDES = {
+  'historia natural': 2
+};
 
 const state = {
   map: null,
@@ -46,12 +129,17 @@ const state = {
   poiMarkers: new Map(),
   dmMode: false,
   agent: null,
+  characterSheet: null,
+  characterSheetSaveState: 'idle',
+  characterSheetSelections: {},
+  characterSheetOpenPanels: new Set(),
   authBootstrap: {
     dmConfigured: false,
     agents: {}
   },
   agents: [],
   messages: [],
+  messageIdentities: [],
   editingPoiId: null,
   pickMode: false,
   pickMarker: null,
@@ -62,11 +150,73 @@ const state = {
   }
   ,
   messageFilters: {
-    recipient: '',
-    session_tag: '',
-    since: '',
-    box: '',
-    unread_only: false
+    dm: {
+      recipient: '',
+      session_tag: '',
+      since: '',
+      box: '',
+      unread_only: false,
+      page: 0,
+      page_size: 40,
+      q: ''
+    },
+    agent: {
+      recipient: '',
+      session_tag: '',
+      since: '',
+      box: '',
+      unread_only: false,
+      page: 0,
+      page_size: 40,
+      q: ''
+    },
+    overlay: {
+      recipient: '',
+      session_tag: '',
+      since: '',
+      box: '',
+      unread_only: false,
+      page: 0,
+      page_size: 40,
+      q: ''
+    }
+  },
+  messagePoll: {
+    timer: null,
+    inFlight: false,
+    intervalMs: 20000,
+    lastNewestId: { dm: null, agent: null },
+    lastUnread: { dm: 0, agent: 0 }
+  },
+  messageSocket: null,
+  messageSocketRole: null,
+  messageSocketRetry: null,
+  chat: {
+    identities: [],
+    threads: [],
+    messages: [],
+    activeThreadId: null,
+    activeIdentityId: null,
+    activeAgentUsername: null,
+    activeDmIdentityId: null,
+    socket: null,
+    socketRole: null,
+    socketRetry: null,
+    dmIdentityEditingId: null
+  },
+  activityPoll: {
+    timer: null,
+    inFlight: false,
+    intervalMs: 10000,
+    labelTimer: null,
+    lastSuccessAt: null
+  },
+  activityPagination: {
+    limit: 10,
+    page: 0,
+    hasMore: false,
+    loading: false,
+    loadedIds: null
   },
   showOlderMobilePois: false,
   missionNotes: '',
@@ -78,15 +228,18 @@ const state = {
   activeDmBlade: 'journal',
   poiFocal: null,
   activeMessage: null,
-  activeMessageIndex: 0
-  ,
+  activeMessageIndex: 0,
+  activeMessageContext: 'agent',
   replyTarget: null,
   entities: [],
   entityFiltersAgent: { type: '', q: '' },
   entityFiltersAdmin: { type: '', q: '', include_archived: true },
   activeEntityAgent: null,
   activeEntityAdmin: null,
-  agentBlade: 'focal'
+  agentBlade: 'focal',
+  mobileDmEditMode: false,
+  mobileDmConsoleTab: 'messages',
+  journalStatus: 'clean'
   , entitiesMap: null,
   entityDetailMap: null,
   entityDetailMarker: null,
@@ -105,10 +258,12 @@ const state = {
   ,
   dmGraphLayout: 'spread',
   dmGraphFocusId: null,
-  dmGraphScope: DM_GRAPH_SCOPE.ENTITY,
+  dmGraphScope: DM_GRAPH_SCOPE.CAMPAIGN,
   agentGraphLayout: 'spread',
   agentGraphFocusId: null,
-  agentGraphScope: AGENT_GRAPH_SCOPE.ENTITY
+  agentGraphScope: AGENT_GRAPH_SCOPE.CAMPAIGN,
+  dmGraphSelections: [],
+  agentGraphSelections: []
 };
 
 console.log('AMINA app.v2 loaded (mel toggles debug)');
@@ -166,8 +321,14 @@ const bootDmPassStatus = document.getElementById('boot-dm-pass-status');
 const bootCancelBtn = document.getElementById('boot-cancel');
 const bootStatus = document.getElementById('boot-status');
 const bootOutput = document.getElementById('boot-output');
+const activityPanel = document.getElementById('activity-panel');
+const activityList = document.getElementById('activity-list');
+const activityStatus = document.getElementById('activity-status');
+const activityConnection = document.getElementById('activity-connection');
+const activityMoreBtn = document.getElementById('activity-more');
 const bootMenu = document.getElementById('boot-menu');
 const agentLoginDiv = document.getElementById('agent-login');
+const agentLoginForm = document.getElementById('agent-login-form');
 const agentSelect = document.getElementById('agent-select');
 const agentPassInput = document.getElementById('agent-pass');
 const agentLoginButton = document.getElementById('agent-login-button');
@@ -184,13 +345,17 @@ const agentPassStatus = document.getElementById('agent-pass-status');
 const collapsibleToggles = document.querySelectorAll('.collapsible-toggle');
 let bootSequenceId = 0;
 const messageForm = document.getElementById('message-form');
+const messageFromSelect = document.getElementById('message-from-select');
+const messageFromSelectLabel = document.getElementById('message-from-select-label');
 const messageFromInput = document.getElementById('message-from');
 const messageToSelect = document.getElementById('message-to');
+const messageToLabel = document.getElementById('message-to-label');
 const messageSubjectInput = document.getElementById('message-subject');
 const messageBodyInput = document.getElementById('message-body');
 const messageClearBtn = document.getElementById('message-clear');
 const messageSessionInput = document.getElementById('message-session');
 const filterRecipientSelect = document.getElementById('filter-recipient');
+const filterQueryInput = document.getElementById('filter-query');
 const filterSessionInput = document.getElementById('filter-session');
 const filterSinceInput = document.getElementById('filter-since');
 const filterBoxSelect = document.getElementById('filter-box');
@@ -198,6 +363,7 @@ const filterUnreadCheckbox = document.getElementById('filter-unread');
 const filterApplyBtn = document.getElementById('filter-apply');
 const debugPanel = document.getElementById('debug-panel');
 let debugMode = false;
+let mobileStateBadge = document.getElementById('mobile-state-badge');
 const commandMenu = document.getElementById('command-menu');
 const commandInput = document.getElementById('command-input');
 const commandLog = document.getElementById('command-log');
@@ -221,6 +387,33 @@ const messageList = document.getElementById('message-list');
 const messageReader = document.getElementById('message-reader');
 const messageListDm = document.getElementById('message-list-dm');
 const messageReaderDm = document.getElementById('message-reader-dm');
+const chatIdentityList = document.getElementById('chat-identity-list');
+const chatTranscript = document.getElementById('chat-transcript');
+const chatForm = document.getElementById('chat-form');
+const chatInput = document.getElementById('chat-input');
+const chatSyncBtn = document.getElementById('chat-sync');
+const chatAgentLabel = document.getElementById('chat-agent-label');
+const chatIdentityLabel = document.getElementById('chat-identity-label');
+const chatUnreadBadgeAgent = document.getElementById('chat-unread-badge-agent');
+const chatUnreadBadgeDm = document.getElementById('chat-unread-badge-dm');
+const dmChatThreadList = document.getElementById('dm-chat-thread-list');
+const dmChatAgentSelect = document.getElementById('dm-chat-agent');
+const dmChatIdentitySelect = document.getElementById('dm-chat-identity');
+const dmChatOpenBtn = document.getElementById('dm-chat-open');
+const dmChatTranscript = document.getElementById('dm-chat-transcript');
+const dmChatForm = document.getElementById('dm-chat-form');
+const dmChatInput = document.getElementById('dm-chat-input');
+const dmChatActiveLabel = document.getElementById('dm-chat-active-label');
+const dmChatSessionStatus = document.getElementById('dm-chat-session-status');
+const dmChatRefreshBtn = document.getElementById('dm-chat-refresh');
+const dmIdentityList = document.getElementById('dm-identity-list');
+const dmIdentityForm = document.getElementById('dm-identity-form');
+const dmIdentityNameInput = document.getElementById('dm-identity-name');
+const dmIdentityCancelBtn = document.getElementById('dm-identity-cancel');
+const dmJournalStatus = document.getElementById('dm-journal-status');
+const dmMobileConsoleTabs = document.querySelectorAll('.dm-mobile-console-tab');
+const unreadBadgeAgent = document.getElementById('msg-unread-badge-agent');
+const unreadBadgeDm = document.getElementById('msg-unread-badge-dm');
 const missionBriefText = document.getElementById('mission-brief-text');
 const journalPublicInput = document.getElementById('journal-public');
 const journalDmInput = document.getElementById('journal-dm');
@@ -228,8 +421,8 @@ const journalSeasonInput = document.getElementById('journal-season');
 const journalSessionInput = document.getElementById('journal-session');
 const journalSaveBtn = document.getElementById('journal-save');
 const dmFormOpenBtn = document.getElementById('dm-form-open');
-const msgPrevBtn = document.getElementById('msg-prev');
-const msgNextBtn = document.getElementById('msg-next');
+const msgNavButtons = document.querySelectorAll('[data-msg-nav]');
+const msgPageButtons = document.querySelectorAll('[data-msg-page]');
 const msgBoxInboxBtn = document.getElementById('msg-box-inbox');
 const msgBoxSentBtn = document.getElementById('msg-box-sent');
 const unreadOnlyCheckbox = document.getElementById('filter-unread-only');
@@ -247,11 +440,27 @@ const replyBodyInputDm = document.getElementById('reply-body-dm');
 const replyCancelBtnDm = document.getElementById('reply-cancel-dm');
 const replySendBtnDm = document.getElementById('reply-send-dm');
 const replyLabelDm = document.getElementById('reply-label-dm');
+const filterQueryAgentInput = document.getElementById('filter-query-agent');
 const agentJournalSeasonInput = document.getElementById('agent-journal-season');
 const agentJournalSessionInput = document.getElementById('agent-journal-session');
 const agentJournalLoadBtn = document.getElementById('agent-journal-load');
 const agentJournalSaveBtn = document.getElementById('agent-journal-save');
 const agentJournalPublicInput = document.getElementById('agent-journal-public');
+const characterSheetCard = document.getElementById('character-sheet-card');
+const characterNameLabel = document.getElementById('sheet-character-name');
+const characterRoleLabel = document.getElementById('sheet-character-role');
+const sheetHealthCurrent = document.getElementById('sheet-health-current');
+const sheetHealthMax = document.getElementById('sheet-health-max');
+const sheetStabilityCurrent = document.getElementById('sheet-stability-current');
+const sheetStabilityMax = document.getElementById('sheet-stability-max');
+const sheetGeneralTotal = document.getElementById('sheet-general-total');
+const sheetInvestigationTotal = document.getElementById('sheet-investigation-total');
+const sheetSaveState = document.getElementById('sheet-save-state');
+const sheetRefreshBtn = document.getElementById('sheet-refresh');
+const sheetGeneralList = document.getElementById('sheet-general-list');
+const sheetGeneralExtra = document.getElementById('sheet-general-extra');
+const sheetGeneralCollapse = document.getElementById('sheet-general-collapse');
+const sheetInvestigationList = document.getElementById('sheet-investigation-list');
 let tickerSavedOffset = 0;
 let tickerAnimationStart = 0;
 let tickerAnimationDuration = 0;
@@ -266,6 +475,30 @@ function debounce(fn, delay) {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => fn(...args), delay);
   };
+}
+
+function getMessageContext(context) {
+  if (context) return context;
+  return state.dmMode ? 'dm' : 'agent';
+}
+
+function getMessageFilters(context) {
+  const key = getMessageContext(context);
+  return state.messageFilters[key];
+}
+
+function setMessageFilters(context, updates) {
+  const key = getMessageContext(context);
+  state.messageFilters[key] = { ...state.messageFilters[key], ...updates };
+  return state.messageFilters[key];
+}
+
+function adjustMessagePage(context, delta) {
+  const key = getMessageContext(context);
+  const current = state.messageFilters[key].page || 0;
+  const next = Math.max(current + delta, 0);
+  state.messageFilters[key].page = next;
+  return next;
 }
 
 function buildPoiGeocoderResults(query) {
@@ -323,6 +556,458 @@ function setAgentJournalEditing(isEditing) {
     agentJournalPublicInput.textContent = DEFAULT_MISSION_BRIEF;
   }
 }
+
+function slugifySkillName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function buildDefaultSkillEntry(name, max, group) {
+  const maxValue = Math.max(0, Number(max) || 0);
+  return {
+    id: slugifySkillName(name),
+    name: String(name),
+    max: maxValue,
+    current: maxValue,
+    group: group || ''
+  };
+}
+
+function buildDefaultGeneralSkills() {
+  return CHARACTER_SHEET_GENERAL_SKILLS.map((name) =>
+    buildDefaultSkillEntry(name, CHARACTER_SHEET_DEFAULTS.generalMax, '')
+  );
+}
+
+function buildDefaultInvestigationSkills() {
+  return Object.entries(CHARACTER_SHEET_INVESTIGATION_GROUPS).flatMap(([group, entry]) =>
+    entry.skills.map((name) => {
+      const overrideKey = String(name || '').toLowerCase();
+      const max = CHARACTER_SHEET_INVESTIGATION_MAX_OVERRIDES[overrideKey] || CHARACTER_SHEET_DEFAULTS.investigationMax;
+      return buildDefaultSkillEntry(name, max, group);
+    })
+  );
+}
+
+function buildDefaultCharacterSheet(agent) {
+  const display = agent?.display || agent?.username || 'Agente';
+  return {
+    agent_username: agent?.username || '',
+    character_name: display,
+    character_role: 'Agente de campo OV',
+    health_current: CHARACTER_SHEET_DEFAULTS.healthMax,
+    health_max: CHARACTER_SHEET_DEFAULTS.healthMax,
+    stability_current: CHARACTER_SHEET_DEFAULTS.stabilityMax,
+    stability_max: CHARACTER_SHEET_DEFAULTS.stabilityMax,
+    general_skills: buildDefaultGeneralSkills(),
+    investigation_skills: buildDefaultInvestigationSkills()
+  };
+}
+
+function normalizeSkillEntry(entry) {
+  if (!entry) return null;
+  const name = String(entry.name || '').trim() || 'Habilidad';
+  const id = entry.id ? String(entry.id) : slugifySkillName(name);
+  const max = Math.max(0, Number(entry.max) || 0);
+  const current = Math.max(0, Math.min(Number(entry.current) || 0, max));
+  return {
+    id,
+    name,
+    max,
+    current,
+    group: entry.group ? String(entry.group) : ''
+  };
+}
+
+function normalizeSkillList(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((entry) => normalizeSkillEntry(entry))
+    .filter((entry) => entry);
+}
+
+function normalizeCharacterSheetPayload(payload, agent) {
+  const fallback = buildDefaultCharacterSheet(agent);
+  if (!payload) return fallback;
+  const healthMaxRaw = payload.health_max ?? payload.healthMax;
+  const stabilityMaxRaw = payload.stability_max ?? payload.stabilityMax;
+  const healthMax = Math.max(
+    0,
+    Number.isFinite(Number(healthMaxRaw)) ? Number(healthMaxRaw) : fallback.health_max
+  );
+  const stabilityMax = Math.max(
+    0,
+    Number.isFinite(Number(stabilityMaxRaw)) ? Number(stabilityMaxRaw) : fallback.stability_max
+  );
+  return {
+    agent_username: payload.agent_username || agent?.username || '',
+    character_name: payload.character_name || payload.characterName || fallback.character_name,
+    character_role: payload.character_role || payload.characterRole || fallback.character_role,
+    health_current: Math.max(
+      0,
+      Math.min(Number(payload.health_current ?? payload.healthCurrent) || fallback.health_current, healthMax)
+    ),
+    health_max: healthMax,
+    stability_current: Math.max(
+      0,
+      Math.min(Number(payload.stability_current ?? payload.stabilityCurrent) || fallback.stability_current, stabilityMax)
+    ),
+    stability_max: stabilityMax,
+    general_skills: normalizeSkillList(payload.general_skills || payload.generalSkills || fallback.general_skills),
+    investigation_skills: normalizeSkillList(
+      payload.investigation_skills || payload.investigationSkills || fallback.investigation_skills
+    )
+  };
+}
+
+function setCharacterSheetSaveState(next) {
+  state.characterSheetSaveState = next;
+  if (!sheetSaveState) return;
+  const labelMap = {
+    idle: 'sin cambios',
+    saving: 'guardando...',
+    saved: 'guardado',
+    error: 'cambios no guardados'
+  };
+  sheetSaveState.textContent = labelMap[next] || labelMap.idle;
+  sheetSaveState.dataset.state = next;
+}
+
+function getSkillStatusClass(current) {
+  if (current <= 0) return 'is-empty';
+  if (current <= 2) return 'is-low';
+  return 'is-ok';
+}
+
+function getInvestigationStatusClass(current) {
+  if (current <= 0) return 'is-empty';
+  if (current === 1) return 'is-fragile';
+  return 'is-ok';
+}
+
+function splitFeaturedSkills(list, count, ensureNames = []) {
+  const featured = list.slice(0, count);
+  ensureNames.forEach((name) => {
+    if (featured.some((item) => item.name === name)) return;
+    const matchIndex = list.findIndex((item) => item.name === name);
+    if (matchIndex === -1) return;
+    if (featured.length < count) {
+      featured.push(list[matchIndex]);
+      return;
+    }
+    featured[featured.length - 1] = list[matchIndex];
+  });
+  const featuredIds = new Set(featured.map((item) => item.id));
+  const extra = list.filter((item) => !featuredIds.has(item.id));
+  return { featured, extra };
+}
+
+function renderGeneralSkills(skills) {
+  if (!sheetGeneralList || !sheetGeneralExtra) return;
+  sheetGeneralList.innerHTML = '';
+  sheetGeneralExtra.innerHTML = '';
+  const { featured, extra } = splitFeaturedSkills(skills, 6, []);
+  const buildRow = (skill) => {
+    const row = document.createElement('div');
+    row.className = `sheet-skill sheet-skill--general ${getSkillStatusClass(skill.current)}`;
+    const header = document.createElement('div');
+    header.className = 'skill-main';
+    const name = document.createElement('div');
+    name.className = 'skill-name';
+    name.textContent = skill.name;
+    const values = document.createElement('div');
+    values.className = 'skill-values';
+    const current = document.createElement('span');
+    current.className = 'skill-current';
+    current.textContent = skill.current;
+    const max = document.createElement('span');
+    max.className = 'skill-max';
+    max.textContent = `/${skill.max}`;
+    values.appendChild(current);
+    values.appendChild(max);
+    header.appendChild(name);
+    header.appendChild(values);
+    const segments = document.createElement('div');
+    segments.className = 'skill-segments';
+    const isEmpty = skill.current <= 0;
+    for (let i = 0; i < skill.max; i += 1) {
+      const segment = document.createElement('button');
+      segment.type = 'button';
+      segment.className = `skill-segment${i < skill.current ? ' filled' : ''}`;
+      segment.dataset.generalSkill = skill.id;
+      segment.disabled = isEmpty;
+      segment.setAttribute('aria-label', `Gastar 1 punto de ${skill.name}`);
+      segments.appendChild(segment);
+    }
+    row.appendChild(header);
+    row.appendChild(segments);
+    return row;
+  };
+  featured.forEach((skill) => sheetGeneralList.appendChild(buildRow(skill)));
+  extra.forEach((skill) => sheetGeneralExtra.appendChild(buildRow(skill)));
+  if (sheetGeneralCollapse) {
+    sheetGeneralCollapse.hidden = extra.length === 0;
+  }
+}
+
+function renderInvestigationSkills(skills) {
+  if (!sheetInvestigationList) return;
+  sheetInvestigationList.innerHTML = '';
+  const groups = {};
+  skills.forEach((skill) => {
+    const group = skill.group || 'academicas';
+    if (!groups[group]) groups[group] = [];
+    groups[group].push(skill);
+  });
+  Object.entries(CHARACTER_SHEET_INVESTIGATION_GROUPS).forEach(([groupKey, config]) => {
+    const groupSkills = groups[groupKey] || [];
+    const { featured, extra } = splitFeaturedSkills(
+      groupSkills,
+      4,
+      groupKey === 'academicas' ? ['Historia natural'] : []
+    );
+    const group = document.createElement('div');
+    group.className = 'sheet-group';
+    const title = document.createElement('div');
+    title.className = 'sheet-group-title';
+    title.textContent = config.label;
+    group.appendChild(title);
+    const list = document.createElement('div');
+    list.className = 'sheet-skill-list';
+    const buildRow = (skill) => {
+      const row = document.createElement('div');
+      row.className = `sheet-skill sheet-skill--investigation ${getInvestigationStatusClass(skill.current)}`;
+      if (state.characterSheetSelections[skill.id] > skill.current) {
+        delete state.characterSheetSelections[skill.id];
+      }
+      const header = document.createElement('div');
+      header.className = 'skill-main';
+      const name = document.createElement('div');
+      name.className = 'skill-name';
+      name.textContent = skill.name;
+      const values = document.createElement('div');
+      values.className = 'skill-values';
+      const current = document.createElement('span');
+      current.className = 'skill-current';
+      current.textContent = skill.current;
+      const max = document.createElement('span');
+      max.className = 'skill-max';
+      max.textContent = `/${skill.max}`;
+      values.appendChild(current);
+      values.appendChild(max);
+      header.appendChild(name);
+      header.appendChild(values);
+      const pipRow = document.createElement('div');
+      pipRow.className = 'skill-pips';
+      for (let i = 0; i < skill.max; i += 1) {
+        const pip = document.createElement('span');
+        pip.className = `skill-pip${i < skill.current ? ' filled' : ''}`;
+        pipRow.appendChild(pip);
+      }
+      const controls = document.createElement('div');
+      controls.className = 'skill-controls';
+      const spendBtn = document.createElement('button');
+      spendBtn.type = 'button';
+      spendBtn.className = 'ghost small';
+      spendBtn.textContent = 'Gastar';
+      spendBtn.dataset.investigationToggle = skill.id;
+      spendBtn.disabled = skill.current <= 0;
+      controls.appendChild(spendBtn);
+      const panel = document.createElement('div');
+      panel.className = 'investigation-spend';
+      panel.dataset.investigationPanel = skill.id;
+      panel.classList.toggle('is-open', state.characterSheetOpenPanels.has(skill.id));
+      const options = document.createElement('div');
+      options.className = 'spend-options';
+      for (let i = 1; i <= skill.current; i += 1) {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.className = 'spend-option';
+        option.textContent = String(i);
+        option.dataset.investigationOption = skill.id;
+        option.dataset.spendValue = String(i);
+        if (state.characterSheetSelections[skill.id] === i) {
+          option.classList.add('active');
+        }
+        options.appendChild(option);
+      }
+      const actions = document.createElement('div');
+      actions.className = 'spend-actions';
+      const apply = document.createElement('button');
+      apply.type = 'button';
+      apply.className = 'ghost small';
+      apply.textContent = 'Aplicar';
+      apply.dataset.investigationApply = skill.id;
+      apply.disabled = !state.characterSheetSelections[skill.id];
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'ghost small';
+      cancel.textContent = 'Cancelar';
+      cancel.dataset.investigationCancel = skill.id;
+      actions.appendChild(apply);
+      actions.appendChild(cancel);
+      panel.appendChild(options);
+      panel.appendChild(actions);
+      row.appendChild(header);
+      row.appendChild(pipRow);
+      row.appendChild(controls);
+      row.appendChild(panel);
+      return row;
+    };
+    featured.forEach((skill) => list.appendChild(buildRow(skill)));
+    group.appendChild(list);
+    if (extra.length) {
+      const details = document.createElement('details');
+      details.className = 'sheet-collapse';
+      const summary = document.createElement('summary');
+      summary.textContent = 'Más habilidades';
+      details.appendChild(summary);
+      const extraList = document.createElement('div');
+      extraList.className = 'sheet-skill-list';
+      extra.forEach((skill) => extraList.appendChild(buildRow(skill)));
+      details.appendChild(extraList);
+      group.appendChild(details);
+    }
+    sheetInvestigationList.appendChild(group);
+  });
+}
+
+function renderCharacterSheet() {
+  if (!state.characterSheet) return;
+  const sheet = state.characterSheet;
+  if (characterNameLabel) characterNameLabel.textContent = sheet.character_name || '—';
+  if (characterRoleLabel) characterRoleLabel.textContent = sheet.character_role || '';
+  if (sheetHealthCurrent) sheetHealthCurrent.textContent = sheet.health_current;
+  if (sheetHealthMax) sheetHealthMax.textContent = sheet.health_max;
+  if (sheetStabilityCurrent) sheetStabilityCurrent.textContent = sheet.stability_current;
+  if (sheetStabilityMax) sheetStabilityMax.textContent = sheet.stability_max;
+  const generalTotal = sheet.general_skills.reduce((acc, skill) => acc + (skill.current || 0), 0);
+  const investigationTotal = sheet.investigation_skills.reduce((acc, skill) => acc + (skill.current || 0), 0);
+  if (sheetGeneralTotal) sheetGeneralTotal.textContent = generalTotal;
+  if (sheetInvestigationTotal) sheetInvestigationTotal.textContent = investigationTotal;
+  renderGeneralSkills(sheet.general_skills);
+  renderInvestigationSkills(sheet.investigation_skills);
+}
+
+async function loadCharacterSheet() {
+  if (!state.agent) return;
+  try {
+    const response = await fetch('/api/agent/character-sheet', { credentials: 'same-origin' });
+    if (!response.ok) {
+      throw new Error('No se pudo cargar la ficha.');
+    }
+    const payload = await response.json();
+    state.characterSheet = normalizeCharacterSheetPayload(payload.sheet, state.agent);
+    state.characterSheetSelections = {};
+    state.characterSheetOpenPanels = new Set();
+    setCharacterSheetSaveState('idle');
+    renderCharacterSheet();
+  } catch (err) {
+    state.characterSheet = buildDefaultCharacterSheet(state.agent);
+    state.characterSheetSelections = {};
+    state.characterSheetOpenPanels = new Set();
+    setCharacterSheetSaveState('error');
+    renderCharacterSheet();
+  }
+}
+
+async function saveCharacterSheet() {
+  if (!state.characterSheet || !state.agent) return;
+  setCharacterSheetSaveState('saving');
+  try {
+    const response = await fetch('/api/agent/character-sheet', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sheet: state.characterSheet })
+    });
+    if (!response.ok) throw new Error('No se pudo guardar la ficha.');
+    const payload = await response.json();
+    state.characterSheet = normalizeCharacterSheetPayload(payload.sheet, state.agent);
+    setCharacterSheetSaveState('saved');
+    renderCharacterSheet();
+  } catch (err) {
+    setCharacterSheetSaveState('error');
+  }
+}
+
+function adjustSheetMetric(metric, delta) {
+  if (!state.characterSheet) return;
+  if (metric === 'health') {
+    const next = Math.max(0, Math.min(state.characterSheet.health_current + delta, state.characterSheet.health_max));
+    if (next === state.characterSheet.health_current) return;
+    state.characterSheet.health_current = next;
+  } else if (metric === 'stability') {
+    const next = Math.max(
+      0,
+      Math.min(state.characterSheet.stability_current + delta, state.characterSheet.stability_max)
+    );
+    if (next === state.characterSheet.stability_current) return;
+    state.characterSheet.stability_current = next;
+  } else {
+    return;
+  }
+  renderCharacterSheet();
+  saveCharacterSheet();
+}
+
+function spendGeneralSkill(skillId) {
+  if (!state.characterSheet) return;
+  const skill = state.characterSheet.general_skills.find((entry) => entry.id === skillId);
+  if (!skill || skill.current <= 0) return;
+  skill.current = Math.max(0, skill.current - 1);
+  renderCharacterSheet();
+  saveCharacterSheet();
+}
+
+function toggleInvestigationPanel(skillId) {
+  if (!state.characterSheetOpenPanels) return;
+  if (state.characterSheetOpenPanels.has(skillId)) {
+    state.characterSheetOpenPanels.delete(skillId);
+  } else {
+    state.characterSheetOpenPanels.add(skillId);
+  }
+  renderCharacterSheet();
+}
+
+function selectInvestigationSpend(skillId, amount) {
+  state.characterSheetSelections[skillId] = amount;
+  renderCharacterSheet();
+}
+
+function clearInvestigationSpend(skillId) {
+  delete state.characterSheetSelections[skillId];
+  state.characterSheetOpenPanels.delete(skillId);
+  renderCharacterSheet();
+}
+
+function applyInvestigationSpend(skillId) {
+  if (!state.characterSheet) return;
+  const skill = state.characterSheet.investigation_skills.find((entry) => entry.id === skillId);
+  const amount = Number(state.characterSheetSelections[skillId] || 0);
+  if (!skill || amount <= 0) return;
+  skill.current = Math.max(0, skill.current - amount);
+  delete state.characterSheetSelections[skillId];
+  state.characterSheetOpenPanels.delete(skillId);
+  renderCharacterSheet();
+  saveCharacterSheet();
+}
+
+function refreshCharacterSheetPools() {
+  if (!state.characterSheet) return;
+  state.characterSheet.general_skills.forEach((skill) => {
+    skill.current = skill.max;
+  });
+  state.characterSheet.investigation_skills.forEach((skill) => {
+    skill.current = skill.max;
+  });
+  state.characterSheetSelections = {};
+  state.characterSheetOpenPanels = new Set();
+  renderCharacterSheet();
+  saveCharacterSheet();
+}
 const dossierList = document.getElementById('dossier-list');
 const dossierDetail = document.getElementById('dossier-detail');
 const dossierSearch = document.getElementById('dossier-search');
@@ -335,12 +1020,18 @@ const agentGraphSuggestions = document.getElementById('agent-graph-suggestions')
 const agentGraphSelect = document.getElementById('agent-graph-entity');
 const agentGraphSummary = document.getElementById('agent-graph-summary');
 const agentGraphFullscreenBtn = document.getElementById('agent-graph-fullscreen');
+const agentGraphAddBtn = document.getElementById('agent-graph-add');
+const agentGraphClearBtn = document.getElementById('agent-graph-clear');
+const agentGraphChips = document.getElementById('agent-graph-chips');
 const dmGraphContainer = document.getElementById('dm-graph');
 const dmGraphSelect = document.getElementById('dm-graph-entity');
 const dmGraphSearchInput = document.getElementById('dm-graph-search');
 const dmGraphSuggestions = document.getElementById('dm-graph-suggestions');
 const dmGraphSummary = document.getElementById('dm-graph-summary');
 const dmGraphFullscreenBtn = document.getElementById('dm-graph-fullscreen');
+const dmGraphAddBtn = document.getElementById('dm-graph-add');
+const dmGraphClearBtn = document.getElementById('dm-graph-clear');
+const dmGraphChips = document.getElementById('dm-graph-chips');
 let dmGraphApi = null;
 let agentGraphApi = null;
 const entityForm = document.getElementById('entity-form');
@@ -378,7 +1069,7 @@ const entityArchivedInput = document.getElementById('entity-archived');
 const entityNewBtn = document.getElementById('entity-new');
 const entityCancelBtn = document.getElementById('entity-cancel');
 const entitySubmitBtn = document.getElementById('entity-submit');
-const entityDeleteBtns = document.querySelectorAll('#entity-delete'); // buttons in layout
+const entityDeleteBtns = document.querySelectorAll('[data-entity-delete]'); // buttons in layout
 const entityStateTitle = document.getElementById('entity-state-title');
 const bestiaryCard = document.getElementById('dm-bestiary-card');
 const bestiaryImage = document.getElementById('bestiary-image');
@@ -415,6 +1106,7 @@ const dossierTypeButtonsAdmin = document.querySelectorAll('.console-blade[data-b
 const dmFilterTypeButtons = document.querySelectorAll('.dm-filter-type');
 const dmEntityList = document.getElementById('dm-entity-list');
 const dmEntitySearch = document.getElementById('dm-entity-search');
+const dmMobileEditExit = document.getElementById('dm-mobile-edit-exit');
 const dmEntitiesContext = document.getElementById('dm-entities-context');
 const dmEntitiesDetail = document.getElementById('dm-entities-detail');
 const agentDossierList = document.getElementById('dossier-list');
@@ -466,20 +1158,771 @@ const poiEntityLinksSelect = {
 
 const unlockOverlay = document.getElementById('unlock-overlay');
 const unlockHint = document.getElementById('unlock-hint');
+const unlockForm = document.getElementById('unlock-form');
 const unlockInput = document.getElementById('unlock-code-input');
 const unlockClose = document.getElementById('unlock-close');
 const unlockConfirm = document.getElementById('unlock-confirm');
 const lightbox = document.getElementById('image-lightbox');
 const lightboxImg = document.getElementById('lightbox-img');
+const base3dRoot = document.getElementById('base3d-root');
+const base3dCanvas = document.getElementById('base3d-canvas');
+const baseZoneName = document.getElementById('base-zone-name');
+const baseZoneStatus = document.getElementById('base-zone-status');
+const baseZoneNote = document.getElementById('base-zone-note');
+const baseDetailTitle = document.getElementById('base-detail-title');
+const baseDetailStatus = document.getElementById('base-detail-status');
+const baseDetailEvent = document.getElementById('base-detail-event');
+const baseDetailAccess = document.getElementById('base-detail-access');
+const baseDetailNotes = document.getElementById('base-detail-notes');
+const baseActivityList = document.getElementById('base-activity-list');
+const baseEditorToggle = document.getElementById('base-editor-toggle');
+const baseEditorBody = document.getElementById('base-editor-body');
+const baseEditorText = document.getElementById('base-editor-text');
+const baseEditorSave = document.getElementById('base-editor-save');
+const baseEditorCancel = document.getElementById('base-editor-cancel');
+const baseVisualModeSelect = document.getElementById('base-visual-mode');
+const baseVisualPaletteSelect = document.getElementById('base-visual-palette');
+const baseFocusCard = document.getElementById('base-focus-card');
+const baseFocusLink = document.getElementById('base-focus-link');
+const baseFocusLinkLine = baseFocusLink?.querySelector('polyline');
+const baseFullscreenToggle = document.getElementById('base-fullscreen-toggle');
+const baseResetCamera = document.getElementById('base-reset-camera');
+
+const baseZoneFallback = {
+  zone_cmd: {
+    id: 'zone_cmd',
+    code: 'CMD-01',
+    name: 'COMANDO',
+    status: 'normal',
+    accessLevel: 'L4',
+    lastEvent: 'SINCRONIA_OK // 00:13:22Z',
+    notes: ['Consola principal en linea.', 'Rutas de control redundantes activas.'],
+    activityLog: [
+      { ts: '00:13:22Z', level: 'INFO', msg: 'Sincronia de mainframe normal' },
+      { ts: '00:09:41Z', level: 'INFO', msg: 'Chequeo de rele completado' },
+      { ts: '00:04:07Z', level: 'TRACE', msg: 'Barrido de telemetria registrado' }
+    ]
+  },
+  zone_lab: {
+    id: 'zone_lab',
+    code: 'LAB-03',
+    name: 'LABORATORIO',
+    status: 'alert',
+    accessLevel: 'L3',
+    lastEvent: 'CALIBRACION // 00:06:18Z',
+    notes: ['Sensores recalibrados.', 'Mantener acceso restringido.'],
+    activityLog: [
+      { ts: '00:06:18Z', level: 'WARN', msg: 'Calibracion de red de sensores' },
+      { ts: '00:02:55Z', level: 'INFO', msg: 'Bahia de muestras sellada' },
+      { ts: '00:01:12Z', level: 'TRACE', msg: 'Filtros de aire estables' }
+    ]
+  },
+  zone_arm: {
+    id: 'zone_arm',
+    code: 'ARM-02',
+    name: 'ARMERIA',
+    status: 'normal',
+    accessLevel: 'L3',
+    lastEvent: 'ESCANEO_TAQUILLAS // 00:11:03Z',
+    notes: ['Inventario nominal.', 'Acceso bajo autorizacion.'],
+    activityLog: [
+      { ts: '00:11:03Z', level: 'INFO', msg: 'Escaneo de taquillas correcto' },
+      { ts: '00:07:22Z', level: 'INFO', msg: 'Conteo de municion sincronizado' },
+      { ts: '00:03:45Z', level: 'TRACE', msg: 'Cierre de puerta verificado' }
+    ]
+  },
+  zone_gar: {
+    id: 'zone_gar',
+    code: 'GAR-04',
+    name: 'GARAJE',
+    status: 'normal',
+    accessLevel: 'L2',
+    lastEvent: 'BAHIA_VEHICULOS // 00:08:32Z',
+    notes: ['Bahia operativa.', 'Sin obstrucciones registradas.'],
+    activityLog: [
+      { ts: '00:08:32Z', level: 'INFO', msg: 'Bahia de vehiculos operativa' },
+      { ts: '00:05:09Z', level: 'INFO', msg: 'Ruta despejada' },
+      { ts: '00:01:39Z', level: 'TRACE', msg: 'Niveles de combustible verificados' }
+    ]
+  },
+  zone_med: {
+    id: 'zone_med',
+    code: 'MED-05',
+    name: 'MEDICO',
+    status: 'normal',
+    accessLevel: 'L2',
+    lastEvent: 'CIERRE_SUMINISTROS // 00:10:10Z',
+    notes: ['Suministros dentro de umbral.', 'Revision de inventario pendiente.'],
+    activityLog: [
+      { ts: '00:10:10Z', level: 'INFO', msg: 'Cierre de suministros correcto' },
+      { ts: '00:06:24Z', level: 'INFO', msg: 'Chequeo de triaje' },
+      { ts: '00:02:08Z', level: 'TRACE', msg: 'Camara frigorifica estable' }
+    ]
+  },
+  zone_sec: {
+    id: 'zone_sec',
+    code: 'SEC-06',
+    name: 'SEGURIDAD',
+    status: 'lockdown',
+    accessLevel: 'L4',
+    lastEvent: 'PERIMETRO // 00:12:05Z',
+    notes: ['Perimetro en cierre controlado.', 'Solo acceso con clave de mando.'],
+    activityLog: [
+      { ts: '00:12:05Z', level: 'ALERT', msg: 'Bloqueo de perimetro' },
+      { ts: '00:07:58Z', level: 'INFO', msg: 'Barrido de camaras' },
+      { ts: '00:03:26Z', level: 'TRACE', msg: 'Prueba de intrusion correcta' }
+    ]
+  }
+};
+
+const baseState = {
+  selectedZoneId: 'zone_cmd',
+  activeMode: 'ALL',
+  zonesData: {},
+  detailTimer: null,
+  editorOpen: false,
+  editorDirty: false,
+  editorZoneId: null,
+  focusLinkRaf: null,
+  focusLinkPos: null,
+  focusCardPos: null,
+  focusCardSize: null,
+  isOverview: false,
+  openModuleByZone: {},
+  visualDefaultsApplied: false,
+  baseViewActivated: false
+};
+
+const base3d = createBase3d();
+
+async function initBaseModule() {
+  if (!baseZoneName || !baseZoneStatus || !baseDetailTitle) return;
+  ensureBaseVisualDefaults();
+  initBaseFullscreenToggle();
+  initBaseResetCamera();
+  if (baseVisualModeSelect) {
+    baseVisualModeSelect.addEventListener('change', applyBaseVisualSettings);
+  }
+  if (baseVisualPaletteSelect) {
+    baseVisualPaletteSelect.addEventListener('change', applyBaseVisualSettings);
+  }
+  if (baseEditorToggle) {
+    baseEditorToggle.addEventListener('click', () => {
+      if (baseState.editorOpen) {
+        closeBaseEditor({ preserveText: false });
+      } else {
+        openBaseEditor(baseState.selectedZoneId);
+      }
+    });
+  }
+  if (baseEditorCancel) {
+    baseEditorCancel.addEventListener('click', () => closeBaseEditor({ preserveText: false }));
+  }
+  if (baseEditorText) {
+    baseEditorText.addEventListener('input', () => {
+      baseState.editorDirty = true;
+    });
+  }
+  if (baseEditorSave) {
+    baseEditorSave.addEventListener('click', async () => {
+      await saveBaseEditor();
+    });
+  }
+  baseState.zonesData = await loadBaseZoneData();
+  if (base3dCanvas) {
+  base3d.init({
+    canvas: base3dCanvas,
+    root: base3dRoot,
+    zonesData: baseState.zonesData,
+    onSelect: (zoneId) => selectBaseZone(zoneId, { source: 'three', force: true }),
+    onToggleFullscreen: () => toggleBaseFullscreen(),
+    onFlyOff: () => {
+      baseState.isOverview = true;
+      baseState.focusLinkPos = null;
+      baseState.focusCardPos = null;
+      baseFocusCard?.classList.add('is-hidden');
+      baseFocusLink?.classList.add('hidden');
+      baseFocusLinkLine?.setAttribute('points', '0,0 0,0 0,0');
+    }
+  });
+  }
+  applyBaseVisualSettings();
+  startBaseFocusLinkLoop();
+  selectBaseZone(baseState.selectedZoneId, { immediateFocus: true });
+}
+
+async function loadBaseZoneData() {
+  const apiZones = await fetchEntropiaZones();
+  if (apiZones) return apiZones;
+  showMessage('Entropia: requiere sesion para cargar zonas.', true);
+  return {};
+}
+
+function applyBaseVisualSettings() {
+  const mode = baseVisualModeSelect?.value || 'subtle';
+  const palette = baseVisualPaletteSelect?.value || 'standard';
+  base3d.setVisualMode?.(mode);
+  base3d.setPalette?.(palette);
+  if (base3dRoot) {
+    base3dRoot.dataset.visual = mode;
+    base3dRoot.dataset.palette = palette;
+  }
+}
+
+function ensureBaseVisualDefaults() {
+  if (baseState.visualDefaultsApplied) return;
+  if (baseVisualModeSelect) {
+    baseVisualModeSelect.value = 'dramatic';
+  }
+  if (baseVisualPaletteSelect) {
+    baseVisualPaletteSelect.value = 'amber';
+  }
+  baseState.visualDefaultsApplied = true;
+}
+
+function updateBaseFocusLink() {
+  if (!baseFocusLink || !baseFocusLinkLine || !baseFocusCard || !base3dRoot) return;
+  if (!baseState.selectedZoneId) {
+    baseFocusLink.classList.add('hidden');
+    baseFocusCard.classList.add('is-hidden');
+    base3dRoot.classList.remove('has-focus');
+    return;
+  }
+  baseFocusCard.classList.toggle('is-hidden', baseState.isOverview);
+  baseFocusLink.classList.toggle('hidden', baseState.isOverview);
+  base3dRoot.classList.toggle('has-focus', !baseState.isOverview);
+  const zonePos = base3d.getZoneScreenPosition?.(baseState.selectedZoneId);
+  const rootRect = base3dRoot.getBoundingClientRect();
+  if (
+    !zonePos ||
+    !rootRect.width ||
+    !rootRect.height ||
+    !Number.isFinite(zonePos.x) ||
+    !Number.isFinite(zonePos.y)
+  ) {
+    baseFocusLink.classList.add('hidden');
+    return;
+  }
+  if (!baseState.focusCardSize) {
+    baseState.focusCardSize = {
+      width: baseFocusCard.offsetWidth,
+      height: baseFocusCard.offsetHeight
+    };
+  }
+  const cardSize = baseState.focusCardSize;
+  if (!cardSize.width || !cardSize.height) {
+    baseFocusLink.classList.add('hidden');
+    return;
+  }
+  const posCache = baseState.focusLinkPos;
+  if (!posCache || posCache.zoneId !== baseState.selectedZoneId) {
+    baseState.focusLinkPos = {
+      zoneId: baseState.selectedZoneId,
+      x: zonePos.x,
+      y: zonePos.y
+    };
+  } else {
+    const t = 0.3;
+    posCache.x = lerp(posCache.x, zonePos.x, t);
+    posCache.y = lerp(posCache.y, zonePos.y, t);
+  }
+  const padding = 14;
+  const offset = 26;
+  const zoneX = baseState.focusLinkPos.x - rootRect.left;
+  const zoneY = baseState.focusLinkPos.y - rootRect.top;
+  const isMobileBase =
+    isMobileView() && document.body?.dataset.mobileTab === 'base';
+  let targetX;
+  let targetY;
+  if (isMobileBase) {
+    targetX = (rootRect.width - cardSize.width) * 0.5;
+    targetY = (rootRect.height - cardSize.height) * 0.5;
+  } else {
+    const isRightSide = zoneX > rootRect.width * 0.6;
+    const isBottomSide = zoneY > rootRect.height * 0.55;
+    targetX = zoneX + (isRightSide ? -offset - cardSize.width : offset);
+    targetY = zoneY + (isBottomSide ? -offset - cardSize.height : offset);
+  }
+  targetX = Math.min(Math.max(padding, targetX), rootRect.width - cardSize.width - padding);
+  targetY = Math.min(Math.max(padding, targetY), rootRect.height - cardSize.height - padding);
+  if (!baseState.focusCardPos || baseState.focusCardPos.zoneId !== baseState.selectedZoneId) {
+    baseState.focusCardPos = { zoneId: baseState.selectedZoneId, x: targetX, y: targetY };
+  } else {
+    const t = 0.22;
+    baseState.focusCardPos.x = lerp(baseState.focusCardPos.x, targetX, t);
+    baseState.focusCardPos.y = lerp(baseState.focusCardPos.y, targetY, t);
+  }
+  const cardX = baseState.focusCardPos.x;
+  const cardY = baseState.focusCardPos.y;
+  baseFocusCard.style.left = `${cardX.toFixed(2)}px`;
+  baseFocusCard.style.top = `${cardY.toFixed(2)}px`;
+
+  const anchorX = cardX + cardSize.width * 0.5;
+  const anchorY = cardY + cardSize.height * 0.5;
+  const x1 = anchorX;
+  const y1 = anchorY;
+  const x2 = zoneX;
+  const y2 = zoneY;
+  baseFocusLink.setAttribute('viewBox', `0 0 ${rootRect.width} ${rootRect.height}`);
+  const bendX = x1 + (x2 - x1) * 0.6;
+  const bendY = y1;
+  baseFocusLinkLine.setAttribute(
+    'points',
+    `${x1.toFixed(2)},${y1.toFixed(2)} ${bendX.toFixed(2)},${bendY.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)}`
+  );
+  baseFocusLink.classList.remove('hidden');
+}
+
+function lerp(from, to, t) {
+  return from + (to - from) * t;
+}
+
+function initBaseFullscreenToggle() {
+  if (!baseFullscreenToggle || !base3dRoot) return;
+  if (!document?.fullscreenEnabled) {
+    baseFullscreenToggle.classList.add('hidden');
+    return;
+  }
+  const updateLabel = () => {
+    const isFullscreen = document.fullscreenElement === base3dRoot;
+    baseFullscreenToggle.textContent = isFullscreen ? '[x]' : '[ ]';
+    baseFullscreenToggle.setAttribute('aria-pressed', String(isFullscreen));
+    baseFullscreenToggle.classList.toggle('is-active', isFullscreen);
+  };
+  baseFullscreenToggle.addEventListener('click', async () => {
+    await toggleBaseFullscreen();
+  });
+  document.addEventListener('fullscreenchange', () => {
+    updateLabel();
+    base3d.resize?.();
+  });
+  updateLabel();
+}
+
+function initBaseResetCamera() {
+  if (!baseResetCamera) return;
+  baseResetCamera.addEventListener('click', () => {
+    base3d.resetCamera?.({ immediate: true, duration: 600 });
+  });
+}
+
+async function toggleBaseFullscreen() {
+  if (!document?.fullscreenEnabled || !base3dRoot) return;
+  if (document.fullscreenElement === base3dRoot) {
+    await document.exitFullscreen();
+    return;
+  }
+  try {
+    await base3dRoot.requestFullscreen();
+  } catch (error) {
+    showMessage('No se pudo activar pantalla completa.', true);
+  }
+}
+
+function startBaseFocusLinkLoop() {
+  if (!baseFocusLink) return;
+  if (baseState.focusLinkRaf) {
+    cancelAnimationFrame(baseState.focusLinkRaf);
+  }
+  const tick = () => {
+    updateBaseFocusLink();
+    baseState.focusLinkRaf = requestAnimationFrame(tick);
+  };
+  baseState.focusLinkRaf = requestAnimationFrame(tick);
+}
+
+function selectBaseZone(zoneId, options = {}) {
+  const zoneData = baseState.zonesData[zoneId];
+  if (!zoneData) return;
+  const isSame = baseState.selectedZoneId === zoneId;
+  const allowSameToggle = options.source === 'three' && isSame;
+  baseState.selectedZoneId = zoneId;
+  if (!allowSameToggle) {
+    baseState.isOverview = false;
+    baseFocusCard?.classList.remove('is-hidden');
+    baseFocusLink?.classList.remove('hidden');
+  }
+  if (baseState.editorOpen && baseState.editorDirty && baseState.editorZoneId !== zoneId) {
+    showMessage('Edicion sin guardar descartada.', true);
+    baseState.editorDirty = false;
+  }
+  updateBaseFocusPanel(zoneData);
+  if (baseState.detailTimer) {
+    window.clearTimeout(baseState.detailTimer);
+  }
+  baseState.detailTimer = window.setTimeout(() => {
+    updateBaseDetailPanel(zoneData);
+  }, 150);
+  if (baseState.editorOpen) {
+    openBaseEditor(zoneId);
+  }
+  base3d.setSelection(zoneId);
+  baseState.focusLinkPos = null;
+  baseState.focusCardPos = null;
+  if (allowSameToggle) {
+    baseState.isOverview = !baseState.isOverview;
+    if (baseState.isOverview) {
+      baseFocusCard?.classList.add('is-hidden');
+      baseFocusLink?.classList.add('hidden');
+      baseFocusLinkLine?.setAttribute('points', '0,0 0,0 0,0');
+      base3d.flyOff({ delay: options.immediateFocus ? 0 : 150 });
+    } else {
+      baseFocusCard?.classList.remove('is-hidden');
+      baseFocusLink?.classList.remove('hidden');
+      base3d.focusZone(zoneId, {
+        delay: options.immediateFocus ? 0 : 150,
+        immediate: Boolean(options.immediateFocus)
+      });
+    }
+    updateBaseFocusLink();
+    return;
+  }
+  if (!isSame || options.force) {
+    base3d.focusZone(zoneId, {
+      delay: options.immediateFocus ? 0 : 150,
+      immediate: Boolean(options.immediateFocus)
+    });
+  }
+  updateBaseFocusLink();
+}
+
+function updateBaseFocusPanel(zoneData) {
+  if (baseZoneName) baseZoneName.textContent = zoneData.name;
+  if (baseZoneNote) {
+    baseZoneNote.textContent = zoneData.summary || 'SISTEMA: SIN RESUMEN';
+  }
+  baseState.focusCardSize = null;
+  renderBaseStatusPills(zoneData.tags || [], zoneData.modules || []);
+}
+
+function updateBaseDetailPanel(zoneData) {
+  if (baseDetailTitle) {
+    const code = zoneData.code ? String(zoneData.code) : String(zoneData.id || '');
+    baseDetailTitle.textContent = `${code} ${zoneData.name}`.trim();
+  }
+  const metrics = getZoneMetrics(zoneData.modules || []);
+  if (baseDetailStatus) baseDetailStatus.textContent = String(metrics.total);
+  if (baseDetailEvent) baseDetailEvent.textContent = String(metrics.available);
+  if (baseDetailAccess) baseDetailAccess.textContent = String(metrics.locked);
+  if (baseDetailNotes) baseDetailNotes.textContent = zoneData.summary || 'SIN RESUMEN';
+  renderBaseModulesList(zoneData.modules || []);
+}
+
+function renderBaseStatusPills(tags = [], modules = []) {
+  if (!baseZoneStatus) return;
+  baseZoneStatus.innerHTML = '';
+  const safeTags = Array.isArray(tags) ? tags.filter(Boolean) : [];
+  if (safeTags.length) {
+    safeTags.forEach((tag) => {
+      const pill = document.createElement('span');
+      pill.className = 'badge-soft base-status-pill';
+      pill.dataset.status = 'tag';
+      pill.textContent = String(tag).toUpperCase();
+      baseZoneStatus.appendChild(pill);
+    });
+    return;
+  }
+
+  const metrics = getZoneMetrics(modules);
+  const pill = document.createElement('span');
+  pill.className = 'badge-soft base-status-pill';
+  pill.dataset.status = 'tag';
+  pill.textContent = `MODULOS ${metrics.total} / DISP. ${metrics.available}`;
+  baseZoneStatus.appendChild(pill);
+}
+
+function renderBaseModulesList(modules) {
+  if (!baseActivityList) return;
+  baseActivityList.innerHTML = '';
+  if (!modules.length) {
+    const emptyItem = document.createElement('li');
+    emptyItem.className = 'base-activity-item';
+    emptyItem.textContent = 'Sin modulos asignados.';
+    baseActivityList.appendChild(emptyItem);
+    return;
+  }
+  const zoneKey = baseState.selectedZoneId || 'default';
+  const openModuleId = baseState.openModuleByZone[zoneKey] || null;
+  modules.forEach((module) => {
+    if (!module || !module.module_id) return;
+    const item = document.createElement('li');
+    item.className = 'base-module-item';
+
+    const head = document.createElement('div');
+    head.className = 'base-module-head';
+
+    const label = document.createElement('div');
+    label.className = 'base-module-label';
+    label.textContent = module.label || module.module_id;
+
+    const state = document.createElement('span');
+    state.className = 'base-module-state';
+    const isAvailable = module.available === true;
+    state.dataset.state = isAvailable ? 'available' : 'locked';
+    state.textContent = isAvailable ? 'ACTIVO' : 'BLOQUEADO';
+
+    const meta = document.createElement('div');
+    meta.className = 'base-module-meta';
+    meta.appendChild(state);
+
+    const body = document.createElement('div');
+    body.className = 'base-module-body';
+
+    if (module.summary) {
+      const summary = document.createElement('div');
+      summary.className = 'base-module-summary';
+      summary.textContent = module.summary;
+      body.appendChild(summary);
+    }
+
+    const items = Array.isArray(module.items) ? module.items : [];
+    if (items.length) {
+      const list = document.createElement('ul');
+      list.className = 'base-module-items';
+      items.forEach((entry) => {
+        if (!entry || !entry.label) return;
+        const line = document.createElement('li');
+        line.className = 'base-module-itemline';
+        const left = document.createElement('span');
+        left.textContent = entry.label;
+        const right = document.createElement('span');
+        right.textContent = formatModuleItemMeta(entry);
+        line.appendChild(left);
+        line.appendChild(right);
+        list.appendChild(line);
+      });
+      body.appendChild(list);
+    }
+
+    if (body.childElementCount) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'base-module-accordion';
+      const isOpen = openModuleId === module.module_id;
+      toggle.textContent = isOpen ? '−' : '+';
+      toggle.setAttribute('aria-expanded', String(isOpen));
+      item.classList.toggle('collapsed', !isOpen);
+      toggle.addEventListener('click', () => {
+        const currentlyOpen = baseState.openModuleByZone[zoneKey] || null;
+        const nextOpen = currentlyOpen === module.module_id ? null : module.module_id;
+        baseState.openModuleByZone[zoneKey] = nextOpen;
+        renderBaseModulesList(modules);
+      });
+      meta.appendChild(toggle);
+      item.appendChild(head);
+      item.appendChild(body);
+    } else {
+      item.appendChild(head);
+    }
+
+    if (isDmViewer()) {
+      const toggleMode = document.createElement('button');
+      toggleMode.type = 'button';
+      toggleMode.className = 'base-module-mode-toggle';
+      toggleMode.textContent = 'Cambiar modo';
+      toggleMode.addEventListener('click', () => {
+        module.available = !module.available;
+        const zone = baseState.zonesData[zoneKey];
+        if (zone && Array.isArray(zone.modules)) {
+          const target = zone.modules.find((entry) => entry.module_id === module.module_id);
+          if (target) target.available = module.available;
+        }
+        baseState.openModuleByZone[zoneKey] = module.module_id;
+        if (zone) {
+          updateBaseFocusPanel(zone);
+          updateBaseDetailPanel(zone);
+          renderBaseModulesList(zone.modules || modules);
+        } else {
+          renderBaseModulesList(modules);
+        }
+      });
+      meta.appendChild(toggleMode);
+    }
+
+    head.appendChild(label);
+    head.appendChild(meta);
+    baseActivityList.appendChild(item);
+  });
+}
+
+function formatModuleItemMeta(item) {
+  const parts = [];
+  if (item.status) parts.push(String(item.status).toUpperCase());
+  if (item.qty != null) parts.push(`x${item.qty}`);
+  if (item.notes) parts.push(String(item.notes));
+  return parts.length ? parts.join(' · ') : '—';
+}
+
+function getZoneMetrics(modules = []) {
+  const total = modules.length;
+  const available = modules.filter((module) => module && module.available === true).length;
+  return { total, available, locked: Math.max(total - available, 0) };
+}
+
+async function fetchEntropiaZones() {
+  try {
+    const response = await fetch('/api/entropia/zones', { credentials: 'same-origin' });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    if (!payload || !Array.isArray(payload.zones)) return null;
+    const normalized = normalizeBaseZones(payload.zones);
+    return Object.keys(normalized).length ? normalized : null;
+  } catch (error) {
+    console.warn('Entropia zones API not available.', error);
+    return null;
+  }
+}
+
+function normalizeBaseZones(raw) {
+  const list = Array.isArray(raw) ? raw : Object.values(raw || {});
+  const map = {};
+  list.forEach((zone) => {
+    const normalized = normalizeZoneRecord(zone);
+    if (normalized) {
+      map[normalized.id] = normalized;
+    }
+  });
+  return map;
+}
+
+function normalizeZoneRecord(zone) {
+  if (!zone || !zone.id) return null;
+  const modules = Array.isArray(zone.modules) ? zone.modules : [];
+  const summary =
+    zone.summary ||
+    (Array.isArray(zone.notes) ? zone.notes.join(' ') : zone.notes) ||
+    zone.lastEvent ||
+    '';
+  return {
+    id: String(zone.id),
+    code: zone.code ? String(zone.code) : '',
+    name: zone.name ? String(zone.name) : String(zone.id),
+    summary: summary ? String(summary) : '',
+    tags: Array.isArray(zone.tags) ? zone.tags : [],
+    modules: modules
+      .map((module) => normalizeModuleRecord(module))
+      .filter((module) => module),
+    status: zone.status || 'normal'
+  };
+}
+
+function normalizeModuleRecord(module) {
+  if (!module) return null;
+  const moduleId = module.module_id || module.id;
+  if (!moduleId) return null;
+  const items = Array.isArray(module.items) ? module.items : [];
+  return {
+    module_id: String(moduleId),
+    label: module.label ? String(module.label) : String(moduleId),
+    type: module.type ? String(module.type) : 'capabilities',
+    available: module.available === true,
+    summary: module.summary ? String(module.summary) : '',
+    items: items
+      .map((item) => normalizeModuleItem(item))
+      .filter((item) => item)
+  };
+}
+
+function normalizeModuleItem(item) {
+  if (!item || !item.label) return null;
+  const itemId = item.item_id || item.id;
+  return {
+    item_id: itemId ? String(itemId) : null,
+    label: String(item.label),
+    status: item.status ? String(item.status) : '',
+    qty: item.qty == null ? null : Number(item.qty),
+    notes: item.notes ? String(item.notes) : ''
+  };
+}
+
+function openBaseEditor(zoneId) {
+  if (!baseEditorBody || !baseEditorText) return;
+  const zone = baseState.zonesData[zoneId];
+  if (!zone) return;
+  const payload = buildZoneEditorPayload(zone);
+  if (!baseState.editorOpen || baseState.editorZoneId !== zoneId || !baseState.editorDirty) {
+    baseEditorText.value = JSON.stringify(payload, null, 2);
+    baseState.editorDirty = false;
+  }
+  baseState.editorOpen = true;
+  baseState.editorZoneId = zoneId;
+  baseEditorBody.classList.remove('hidden');
+  if (baseEditorToggle) baseEditorToggle.textContent = 'Cerrar editor';
+}
+
+function closeBaseEditor({ preserveText } = {}) {
+  if (!baseEditorBody) return;
+  baseState.editorOpen = false;
+  baseState.editorDirty = false;
+  baseState.editorZoneId = null;
+  baseEditorBody.classList.add('hidden');
+  if (!preserveText && baseEditorText) baseEditorText.value = '';
+  if (baseEditorToggle) baseEditorToggle.textContent = 'Editar zona';
+}
+
+function buildZoneEditorPayload(zone) {
+  return {
+    id: zone.id,
+    code: zone.code || '',
+    name: zone.name || '',
+    summary: zone.summary || '',
+    tags: Array.isArray(zone.tags) ? zone.tags : [],
+    status: zone.status || 'normal',
+    modules: Array.isArray(zone.modules) ? zone.modules : []
+  };
+}
+
+async function saveBaseEditor() {
+  if (!baseEditorText) return;
+  let parsed = null;
+  try {
+    parsed = JSON.parse(baseEditorText.value || '');
+  } catch (error) {
+    showMessage('JSON invalido en editor de zona.', true);
+    return;
+  }
+  const normalized = normalizeZoneRecord(parsed);
+  if (!normalized) {
+    showMessage('Zona invalida: falta id o nombre.', true);
+    return;
+  }
+  const zonesMap = { ...baseState.zonesData, [normalized.id]: normalized };
+  const payload = Object.values(zonesMap);
+  try {
+    const response = await fetch('/api/entropia/zones', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zones: payload })
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      showMessage(errorData.error || 'No se pudo guardar Entropia.', true);
+      return;
+    }
+    const saved = await response.json();
+    const normalizedMap = normalizeBaseZones(saved.zones || []);
+    baseState.zonesData = normalizedMap;
+    base3d.setZonesData(baseState.zonesData);
+    const zone = baseState.zonesData[normalized.id];
+    if (zone) {
+      updateBaseFocusPanel(zone);
+      updateBaseDetailPanel(zone);
+      if (baseState.editorOpen) openBaseEditor(zone.id);
+    }
+    showMessage('Zona de Entropia actualizada.');
+  } catch (error) {
+    showMessage('No se pudo guardar Entropia.', true);
+  }
+}
 
 async function init() {
   try {
     console.log('DEBUG: init started');
     populateCategoryOptions();
     bindEvents();
+    await initBaseModule();
     enterNewEntityMode();
     renderFocalPoiCard();
-    renderActiveMessageCard();
     updateRoleLayoutClasses();
     setDmBlade('journal');
     setWorkspaceView('map');
@@ -493,6 +1936,7 @@ async function init() {
       toggleCollapsible(defaultPoiToggle);
     }
     updateViewportMode();
+    updateMobileStateBadge();
     await setupMap();
     console.log('DEBUG: setupMap done');
     await hydrateFromSession();
@@ -505,7 +1949,6 @@ async function init() {
     }
     applyAgentStatus();
     await loadEntities();
-    updateMessageBoxLabel();
     initFooterTicker();
   initFooterMembrane();
   startFooterClock();
@@ -547,6 +1990,10 @@ function bindEvents() {
   pickButton?.addEventListener('click', togglePickMode);
   entityTypeInput?.addEventListener('change', () => updateEntityFormMode(entityTypeInput.value));
   agentPasswordToggle?.addEventListener('click', () => {
+    if (!agentSelect?.value) {
+      if (agentPassStatus) agentPassStatus.textContent = 'Selecciona un agente.';
+      return;
+    }
     if (agentPasswordPanel?.classList.contains('hidden')) {
       showAgentPasswordPanel();
     } else {
@@ -555,6 +2002,14 @@ function bindEvents() {
   });
   agentPassSave?.addEventListener('click', handleAgentPasswordSave);
   agentPassCancel?.addEventListener('click', hideAgentPasswordPanel);
+  agentPasswordPanel?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    handleAgentPasswordSave();
+  });
+  activityMoreBtn?.addEventListener('click', () => {
+    if (!state.activityPagination || state.activityPagination.loading) return;
+    loadActivity({ page: state.activityPagination.page + 1, append: true });
+  });
   agentSelect?.addEventListener('change', () => {
     agentLoginStatus.textContent = '';
     if (agentPassStatus) agentPassStatus.textContent = '';
@@ -566,6 +2021,10 @@ function bindEvents() {
     } else {
       hideDmPasswordPanel();
     }
+  });
+  bootDmPasswordPanel?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    handleDmPasswordSave();
   });
   bootDmSaveBtn?.addEventListener('click', handleDmPasswordSave);
   bootDmCancelBtn?.addEventListener('click', hideDmPasswordPanel);
@@ -591,50 +2050,66 @@ function bindEvents() {
     toggle.addEventListener('click', () => toggleCollapsible(toggle));
   });
   commandMapBtn?.addEventListener('click', () => runCommand('SHOW AMINA MAP'));
-  commandInboxBtn?.addEventListener('click', () => runCommand('SHOW AGENT INBOX'));
+  commandInboxBtn?.addEventListener('click', () => runCommand('SHOW AGENT CHAT'));
   commandInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
       runCommand(commandInput.value);
     }
   });
-  if (messageForm) {
-    messageForm.addEventListener('submit', handleMessageSubmit);
-  }
-  if (messageClearBtn) {
-    messageClearBtn.addEventListener('click', () => {
-      messageForm.reset();
-      messageFromInput.value = 'Sr. Verdad';
-    });
-  }
-  if (filterApplyBtn) {
-    filterApplyBtn.addEventListener('click', applyMessageFilters);
-  }
-  if (filterBoxSelect) {
-    filterBoxSelect.addEventListener('change', applyMessageFilters);
-  }
-  msgPrevBtn?.addEventListener('click', showPrevMessage);
-  msgNextBtn?.addEventListener('click', showNextMessage);
-  if (msgBoxToggleBtn) {
-    msgBoxToggleBtn.addEventListener('click', toggleMessageBoxView);
-  }
-  msgReplyBtn?.addEventListener('click', () => {
-    if (!state.activeMessage) return;
-    startReply(state.activeMessage);
+  chatForm?.addEventListener('submit', handleChatSubmit);
+  chatSyncBtn?.addEventListener('click', () => reloadChatData());
+  chatIdentityList?.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-chat-identity]');
+    if (!target) return;
+    const identityId = Number(target.dataset.chatIdentity);
+    if (!identityId || Number.isNaN(identityId)) return;
+    setActiveIdentity(identityId);
   });
-  replyCancelBtn?.addEventListener('click', cancelReply);
-  replyCancelBtnDm?.addEventListener('click', cancelReply);
-  replySendBtn?.addEventListener('click', submitReply);
-  replySendBtnDm?.addEventListener('click', submitReply);
-  if (inboxCloseBtn) {
-    inboxCloseBtn.addEventListener('click', hideInboxView);
-  }
+  dmChatOpenBtn?.addEventListener('click', handleDmChatOpen);
+  dmChatForm?.addEventListener('submit', handleDmChatSubmit);
+  dmChatRefreshBtn?.addEventListener('click', () => reloadChatData());
+  dmChatThreadList?.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-chat-thread]');
+    if (!target) return;
+    const threadId = Number(target.dataset.chatThread);
+    if (!threadId || Number.isNaN(threadId)) return;
+    setActiveThread(threadId);
+  });
+  dmIdentityForm?.addEventListener('submit', handleDmIdentitySubmit);
+  dmIdentityCancelBtn?.addEventListener('click', () => setDmIdentityEditing(null));
+  dmIdentityList?.addEventListener('click', (event) => {
+    const editBtn = event.target.closest('[data-identity-edit]');
+    const deleteBtn = event.target.closest('[data-identity-delete]');
+    const item = event.target.closest('[data-identity-id]');
+    if (!item) return;
+    const identityId = Number(item.dataset.identityId);
+    if (deleteBtn) {
+      handleDmIdentityDelete(identityId);
+      return;
+    }
+    if (editBtn) {
+      const identity = state.chat.identities.find((entry) => entry.id === identityId);
+      setDmIdentityEditing(identity || null);
+    }
+  });
+  dmMobileConsoleTabs.forEach((btn) => {
+    const tab = btn.dataset.dmConsoleTab;
+    if (!tab) return;
+    btn.addEventListener('click', () => setMobileDmConsoleTab(tab));
+  });
   panelToggleBtn?.addEventListener('click', () => toggleSidebar());
   if (journalSaveBtn) {
     journalSaveBtn.addEventListener('click', handleJournalSave);
   }
   journalSeasonInput?.addEventListener('change', loadJournalEntry);
   journalSessionInput?.addEventListener('change', loadJournalEntry);
+  journalPublicInput?.addEventListener('input', () => {
+    if (state.dmMode) setJournalStatus('dirty');
+  });
+  journalDmInput?.addEventListener('input', () => {
+    if (state.dmMode) setJournalStatus('dirty');
+  });
   agentJournalSaveBtn?.addEventListener('click', async () => {
     if (!agentJournalPublicInput || !agentJournalSaveBtn) return;
     if (!agentJournalPublicInput.isContentEditable) {
@@ -651,30 +2126,16 @@ function bindEvents() {
   agentJournalSessionInput?.addEventListener('change', loadAgentJournal);
   agentJournalSeasonInput?.addEventListener('input', autoLoadAgentJournal);
   agentJournalSessionInput?.addEventListener('input', autoLoadAgentJournal);
-  if (msgBoxInboxBtn) {
-    msgBoxInboxBtn.addEventListener('click', () => {
-      state.messageFilters.box = '';
-      state.activeMessageIndex = 0;
-      updateMessageBoxLabel();
-      loadMessages();
-    });
-  }
-  if (msgBoxSentBtn) {
-    msgBoxSentBtn.addEventListener('click', () => {
-      state.messageFilters.box = 'sent';
-      state.activeMessageIndex = 0;
-      updateMessageBoxLabel();
-      loadMessages();
-    });
-  }
-  if (unreadOnlyCheckbox) {
-    unreadOnlyCheckbox.addEventListener('change', () => {
-      state.messageFilters.unread_only = unreadOnlyCheckbox.checked;
-      state.activeMessageIndex = 0;
-      loadMessages();
-    });
-  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && (state.dmMode || state.agent)) {
+      connectChatSocket();
+    }
+  });
   agentLoginButton.addEventListener('click', handleAgentLogin);
+  agentLoginForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    handleAgentLogin();
+  });
   agentPassInput.addEventListener('keypress', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -692,6 +2153,60 @@ function bindEvents() {
       if (tab) setMobileTab(tab);
     });
   }
+  dmMobileEditExit?.addEventListener('click', () => {
+    setMobileDmEditMode(false);
+  });
+  document.querySelectorAll('.mobile-tab').forEach((btn) => {
+    const tab = btn.getAttribute('data-mobile-tab');
+    if (!tab) return;
+    btn.addEventListener('touchend', (event) => {
+      event.preventDefault();
+      setMobileTab(tab);
+    });
+    btn.addEventListener('pointerup', (event) => {
+      if (event.pointerType !== 'mouse') {
+        event.preventDefault();
+        setMobileTab(tab);
+      }
+    });
+  });
+  sheetRefreshBtn?.addEventListener('click', () => refreshCharacterSheetPools());
+  characterSheetCard?.addEventListener('click', (event) => {
+    const adjustBtn = event.target.closest('[data-sheet-adjust]');
+    if (adjustBtn) {
+      const metric = adjustBtn.dataset.sheetAdjust;
+      const delta = Number(adjustBtn.dataset.delta || 0);
+      if (!Number.isNaN(delta)) adjustSheetMetric(metric, delta);
+      return;
+    }
+    const generalSpend = event.target.closest('[data-general-skill]');
+    if (generalSpend) {
+      spendGeneralSkill(generalSpend.dataset.generalSkill);
+      return;
+    }
+    const toggleBtn = event.target.closest('[data-investigation-toggle]');
+    if (toggleBtn) {
+      toggleInvestigationPanel(toggleBtn.dataset.investigationToggle);
+      return;
+    }
+    const optionBtn = event.target.closest('[data-investigation-option]');
+    if (optionBtn) {
+      const amount = Number(optionBtn.dataset.spendValue || 0);
+      if (amount > 0) {
+        selectInvestigationSpend(optionBtn.dataset.investigationOption, amount);
+      }
+      return;
+    }
+    const applyBtn = event.target.closest('[data-investigation-apply]');
+    if (applyBtn) {
+      applyInvestigationSpend(applyBtn.dataset.investigationApply);
+      return;
+    }
+    const cancelBtn = event.target.closest('[data-investigation-cancel]');
+    if (cancelBtn) {
+      clearInvestigationSpend(cancelBtn.dataset.investigationCancel);
+    }
+  });
 
   if (mobileMapTopbar) {
     mobileMapTopbar.remove();
@@ -700,8 +2215,18 @@ function bindEvents() {
     setDmGraphFocus(dmGraphSelect.value);
   });
   dmGraphFullscreenBtn?.addEventListener('click', () => toggleGraphFullscreen(dmGraphContainer));
+  dmGraphAddBtn?.addEventListener('click', () => {
+    if (state.dmGraphScope === DM_GRAPH_SCOPE.CAMPAIGN) return;
+    const selected = dmGraphSearchInput?.dataset?.entityId || state.dmGraphFocusId;
+    if (!selected || selected === DM_GRAPH_CAMPAIGN_VALUE) return;
+    addGraphSelection('dm', selected);
+  });
+  dmGraphClearBtn?.addEventListener('click', () => {
+    clearGraphSelections('dm');
+  });
   if (dmGraphSearchInput) {
     dmGraphSearchInput.addEventListener('input', (e) => {
+      clearGraphSearchSelection(dmGraphSearchInput);
       renderDmGraphSearchResults(e.target.value);
     });
     dmGraphSearchInput.addEventListener('focus', (e) => {
@@ -723,8 +2248,18 @@ function bindEvents() {
     if (agentGraphSelect) setAgentGraphFocus(agentGraphSelect.value);
   });
   agentGraphFullscreenBtn?.addEventListener('click', () => toggleGraphFullscreen(agentGraphContainer));
+  agentGraphAddBtn?.addEventListener('click', () => {
+    if (state.agentGraphScope === AGENT_GRAPH_SCOPE.CAMPAIGN) return;
+    const selected = agentGraphSearchInput?.dataset?.entityId || state.agentGraphFocusId;
+    if (!selected || selected === AGENT_GRAPH_CAMPAIGN_VALUE) return;
+    addGraphSelection('agent', selected);
+  });
+  agentGraphClearBtn?.addEventListener('click', () => {
+    clearGraphSelections('agent');
+  });
   if (agentGraphSearchInput) {
     agentGraphSearchInput.addEventListener('input', (e) => {
+      clearGraphSearchSelection(agentGraphSearchInput);
       renderAgentGraphSearchResults(e.target.value);
     });
     agentGraphSearchInput.addEventListener('focus', (e) => {
@@ -747,6 +2282,28 @@ function bindEvents() {
     if (!target) return;
     const id = target.getAttribute('data-entity-jump');
     setActiveEntityAgentById(id);
+  });
+
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-focal-poi-jump]');
+    if (!target) return;
+    const id = target.getAttribute('data-focal-poi-jump');
+    if (!id) return;
+    const poiEntity = findPoiEntityById(id);
+    if (state.dmMode) {
+      const entity = poiEntity || findEntityById(id);
+      if (entity) {
+        selectAdminEntity(entity);
+      }
+    } else {
+      const targetId = poiEntity ? poiEntity.id : id;
+      setActiveEntityAgentById(targetId);
+    }
+    if (isMobileView()) {
+      setMobileTab('database');
+    } else {
+      setWorkspaceView(state.dmMode ? 'entities' : 'database');
+    }
   });
 
   document.addEventListener('click', (event) => {
@@ -815,7 +2372,7 @@ function bindEvents() {
   entityCancelBtn?.addEventListener('click', enterNewEntityMode);
   // delegate delete buttons (there are duplicates in layout)
   document.addEventListener('click', (event) => {
-    const deleteBtn = event.target.closest('#entity-delete');
+    const deleteBtn = event.target.closest('[data-entity-delete]');
     if (deleteBtn) {
       event.preventDefault();
       const idAttr = deleteBtn.dataset ? deleteBtn.dataset.entityId : null;
@@ -867,6 +2424,12 @@ function bindEvents() {
     if (event.target === unlockOverlay) hideUnlockOverlay();
   });
   unlockConfirm?.addEventListener('click', () => {
+    const id = unlockOverlay?.dataset.targetId;
+    const code = unlockInput?.value || '';
+    if (id) attemptUnlock(id, code.trim());
+  });
+  unlockForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
     const id = unlockOverlay?.dataset.targetId;
     const code = unlockInput?.value || '';
     if (id) attemptUnlock(id, code.trim());
@@ -979,6 +2542,7 @@ async function setupMap() {
   state.map.on('style.load', () => {
     update3DBuildings();
   });
+  updateMapInteractionMode();
 }
 
 function openLightbox(src, alt = 'Imagen') {
@@ -1101,7 +2665,6 @@ async function loadPois() {
   renderPoiList();
   renderMarkers();
   focusMapOnPois();
-  loadMessages();
   if (state.poiFocal) {
     const updated = state.pois.find((poi) => poi.id === state.poiFocal.id);
     setFocalPoi(updated || state.pois[0] || null);
@@ -1540,6 +3103,7 @@ function focusOnPoi(id) {
 
 function exitDmMode(silent = false, options = {}) {
   state.dmMode = false;
+  state.mobileDmEditMode = false;
   if (dmSecretInput) dmSecretInput.value = '';
   if (dmWarning) dmWarning.textContent = '';
   disablePickMode();
@@ -1552,10 +3116,12 @@ function exitDmMode(silent = false, options = {}) {
   }
   loadEntities();
   setWorkspaceView('map');
+  syncMobileDmEditMode(true);
 }
 
 function activateDmMode() {
   state.dmMode = true;
+  state.mobileDmEditMode = false;
   state.agent = null;
   if (dmSecretInput) dmSecretInput.value = '';
   if (dmWarning) dmWarning.textContent = '';
@@ -1566,7 +3132,9 @@ function activateDmMode() {
   updateRoleLayoutClasses();
   loadEntities();
   loadMissionNotes();
+  loadActivity();
   setWorkspaceView('map');
+  syncMobileDmEditMode(true);
 }
 
 function updateDmVisibility() {
@@ -1648,6 +3216,7 @@ async function handlePoiSubmit(event) {
   await loadPois();
   resetPoiForm();
   showMessage(state.editingPoiId ? 'PdI actualizado.' : 'PdI creado.');
+  loadActivity();
 }
 
 async function submitPoiFromEntityForm() {
@@ -1740,6 +3309,7 @@ async function submitPoiFromEntityForm() {
     showMessage(isEdit ? 'PdI actualizado.' : 'PdI creado.');
     pulseSavedButton();
     resetEntityForm();
+    loadActivity();
   } catch (err) {
     logDebug(`Error guardando PdI: ${err.message}`);
     console.error('[DM] Error guardando PdI', err);
@@ -1774,6 +3344,7 @@ async function handleDeletePoi(poi) {
 
   await loadPois();
   showMessage('PdI borrado.');
+  loadActivity();
 }
 
 function populateFormForEdit(poi) {
@@ -1800,11 +3371,27 @@ function handleUnauthorized() {
 function resetAuthState() {
   state.dmMode = false;
   state.agent = null;
+  state.characterSheet = null;
+  state.characterSheetSaveState = 'idle';
+  state.characterSheetSelections = {};
+  state.characterSheetOpenPanels = new Set();
   state.activeEntityAdmin = null;
   state.activeEntityAgent = null;
   state.activeEntityContext = null;
   if (dmSecretInput) dmSecretInput.value = '';
   if (dmWarning) dmWarning.textContent = '';
+  if (activityList) activityList.innerHTML = '';
+  if (activityStatus) activityStatus.textContent = 'Esperando sesión...';
+  if (state.activityPoll) state.activityPoll.lastSuccessAt = null;
+  if (state.activityPagination) {
+    state.activityPagination.page = 0;
+    state.activityPagination.hasMore = false;
+    state.activityPagination.loading = false;
+    state.activityPagination.loadedIds = null;
+  }
+  updateActivityConnectionLabel();
+  updateActivityPaginationControls();
+  stopActivityPolling();
   updateDmVisibility();
   applyAgentStatus();
   updateRoleLayoutClasses();
@@ -1932,26 +3519,240 @@ async function startBootSequence() {
   }
 }
 
-async function loadMessages() {
+async function loadMessages(context) {
   try {
     const params = new URLSearchParams();
-    const { recipient, session_tag, since, box, unread_only } = state.messageFilters;
-    const viewer = state.dmMode ? 'Sr. Verdad' : state.agent?.display || '';
+    const activeContext = getMessageContext(context);
+    const { recipient, session_tag, since, box, unread_only, q, page, page_size } =
+      getMessageFilters(activeContext);
+    const viewer = getMessageViewer();
+    const role = getMessageRole();
     if (recipient) params.append('recipient', recipient);
     if (session_tag) params.append('session_tag', session_tag);
     if (since) params.append('since', since);
     if (box) params.append('box', box);
     if (unread_only) params.append('unread_only', 'true');
+    if (q) params.append('q', q);
     if (viewer) params.append('viewer', viewer);
+    if (role) params.append('role', role);
+    if (page_size) {
+      params.append('limit', String(page_size));
+      params.append('offset', String((page || 0) * page_size));
+    }
     const response = await fetch(`/api/messages${params.toString() ? `?${params.toString()}` : ''}`);
     if (!response.ok) throw new Error('Fallo al cargar mensajes.');
     const messages = await response.json();
     state.messages = messages;
-    renderMessages(messages);
+    syncMessagePollState(activeContext, messages);
+    renderMessages(messages, activeContext);
   } catch (err) {
     console.warn('Fallo al cargar mensajes', err);
     logDebug(`Error de carga de mensajes: ${err.message}`);
+    showMessage('No se pudieron cargar despachos.', true);
   }
+}
+
+function getMessageViewer() {
+  return state.dmMode ? DM_DEFAULT_SENDER : state.agent?.display || '';
+}
+
+function getMessageRole() {
+  if (state.dmMode) return 'dm';
+  if (state.agent) return 'agent';
+  return '';
+}
+
+function getUnreadBadge(context) {
+  return context === 'dm' ? unreadBadgeDm : unreadBadgeAgent;
+}
+
+function updateUnreadBadge(context, count, truncated = false) {
+  const badge = getUnreadBadge(context);
+  if (!badge) return;
+  if (!count) {
+    badge.textContent = '';
+    badge.classList.add('hidden');
+    return;
+  }
+  badge.textContent = truncated ? `${count}+` : String(count);
+  badge.classList.remove('hidden');
+}
+
+function syncMessagePollState(context, messages) {
+  if (!state.messagePoll || !state.messagePoll.lastNewestId) return;
+  state.messagePoll.lastNewestId[context] = messages?.[0]?.id || null;
+}
+
+function isReplyPaneOpen() {
+  const pane = state.dmMode ? replyPaneDm : replyPane;
+  return !!pane && !pane.classList.contains('hidden');
+}
+
+function shouldAutoRefreshMessages(context) {
+  if (state.activeMessageContext !== context) return false;
+  if (getMessageFilters(context).box === 'sent') return false;
+  if (isReplyPaneOpen()) return false;
+  return true;
+}
+
+async function fetchMessageStatus(context, viewer) {
+  const unreadLimit = 200;
+  const unreadParams = new URLSearchParams({
+    viewer,
+    unread_only: 'true',
+    limit: String(unreadLimit)
+  });
+  const latestParams = new URLSearchParams({ viewer, limit: '1' });
+  const role = getMessageRole();
+  if (role) {
+    unreadParams.append('role', role);
+    latestParams.append('role', role);
+  }
+  const [unreadRes, latestRes] = await Promise.all([
+    fetch(`/api/messages?${unreadParams.toString()}`),
+    fetch(`/api/messages?${latestParams.toString()}`)
+  ]);
+  if (!unreadRes.ok || !latestRes.ok) {
+    throw new Error('Fallo al actualizar estado de mensajes.');
+  }
+  const [unreadMessages, latestMessages] = await Promise.all([
+    unreadRes.json(),
+    latestRes.json()
+  ]);
+  const unreadCount = Array.isArray(unreadMessages) ? unreadMessages.length : 0;
+  const newest = Array.isArray(latestMessages) ? latestMessages[0] : null;
+  return {
+    unreadCount,
+    unreadTruncated: unreadCount >= unreadLimit,
+    newestId: newest?.id || null
+  };
+}
+
+async function pollMessages() {
+  if (!state.messagePoll || state.messagePoll.inFlight) return;
+  if (!state.dmMode && !state.agent) return;
+  const context = getMessageContext();
+  const viewer = getMessageViewer();
+  if (!viewer) return;
+  state.messagePoll.inFlight = true;
+  try {
+    const status = await fetchMessageStatus(context, viewer);
+    if (!status) return;
+    updateUnreadBadge(context, status.unreadCount, status.unreadTruncated);
+    state.messagePoll.lastUnread[context] = status.unreadCount;
+    if (
+      status.newestId &&
+      status.newestId !== state.messagePoll.lastNewestId[context] &&
+      shouldAutoRefreshMessages(context)
+    ) {
+      state.messagePoll.lastNewestId[context] = status.newestId;
+      await loadMessages(context);
+    }
+  } catch (err) {
+    logDebug(`Message poll failed: ${err.message}`);
+  } finally {
+    state.messagePoll.inFlight = false;
+  }
+}
+
+function startMessagePolling() {
+  if (!state.messagePoll || state.messagePoll.timer) return;
+  pollMessages();
+  state.messagePoll.timer = window.setInterval(pollMessages, state.messagePoll.intervalMs);
+}
+
+function stopMessagePolling() {
+  if (!state.messagePoll || !state.messagePoll.timer) return;
+  clearInterval(state.messagePoll.timer);
+  state.messagePoll.timer = null;
+}
+
+function getMessageSocketUrl() {
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${protocol}://${window.location.host}`;
+}
+
+function handleMessageSocketMessage(message) {
+  if (!message || message.type !== 'message') return;
+  pollMessages();
+  if (!state.dmMode && state.agent) {
+    loadMessageIdentities();
+  }
+}
+
+function scheduleMessageSocketReconnect() {
+  if (state.messageSocketRetry) return;
+  state.messageSocketRetry = window.setTimeout(() => {
+    state.messageSocketRetry = null;
+    connectMessageSocket();
+  }, 3000);
+}
+
+function connectMessageSocket() {
+  const role = getMessageRole();
+  if (!role) return;
+  if (
+    state.messageSocket &&
+    (state.messageSocket.readyState === WebSocket.OPEN ||
+      state.messageSocket.readyState === WebSocket.CONNECTING) &&
+    state.messageSocketRole === role
+  ) {
+    return;
+  }
+  disconnectMessageSocket();
+  const ws = new WebSocket(getMessageSocketUrl());
+  state.messageSocket = ws;
+  state.messageSocketRole = role;
+  ws.onopen = () => {
+    ws.send(
+      JSON.stringify({
+        type: 'hello',
+        role: 'console',
+        mode: role,
+        viewer: getMessageViewer()
+      })
+    );
+  };
+  ws.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      handleMessageSocketMessage(payload);
+    } catch (err) {
+      logDebug(`Message socket parse failed: ${err.message}`);
+    }
+  };
+  ws.onclose = () => {
+    if (state.messageSocket === ws) {
+      state.messageSocket = null;
+      state.messageSocketRole = null;
+    }
+    if (state.dmMode || state.agent) {
+      scheduleMessageSocketReconnect();
+    }
+  };
+  ws.onerror = (err) => {
+    logDebug(`Message socket error: ${err.message || err}`);
+  };
+}
+
+function disconnectMessageSocket() {
+  if (state.messageSocket) {
+    state.messageSocket.close();
+    state.messageSocket = null;
+  }
+  state.messageSocketRole = null;
+  if (state.messageSocketRetry) {
+    clearTimeout(state.messageSocketRetry);
+    state.messageSocketRetry = null;
+  }
+}
+
+function syncMessageSocket() {
+  if (!state.dmMode && !state.agent) {
+    disconnectMessageSocket();
+    return;
+  }
+  connectMessageSocket();
 }
 
 function filterMessagesForViewer(messages, viewer, box) {
@@ -1968,7 +3769,7 @@ function filterMessagesForViewer(messages, viewer, box) {
   return messages.filter((msg) => {
     const recipient = (msg.recipient || '').trim();
     if (box === 'sent') {
-      return (msg.created_by || '').trim() === trimmedViewer;
+      return (msg.created_by || '').trim() === trimmedViewer && !!msg.reply_to_id;
     }
     if (recipient === trimmedViewer) return true;
     if (preferredPublic.has(recipient)) return true;
@@ -1976,19 +3777,43 @@ function filterMessagesForViewer(messages, viewer, box) {
   });
 }
 
-function renderMessages(messages) {
-  const viewer = state.dmMode ? 'Sr. Verdad' : state.agent?.display || '';
-  const filtered = filterMessagesForViewer(messages, viewer, state.messageFilters.box);
+function renderMessages(messages, context) {
+  const viewer = getMessageViewer();
+  const activeContext = getMessageContext(context);
+  state.activeMessageContext = activeContext;
+  const filters = getMessageFilters(activeContext);
+  const filtered = filterMessagesForViewer(messages, viewer, filters.box);
   state.messages = filtered;
   state.activeMessageIndex = Math.min(
     state.activeMessageIndex,
     Math.max(filtered.length - 1, 0)
   );
-  updateMessageList(messageList, filtered, viewer);
-  updateMessageList(messageListDm, filtered, viewer);
   state.activeMessage = filtered[state.activeMessageIndex] || null;
-  renderActiveMessageCard();
-  updateMessageBoxLabel();
+  if (activeContext === 'overlay') {
+    return;
+  }
+  if (state.dmMode) {
+    updateMessageList(messageList, filtered, viewer);
+    renderMessageReader(messageReader, state.activeMessage, viewer, filters);
+  } else {
+    updateMessageList(messageListDm, filtered, viewer);
+    renderMessageReader(messageReaderDm, state.activeMessage, viewer, filters);
+    updateMessageBoxLabel();
+  }
+}
+
+function updateMessageSelectionUI() {
+  const viewer = getMessageViewer();
+  if (state.activeMessageContext === 'overlay') {
+    return;
+  }
+  if (state.dmMode) {
+    updateMessageList(messageList, state.messages, viewer);
+    renderMessageReader(messageReader, state.activeMessage, viewer, getMessageFilters('dm'));
+  } else {
+    updateMessageList(messageListDm, state.messages, viewer);
+    renderMessageReader(messageReaderDm, state.activeMessage, viewer, getMessageFilters('agent'));
+  }
 }
 
 function updateMessageList(container, messages, viewer) {
@@ -2011,6 +3836,8 @@ function updateMessageList(container, messages, viewer) {
         <span>${sanitize(msg.sender)}</span>
         <span>${new Date(msg.created_at).toLocaleString()}</span>
         <span>${sanitize(msg.recipient)}</span>
+        ${msg.thread_id ? `<span>Hilo #${sanitize(msg.thread_id)}</span>` : ''}
+        ${msg.priority && msg.priority !== 'normal' ? `<span>Prioridad ${sanitize(msg.priority)}</span>` : ''}
         ${!isRead ? '<span class="badge-unread">No leído</span>' : ''}
       </div>
     `;
@@ -2044,8 +3871,10 @@ async function deleteMessageForViewer(id, viewer, box) {
       body: JSON.stringify({ viewer, box })
     });
     await loadMessages();
+    showMessage('Despacho eliminado.');
   } catch (err) {
     logDebug(`Delete message failed: ${err.message}`);
+    showMessage('No se pudo eliminar el despacho.', true);
   }
 }
 
@@ -2053,7 +3882,7 @@ function showNextMessage() {
   if (!state.messages.length) return;
   state.activeMessageIndex = (state.activeMessageIndex + 1) % state.messages.length;
   state.activeMessage = state.messages[state.activeMessageIndex];
-  renderActiveMessageCard();
+  updateMessageSelectionUI();
 }
 
 function showPrevMessage() {
@@ -2061,29 +3890,36 @@ function showPrevMessage() {
   state.activeMessageIndex =
     (state.activeMessageIndex - 1 + state.messages.length) % state.messages.length;
   state.activeMessage = state.messages[state.activeMessageIndex];
-  renderActiveMessageCard();
+  updateMessageSelectionUI();
 }
 
 function toggleMessageBoxView() {
-  const nextBox = state.messageFilters.box === 'sent' ? '' : 'sent';
-  state.messageFilters.box = nextBox;
+  const activeContext = getMessageContext();
+  const { box } = getMessageFilters(activeContext);
+  const nextBox = box === 'sent' ? '' : 'sent';
+  setMessageFilters(activeContext, { box: nextBox, page: 0 });
   state.activeMessageIndex = 0;
   updateMessageBoxLabel();
-  loadMessages();
+  loadMessages(activeContext);
 }
 
 function updateMessageBoxLabel() {
   if (!msgBoxLabel) return;
-  msgBoxLabel.textContent = state.messageFilters.box === 'sent' ? 'Enviados' : 'Entrada';
+  const { box } = getMessageFilters('agent');
+  msgBoxLabel.textContent = box === 'sent' ? 'Enviados' : 'Entrada';
   if (msgBoxInboxBtn && msgBoxSentBtn) {
-    msgBoxInboxBtn.classList.toggle('active', state.messageFilters.box !== 'sent');
-    msgBoxSentBtn.classList.toggle('active', state.messageFilters.box === 'sent');
+    msgBoxInboxBtn.classList.toggle('active', box !== 'sent');
+    msgBoxSentBtn.classList.toggle('active', box === 'sent');
   }
 }
 
 function startReply(message) {
   const { pane, body, label } = getReplyElements();
   if (!pane || !body) return;
+  if (!state.dmMode && (message?.created_by || '') !== DM_ACTOR) {
+    showMessage('Solo se permite responder a despachos del DM.', true);
+    return;
+  }
   state.replyTarget = message;
   pane.classList.remove('hidden');
   if (label) {
@@ -2104,16 +3940,23 @@ function cancelReply() {
 async function submitReply() {
   const { body } = getReplyElements();
   if (!state.replyTarget || !body) return;
+  if (!state.dmMode && (state.replyTarget.created_by || '') !== DM_ACTOR) {
+    showMessage('Solo se permite responder a despachos del DM.', true);
+    return;
+  }
   const text = body.value.trim();
   if (!text) return;
-  const recipient = state.replyTarget.sender;
-  const viewer = state.dmMode ? (messageFromInput?.value || 'Sr. Verdad') : state.agent?.display;
+  const recipient = state.replyTarget.sender || DM_DEFAULT_SENDER;
+  const viewer = state.dmMode ? (messageFromInput?.value || DM_DEFAULT_SENDER) : state.agent?.display;
   const payload = {
     sender: viewer || 'Agente de Campo',
     recipient,
     subject: state.replyTarget.subject?.startsWith('Re:') ? state.replyTarget.subject : `Re: ${state.replyTarget.subject}`,
     body: text,
-    session_tag: state.replyTarget.session_tag || ''
+    session_tag: state.replyTarget.session_tag || '',
+    reply_to_id: state.replyTarget.id,
+    thread_id: state.replyTarget.thread_id || state.replyTarget.id,
+    priority: state.replyTarget.priority || 'normal'
   };
   try {
     if (state.dmMode) {
@@ -2160,7 +4003,7 @@ async function sendAgentMessage(payload) {
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ ...payload, created_by: payload.sender })
+    body: JSON.stringify(payload)
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
@@ -2170,10 +4013,6 @@ async function sendAgentMessage(payload) {
 
 async function handleMessageSubmit(event) {
   event.preventDefault();
-  if (!state.dmMode) {
-    if (dmWarning) dmWarning.textContent = 'Se requiere el canal de Sr. Verdad para emitir.';
-    return;
-  }
   const payload = {
     sender: messageFromInput.value.trim(),
     recipient: messageToSelect.value.trim(),
@@ -2181,26 +4020,579 @@ async function handleMessageSubmit(event) {
     body: messageBodyInput.value.trim(),
     session_tag: messageSessionInput?.value.trim() || ''
   };
-  const response = await fetch('/api/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
+  if (state.dmMode) {
+    const response = await fetch('/api/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (response.status === 401) {
+      performLogout({ message: 'Sesión expirada. Vuelve a autenticarte.' });
+      return;
+    }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      showMessage(errorData.error || 'Fallo en la emisión.', true);
+      return;
+    }
+    messageForm.reset();
+    updateMessageFromField();
+    loadMessages();
+    loadMessageIdentities();
+    showMessage('Mensaje emitido.');
+    return;
+  }
+  if (!state.agent) {
+    showMessage('Se requiere sesión activa para emitir.', true);
+    return;
+  }
+  if (!payload.recipient) {
+    showMessage('Selecciona una identidad de destino.', true);
+    return;
+  }
+  try {
+    await sendAgentMessage(payload);
+    messageForm.reset();
+    updateMessageFromField();
+    loadMessages();
+    showMessage('Mensaje enviado.');
+  } catch (err) {
+    showMessage(err.message || 'Fallo en la emisión.', true);
+  }
+}
+
+function getChatRole() {
+  if (state.dmMode) return 'dm';
+  if (state.agent) return 'agent';
+  return '';
+}
+
+function updateChatStatusLabels() {
+  if (chatAgentLabel) {
+    chatAgentLabel.textContent = `Agente: ${state.agent?.display || '—'}`;
+  }
+  if (chatIdentityLabel) {
+    const identity = state.chat.identities.find((item) => item.id === state.chat.activeIdentityId);
+    chatIdentityLabel.textContent = `Identidad: ${identity ? identity.name : '—'}`;
+  }
+  if (dmChatActiveLabel) {
+    const thread = state.chat.threads.find((item) => item.id === state.chat.activeThreadId);
+    if (thread) {
+      dmChatActiveLabel.textContent = `${thread.agent_display || thread.agent_username} ↔ ${thread.dm_identity_name}`;
+    } else if (state.chat.activeAgentUsername && state.chat.activeDmIdentityId) {
+      const agentMeta = state.agents.find((item) => item.username === state.chat.activeAgentUsername);
+      const agentLabel = agentMeta?.display || state.chat.activeAgentUsername;
+      const identity = state.chat.identities.find(
+        (item) => item.id === state.chat.activeDmIdentityId
+      );
+      dmChatActiveLabel.textContent = `${agentLabel} ↔ ${identity?.name || 'Identidad'}`;
+    } else {
+      dmChatActiveLabel.textContent = 'Selecciona un par agente/identidad.';
+    }
+  }
+  if (dmChatSessionStatus) {
+    const hasSession =
+      !!state.chat.activeThreadId ||
+      (!!state.chat.activeAgentUsername && !!state.chat.activeDmIdentityId);
+    dmChatSessionStatus.textContent = hasSession ? 'Sesión activa' : 'Sin sesión';
+    dmChatSessionStatus.dataset.status = hasSession ? 'active' : 'idle';
+  }
+}
+
+function setJournalStatus(status) {
+  state.journalStatus = status;
+  if (!dmJournalStatus) return;
+  const labels = {
+    clean: 'Sin cambios',
+    dirty: 'Cambios no guardados',
+    saved: 'Guardado'
+  };
+  dmJournalStatus.textContent = labels[status] || labels.clean;
+  dmJournalStatus.dataset.status = status || 'clean';
+}
+
+function clearChatState() {
+  state.chat.threads = [];
+  state.chat.messages = [];
+  state.chat.activeThreadId = null;
+  state.chat.activeIdentityId = null;
+  state.chat.activeAgentUsername = null;
+  state.chat.activeDmIdentityId = null;
+  renderChatTranscript();
+  renderDmChatThreads();
+  renderChatIdentityList();
+}
+
+function formatChatTimestamp(value, options = {}) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  let normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+  if (!/Z|[+-]\d{2}:\d{2}$/.test(normalized)) {
+    normalized += 'Z';
+  }
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return raw;
+  }
+  return date.toLocaleString('es-ES', { timeZone: 'Europe/Madrid', ...options });
+}
+
+function renderChatTranscript() {
+  const target = state.dmMode ? dmChatTranscript : chatTranscript;
+  if (!target) return;
+  if (!state.chat.messages.length) {
+    target.textContent = state.dmMode
+      ? 'Sin mensajes en esta sesión.'
+      : 'Terminal lista. Selecciona una identidad y escribe tu mensaje.';
+    return;
+  }
+  const lines = state.chat.messages.map((msg) => {
+    const stamp = formatChatTimestamp(msg.created_at, {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    return `[${stamp}] ${msg.sender_label}: ${msg.body}`;
   });
-  if (response.status === 401) {
-    performLogout({ message: 'Sesión expirada. Vuelve a autenticarte.' });
+  target.textContent = lines.join('\n');
+  target.scrollTop = target.scrollHeight;
+}
+
+function renderChatIdentityList() {
+  if (!chatIdentityList) return;
+  chatIdentityList.innerHTML = '';
+  if (!state.chat.identities.length) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-thread-item';
+    empty.textContent = 'Sin identidades disponibles.';
+    chatIdentityList.appendChild(empty);
     return;
   }
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    showMessage(errorData.error || 'Fallo en la emisión.', true);
+  state.chat.identities.forEach((identity) => {
+    const thread = state.chat.threads.find(
+      (item) => item.dm_identity_id === identity.id && item.agent_username === state.agent?.username
+    );
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = `chat-thread-item ${state.chat.activeIdentityId === identity.id ? 'active' : ''}`;
+    card.dataset.chatIdentity = String(identity.id);
+    const lastStamp = thread?.last_message_at
+      ? formatChatTimestamp(thread.last_message_at, { year: 'numeric', month: '2-digit', day: '2-digit' })
+      : 'Sin actividad';
+    card.innerHTML = `
+      <div>${sanitize(identity.name)}</div>
+      <div class="meta">${lastStamp}</div>
+    `;
+    chatIdentityList.appendChild(card);
+  });
+}
+
+function renderDmChatThreads() {
+  if (!dmChatThreadList) return;
+  dmChatThreadList.innerHTML = '';
+  if (!state.chat.threads.length) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-thread-item';
+    empty.textContent = 'Sin sesiones activas.';
+    dmChatThreadList.appendChild(empty);
     return;
   }
-  messageForm.reset();
-  updateMessageFromField();
-  loadMessages();
-  showMessage('Mensaje emitido.');
+  state.chat.threads.forEach((thread) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = `chat-thread-item ${state.chat.activeThreadId === thread.id ? 'active' : ''}`;
+    card.dataset.chatThread = String(thread.id);
+    const lastStamp = thread.last_message_at
+      ? formatChatTimestamp(thread.last_message_at, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      : 'Sin actividad';
+    card.innerHTML = `
+      <div>${sanitize(thread.agent_display || thread.agent_username)} · ${sanitize(thread.dm_identity_name)}</div>
+      <div class="meta">${lastStamp}</div>
+    `;
+    dmChatThreadList.appendChild(card);
+  });
+}
+
+async function loadChatIdentities() {
+  try {
+    const response = await fetch('/api/chat/identities');
+    if (!response.ok) throw new Error('Fallo al cargar identidades.');
+    const payload = await response.json();
+    state.chat.identities = Array.isArray(payload.identities) ? payload.identities : [];
+    populateDmChatIdentitySelect();
+    renderDmIdentityList();
+    renderChatIdentityList();
+    updateChatStatusLabels();
+  } catch (err) {
+    logDebug(`Error de identidades: ${err.message}`);
+  }
+}
+
+async function loadChatThreads() {
+  try {
+    const response = await fetch('/api/chat/threads');
+    if (!response.ok) throw new Error('Fallo al cargar sesiones.');
+    const payload = await response.json();
+    state.chat.threads = Array.isArray(payload.threads) ? payload.threads : [];
+    renderDmChatThreads();
+    renderChatIdentityList();
+  } catch (err) {
+    logDebug(`Error de sesiones: ${err.message}`);
+  }
+}
+
+function populateDmChatIdentitySelect() {
+  if (!dmChatIdentitySelect) return;
+  dmChatIdentitySelect.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Seleccionar identidad';
+  dmChatIdentitySelect.appendChild(placeholder);
+  state.chat.identities.forEach((identity) => {
+    const opt = document.createElement('option');
+    opt.value = String(identity.id);
+    opt.textContent = identity.name;
+    dmChatIdentitySelect.appendChild(opt);
+  });
+}
+
+function populateDmChatAgentSelect() {
+  if (!dmChatAgentSelect) return;
+  dmChatAgentSelect.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Seleccionar agente';
+  dmChatAgentSelect.appendChild(placeholder);
+  state.agents.forEach(({ username, display }) => {
+    const opt = document.createElement('option');
+    opt.value = username;
+    opt.textContent = display;
+    dmChatAgentSelect.appendChild(opt);
+  });
+}
+
+function renderDmIdentityList() {
+  if (!dmIdentityList) return;
+  dmIdentityList.innerHTML = '';
+  state.chat.identities.forEach((identity) => {
+    const row = document.createElement('div');
+    row.className = 'dm-identity-item';
+    row.dataset.identityId = String(identity.id);
+    row.innerHTML = `
+      <span>${sanitize(identity.name)}</span>
+      <div class="dm-identity-actions">
+        <button type="button" class="ghost small" data-identity-edit>Editar</button>
+        <button type="button" class="ghost small danger" data-identity-delete>Eliminar</button>
+      </div>
+    `;
+    dmIdentityList.appendChild(row);
+  });
+}
+
+async function setActiveIdentity(identityId) {
+  state.chat.activeIdentityId = identityId;
+  updateChatStatusLabels();
+  renderChatIdentityList();
+  const thread = state.chat.threads.find(
+    (item) => item.dm_identity_id === identityId && item.agent_username === state.agent?.username
+  );
+  if (thread) {
+    state.chat.activeThreadId = thread.id;
+    await loadChatMessages(thread.id);
+    return;
+  }
+  state.chat.activeThreadId = null;
+  state.chat.messages = [];
+  renderChatTranscript();
+}
+
+async function setActiveThread(threadId) {
+  const thread = state.chat.threads.find((item) => item.id === threadId);
+  if (!thread) return;
+  state.chat.activeThreadId = thread.id;
+  state.chat.activeAgentUsername = thread.agent_username;
+  state.chat.activeDmIdentityId = thread.dm_identity_id;
+  if (dmChatAgentSelect) dmChatAgentSelect.value = thread.agent_username;
+  if (dmChatIdentitySelect) dmChatIdentitySelect.value = String(thread.dm_identity_id);
+  updateChatStatusLabels();
+  renderDmChatThreads();
+  await loadChatMessages(thread.id);
+}
+
+async function loadChatMessages(threadId) {
+  if (!threadId) return;
+  try {
+    const response = await fetch(`/api/chat/threads/${threadId}/messages`);
+    if (!response.ok) throw new Error('Fallo al cargar mensajes.');
+    const payload = await response.json();
+    state.chat.messages = Array.isArray(payload.messages) ? payload.messages : [];
+    renderChatTranscript();
+  } catch (err) {
+    logDebug(`Error de mensajes: ${err.message}`);
+  }
+}
+
+async function reloadChatData() {
+  if (!state.dmMode && !state.agent) return;
+  await Promise.all([loadChatIdentities(), loadChatThreads()]);
+  if (state.dmMode) {
+    if (state.chat.activeThreadId) {
+      await loadChatMessages(state.chat.activeThreadId);
+    } else if (state.chat.threads.length) {
+      await setActiveThread(state.chat.threads[0].id);
+    }
+    return;
+  }
+  if (!state.chat.activeIdentityId && state.chat.identities.length) {
+    await setActiveIdentity(state.chat.identities[0].id);
+    return;
+  }
+  if (state.chat.activeIdentityId) {
+    const thread = state.chat.threads.find(
+      (item) =>
+        item.dm_identity_id === state.chat.activeIdentityId &&
+        item.agent_username === state.agent?.username
+    );
+    if (thread) {
+      state.chat.activeThreadId = thread.id;
+      await loadChatMessages(thread.id);
+      return;
+    }
+  }
+  state.chat.activeThreadId = null;
+  renderChatTranscript();
+}
+
+async function handleChatSubmit(event) {
+  event.preventDefault();
+  if (!chatInput) return;
+  const body = chatInput.value.trim();
+  if (!body) return;
+  if (!state.chat.activeIdentityId && !state.chat.activeThreadId) {
+    showMessage('Selecciona una identidad antes de enviar.', true);
+    return;
+  }
+  const payload = { body };
+  if (state.chat.activeThreadId) {
+    payload.threadId = state.chat.activeThreadId;
+  } else {
+    payload.identityId = state.chat.activeIdentityId;
+  }
+  try {
+    const response = await fetch('/api/chat/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'No se pudo enviar.');
+    }
+    const data = await response.json();
+    chatInput.value = '';
+    if (data.thread?.id) {
+      state.chat.activeThreadId = data.thread.id;
+    }
+    await reloadChatData();
+  } catch (err) {
+    showMessage(err.message || 'Fallo al enviar.', true);
+  }
+}
+
+async function handleDmChatOpen() {
+  const agentUsername = dmChatAgentSelect?.value;
+  const identityId = dmChatIdentitySelect?.value ? Number(dmChatIdentitySelect.value) : null;
+  if (!agentUsername || !identityId) {
+    showMessage('Selecciona agente e identidad.', true);
+    return;
+  }
+  const thread = state.chat.threads.find(
+    (item) => item.agent_username === agentUsername && item.dm_identity_id === identityId
+  );
+  state.chat.activeAgentUsername = agentUsername;
+  state.chat.activeDmIdentityId = identityId;
+  if (thread) {
+    await setActiveThread(thread.id);
+    return;
+  }
+  state.chat.activeThreadId = null;
+  state.chat.messages = [];
+  updateChatStatusLabels();
+  renderChatTranscript();
+}
+
+async function handleDmChatSubmit(event) {
+  event.preventDefault();
+  if (!dmChatInput) return;
+  const body = dmChatInput.value.trim();
+  if (!body) return;
+  const payload = { body };
+  if (state.chat.activeThreadId) {
+    payload.threadId = state.chat.activeThreadId;
+  } else {
+    payload.agentUsername = state.chat.activeAgentUsername;
+    payload.identityId = state.chat.activeDmIdentityId;
+  }
+  if (!payload.threadId && (!payload.agentUsername || !payload.identityId)) {
+    showMessage('Selecciona agente e identidad.', true);
+    return;
+  }
+  try {
+    const response = await fetch('/api/chat/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'No se pudo enviar.');
+    }
+    const data = await response.json();
+    dmChatInput.value = '';
+    if (data.thread?.id) {
+      state.chat.activeThreadId = data.thread.id;
+    }
+    await reloadChatData();
+  } catch (err) {
+    showMessage(err.message || 'Fallo al enviar.', true);
+  }
+}
+
+function setDmIdentityEditing(identity) {
+  state.chat.dmIdentityEditingId = identity ? identity.id : null;
+  if (dmIdentityNameInput) {
+    dmIdentityNameInput.value = identity ? identity.name : '';
+    dmIdentityNameInput.focus();
+  }
+}
+
+async function handleDmIdentitySubmit(event) {
+  event.preventDefault();
+  if (!dmIdentityNameInput) return;
+  const name = dmIdentityNameInput.value.trim();
+  if (!name) return;
+  const editingId = state.chat.dmIdentityEditingId;
+  const method = editingId ? 'PUT' : 'POST';
+  const endpoint = editingId ? `/api/chat/identities/${editingId}` : '/api/chat/identities';
+  try {
+    const response = await fetch(endpoint, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'No se pudo guardar la identidad.');
+    }
+    dmIdentityNameInput.value = '';
+    state.chat.dmIdentityEditingId = null;
+    await loadChatIdentities();
+  } catch (err) {
+    showMessage(err.message || 'Fallo al guardar identidad.', true);
+  }
+}
+
+async function handleDmIdentityDelete(identityId) {
+  const identity = state.chat.identities.find((item) => item.id === identityId);
+  if (!identity) return;
+  const ok = window.confirm(`¿Eliminar identidad ${identity.name}?`);
+  if (!ok) return;
+  try {
+    const response = await fetch(`/api/chat/identities/${identityId}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'No se pudo eliminar.');
+    }
+    await loadChatIdentities();
+    await loadChatThreads();
+  } catch (err) {
+    showMessage(err.message || 'Fallo al eliminar identidad.', true);
+  }
+}
+
+function handleChatSocketMessage(payload) {
+  if (!payload || payload.type !== 'chat') return;
+  if (payload.event === 'message') {
+    loadChatThreads();
+    if (payload.threadId && payload.threadId === state.chat.activeThreadId) {
+      loadChatMessages(payload.threadId);
+    }
+  }
+}
+
+function connectChatSocket() {
+  const role = getChatRole();
+  if (!role) return;
+  if (
+    state.chat.socket &&
+    (state.chat.socket.readyState === WebSocket.OPEN ||
+      state.chat.socket.readyState === WebSocket.CONNECTING) &&
+    state.chat.socketRole === role
+  ) {
+    return;
+  }
+  disconnectChatSocket();
+  const ws = new WebSocket(getMessageSocketUrl());
+  state.chat.socket = ws;
+  state.chat.socketRole = role;
+  ws.onopen = () => {
+    ws.send(
+      JSON.stringify({
+        type: 'hello',
+        role: 'chat',
+        mode: role,
+        agentUsername: state.agent?.username || null
+      })
+    );
+  };
+  ws.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      handleChatSocketMessage(payload);
+    } catch (err) {
+      logDebug(`Chat socket parse failed: ${err.message}`);
+    }
+  };
+  ws.onclose = () => {
+    if (state.chat.socket === ws) {
+      state.chat.socket = null;
+      state.chat.socketRole = null;
+    }
+    if (state.dmMode || state.agent) {
+      if (!state.chat.socketRetry) {
+        state.chat.socketRetry = window.setTimeout(() => {
+          state.chat.socketRetry = null;
+          connectChatSocket();
+        }, 3000);
+      }
+    }
+  };
+  ws.onerror = (err) => {
+    logDebug(`Chat socket error: ${err.message || err}`);
+  };
+}
+
+function disconnectChatSocket() {
+  if (state.chat.socket) {
+    state.chat.socket.close();
+    state.chat.socket = null;
+  }
+  state.chat.socketRole = null;
+  if (state.chat.socketRetry) {
+    clearTimeout(state.chat.socketRetry);
+    state.chat.socketRetry = null;
+  }
 }
 
 async function loadAuthBootstrap() {
@@ -2276,8 +4668,29 @@ function populateAgentSelect() {
       filterRecipientSelect.appendChild(opt);
     });
   }
-  if (messageToSelect) {
-    messageToSelect.innerHTML = '';
+  populateDmChatAgentSelect();
+  populateMessageRecipientSelect();
+}
+
+function populateMessageIdentitySelect() {
+  if (!messageFromSelect) return;
+  messageFromSelect.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Seleccionar identidad';
+  messageFromSelect.appendChild(placeholder);
+  state.messageIdentities.forEach((identity) => {
+    const opt = document.createElement('option');
+    opt.value = identity;
+    opt.textContent = identity;
+    messageFromSelect.appendChild(opt);
+  });
+}
+
+function populateMessageRecipientSelect() {
+  if (!messageToSelect) return;
+  messageToSelect.innerHTML = '';
+  if (state.dmMode) {
     const defaults = [
       { value: '', label: 'Seleccionar agente' },
       { value: 'All agents', label: 'Todos los agentes' }
@@ -2294,6 +4707,52 @@ function populateAgentSelect() {
       opt.textContent = display;
       messageToSelect.appendChild(opt);
     });
+    return;
+  }
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = 'Seleccionar identidad';
+  messageToSelect.appendChild(defaultOpt);
+  if (!state.messageIdentities.length) {
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = 'Sin identidades disponibles';
+    empty.disabled = true;
+    messageToSelect.appendChild(empty);
+    return;
+  }
+  state.messageIdentities.forEach((identity) => {
+    const opt = document.createElement('option');
+    opt.value = identity;
+    opt.textContent = identity;
+    messageToSelect.appendChild(opt);
+  });
+}
+
+function applyMessageComposeRole() {
+  if (messageToLabel) {
+    messageToLabel.textContent = state.dmMode ? 'Para' : 'Para (identidad OV)';
+  }
+  if (messageFromSelect) {
+    messageFromSelect.classList.toggle('hidden', !state.dmMode);
+  }
+  if (messageFromSelectLabel) {
+    messageFromSelectLabel.classList.toggle('hidden', !state.dmMode);
+  }
+  populateMessageRecipientSelect();
+}
+
+async function loadMessageIdentities() {
+  if (!state.dmMode && !state.agent) return;
+  try {
+    const response = await fetch('/api/messages/identities');
+    if (!response.ok) throw new Error('Fallo al cargar identidades.');
+    const payload = await response.json();
+    state.messageIdentities = Array.isArray(payload.identities) ? payload.identities : [];
+    populateMessageIdentitySelect();
+    populateMessageRecipientSelect();
+  } catch (err) {
+    logDebug(`Error de identidades: ${err.message}`);
   }
 }
 
@@ -2340,7 +4799,7 @@ function showCommandMenu() {
   if (!commandMenu || !commandInput || !commandLog) return;
   commandMenu.classList.add('visible');
   commandInput.value = 'MOSTRAR MAPA AMINA';
-  commandLog.textContent = 'COMANDO LISTO // escriba MOSTRAR MAPA AMINA o MOSTRAR BANDEJA DE ENTRADA';
+  commandLog.textContent = 'COMANDO LISTO // escriba MOSTRAR MAPA AMINA o MOSTRAR TERMINAL DE MENSAJERIA';
   commandInput.focus();
 }
 
@@ -2350,7 +4809,7 @@ function hideCommandMenu() {
 
 function runCommand(value) {
   const command = (value || '').toUpperCase().trim();
-  if (command.includes('INBOX')) {
+  if (command.includes('INBOX') || command.includes('MENSAJERIA') || command.includes('CHAT')) {
     executeCommand('INBOX');
   } else {
     executeCommand('MAP');
@@ -2535,6 +4994,8 @@ function setAgent(agent) {
   updateRoleLayoutClasses();
   loadMissionNotes();
   loadEntities();
+  loadActivity();
+  loadCharacterSheet();
 }
 
 function clearAgentSession() {
@@ -2547,24 +5008,325 @@ function applyAgentStatus() {
   if (!clearanceStatus || !agentStatus) return;
   clearanceStatus.textContent = state.dmMode ? 'Sr. Verdad' : 'Agente de Campo';
   agentStatus.textContent = state.agent ? state.agent.display : 'Ningún agente seleccionado';
-  updateMessageFromField();
   if (state.dmMode || state.agent) {
-    loadMessages();
+    startActivityPolling();
+    reloadChatData();
+    connectChatSocket();
+  } else {
+    stopActivityPolling();
+    disconnectChatSocket();
+    clearChatState();
   }
   if (!state.dmMode && state.agent) {
     loadAgentJournal();
   }
 }
 
+function updateActivityPaginationControls() {
+  if (!activityMoreBtn || !state.activityPagination) return;
+  const isMobile = typeof isMobileView === 'function' ? isMobileView() : document.body.classList.contains('is-mobile');
+  if (isMobile) {
+    activityMoreBtn.style.display = 'none';
+    return;
+  }
+  activityMoreBtn.style.display = state.activityPagination.hasMore ? 'inline-flex' : 'none';
+  activityMoreBtn.disabled = !!state.activityPagination.loading;
+}
+
+function renderActivity(items = [], options = {}) {
+  const { append = false } = options;
+  if (!activityList || !activityStatus) return;
+  const isMobile = typeof isMobileView === 'function' ? isMobileView() : document.body.classList.contains('is-mobile');
+  if (isMobile && append) return;
+  if (!append) activityList.innerHTML = '';
+  if (!items.length) {
+    if (append) {
+      updateActivityPaginationControls();
+      return;
+    }
+    const empty = document.createElement('li');
+    empty.className = 'activity-empty';
+    empty.textContent = 'Sin actividad reciente.';
+    activityList.appendChild(empty);
+    activityStatus.textContent = 'Sin registros nuevos.';
+    updateActivityPaginationControls();
+    return;
+  }
+  const typeLabels = { entity: 'Entidad', poi: 'PdI' };
+  const visibleItems = isMobile ? items.slice(0, 3) : items;
+  visibleItems.forEach((item) => {
+    const li = document.createElement('li');
+    li.className = 'activity-item';
+    const time = document.createElement('div');
+    time.className = 'activity-item-time';
+    const timestamp = item.created_at ? new Date(item.created_at) : null;
+    if (!timestamp || Number.isNaN(timestamp.getTime())) {
+      time.textContent = '—';
+    } else {
+      const now = new Date();
+      const isSameDay =
+        timestamp.getFullYear() === now.getFullYear() &&
+        timestamp.getMonth() === now.getMonth() &&
+        timestamp.getDate() === now.getDate();
+      time.textContent = isSameDay
+        ? timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+        : timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    }
+    const body = document.createElement('div');
+    body.className = 'activity-item-body';
+    const actionLabelMap = {
+      create: 'creada',
+      update: 'actualizada',
+      delete: 'eliminada'
+    };
+    const action = actionLabelMap[item.action] || 'actualizada';
+    const typeLabel = typeLabels[item.entity_type] || 'Entidad';
+    const label = item.entity_label || 'Entidad';
+    const prefix = document.createElement('span');
+    prefix.className = 'activity-item-prefix';
+    prefix.textContent = `${typeLabel} `;
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'activity-entity-link';
+    link.textContent = label;
+    link.addEventListener('click', () => {
+      openActivityEntity(item);
+    });
+    const suffix = document.createElement('span');
+    suffix.className = 'activity-item-action';
+    suffix.textContent = ` ${action}`;
+    body.appendChild(prefix);
+    body.appendChild(link);
+    body.appendChild(suffix);
+    const meta = document.createElement('span');
+    meta.className = 'activity-item-meta';
+    const actorName = item.actor_name || 'Ordo Veritatis';
+    meta.textContent = `· Operador: ${actorName}`;
+    body.appendChild(meta);
+    li.appendChild(time);
+    li.appendChild(body);
+    if (Array.isArray(item.updated_fields) && item.updated_fields.length) {
+      const fields = document.createElement('span');
+      fields.className = 'activity-item-fields';
+      const fieldLabels = {
+        agent_notes: 'notas agentes',
+        dm_notes: 'notas DM',
+        public_summary: 'resumen público',
+        public_note: 'nota pública',
+        dm_note: 'nota DM',
+        image_url: 'imagen',
+        threat_level: 'amenaza',
+        veil_status: 'velo',
+        session_tag: 'sesión',
+        code_name: 'callsign',
+        real_name: 'nombre real',
+        role: 'rol',
+        status: 'estado',
+        alignment: 'alineación',
+        visibility: 'visibilidad',
+        unlock_code: 'clave',
+        locked_hint: 'pista',
+        archived: 'archivado',
+        category: 'categoría',
+        latitude: 'latitud',
+        longitude: 'longitud',
+        mel: 'MEL'
+      };
+      const fieldNames = item.updated_fields.map((field) => {
+        const key = String(field);
+        return fieldLabels[key] || key.replace(/_/g, ' ');
+      });
+      fields.textContent = '· Cambios';
+      fields.title = `Campos: ${fieldNames.join(', ')}`;
+      body.appendChild(fields);
+    }
+    activityList.appendChild(li);
+  });
+  activityStatus.textContent = 'Últimos cambios sincronizados.';
+  updateActivityPaginationControls();
+}
+
+function formatElapsedTime(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '—';
+  const totalSeconds = Math.floor(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+  const totalHours = Math.floor(totalMinutes / 60);
+  if (totalHours < 24) return `${totalHours}h`;
+  const totalDays = Math.floor(totalHours / 24);
+  return `${totalDays}d`;
+}
+
+function updateActivityConnectionLabel() {
+  if (!activityConnection) return;
+  if (!state.activityPoll?.lastSuccessAt) {
+    activityConnection.textContent = 'Ultima conexion con mainframe: —';
+    return;
+  }
+  const elapsed = Date.now() - state.activityPoll.lastSuccessAt;
+  activityConnection.textContent = `Ultima conexion con mainframe hace ${formatElapsedTime(elapsed)}`;
+}
+
+function ensureActivityLabelTimer() {
+  if (!state.activityPoll || state.activityPoll.labelTimer) return;
+  state.activityPoll.labelTimer = window.setInterval(updateActivityConnectionLabel, 1000);
+}
+
+function findActivityEntity(activity) {
+  if (!activity || !activity.entity_id) return null;
+  return state.entities.find((entity) => {
+    if (activity.entity_type === 'poi') {
+      if (entity.type !== 'poi') return false;
+      const poiId = entity.poi_id || entity.id;
+      return Number(poiId) === Number(activity.entity_id);
+    }
+    if (entity.type === 'poi') return false;
+    return Number(entity.id) === Number(activity.entity_id);
+  });
+}
+
+async function openActivityEntity(activity) {
+  if (!activity) return;
+  if (state.dmMode) {
+    setWorkspaceView('entities');
+  } else {
+    setWorkspaceView('database');
+  }
+  let entity = findActivityEntity(activity);
+  if (!entity) {
+    await loadEntities();
+    entity = findActivityEntity(activity);
+  }
+  if (!entity) {
+    showMessage('Entidad no disponible en esta vista.', true);
+    return;
+  }
+  if (state.dmMode) {
+    await selectAdminEntity(entity);
+    return;
+  }
+  state.activeEntityAgent = entity;
+  setCookie('agent_active_entity', entity.id);
+  renderAgentDossiers();
+  if (entity.visibility !== 'locked') {
+    loadAgentContext(entity.id);
+  } else {
+    renderAgentEntityDetailCard(entity);
+  }
+}
+
+async function loadActivity(options = {}) {
+  const { silent = false, page = 0, append = false } = options;
+  if (!activityPanel || !activityList || !activityStatus) return;
+  if (!state.activityPagination) {
+    state.activityPagination = { limit: 10, page: 0, hasMore: false, loading: false };
+  }
+  if (typeof isMobileView === 'function' ? isMobileView() : document.body.classList.contains('is-mobile')) {
+    state.activityPagination.limit = 3;
+  }
+  if (!state.activityPagination.loadedIds) {
+    state.activityPagination.loadedIds = new Set();
+  }
+  const limit = state.activityPagination.limit || 10;
+  const offset = page * limit;
+  if (!state.dmMode && !state.agent) {
+    activityList.innerHTML = '';
+    activityStatus.textContent = 'Esperando sesión...';
+    updateActivityConnectionLabel();
+    updateActivityPaginationControls();
+    return;
+  }
+  ensureActivityLabelTimer();
+  state.activityPagination.loading = true;
+  updateActivityPaginationControls();
+  if (!silent) {
+    activityStatus.textContent = 'Actualizando registro...';
+  }
+  try {
+    const response = await fetch(`/api/activity?limit=${limit}&offset=${offset}`);
+    if (response.status === 401) {
+      activityStatus.textContent = 'Sesión no activa.';
+      activityList.innerHTML = '';
+      updateActivityConnectionLabel();
+      return;
+    }
+    if (!response.ok) throw new Error('Fallo al cargar actividad.');
+    const payload = await response.json();
+    const rawItems = Array.isArray(payload) ? payload : payload.items || [];
+    const total = Array.isArray(payload) ? null : payload.total;
+    if (!append) {
+      state.activityPagination.loadedIds.clear();
+    }
+    const items = append
+      ? rawItems.filter((item) => item && !state.activityPagination.loadedIds.has(item.id))
+      : rawItems;
+    renderActivity(items, { append });
+    items.forEach((item) => {
+      if (item && item.id != null) state.activityPagination.loadedIds.add(item.id);
+    });
+    state.activityPagination.page = page;
+    const rawHasMore =
+      total !== null && total !== undefined
+        ? offset + rawItems.length < total
+        : rawItems.length === limit;
+    state.activityPagination.hasMore = append ? rawHasMore && items.length > 0 : rawHasMore;
+    if (state.activityPoll) {
+      state.activityPoll.lastSuccessAt = Date.now();
+      updateActivityConnectionLabel();
+    }
+  } catch (err) {
+    if (!silent) {
+      activityStatus.textContent = 'No se pudo cargar el registro.';
+    }
+    logDebug(`Error actividad: ${err.message}`);
+  } finally {
+    state.activityPagination.loading = false;
+    updateActivityPaginationControls();
+  }
+}
+
+async function pollActivity() {
+  if (!state.activityPoll || state.activityPoll.inFlight) return;
+  if (!state.dmMode && !state.agent) return;
+  if (state.activityPagination?.page > 0) return;
+  state.activityPoll.inFlight = true;
+  try {
+    await loadActivity({ silent: true });
+  } finally {
+    state.activityPoll.inFlight = false;
+  }
+}
+
+function startActivityPolling() {
+  if (!state.activityPoll) return;
+  if (!state.activityPoll.timer) {
+    state.activityPoll.timer = window.setInterval(pollActivity, state.activityPoll.intervalMs);
+  }
+  ensureActivityLabelTimer();
+}
+
+function stopActivityPolling() {
+  if (!state.activityPoll || !state.activityPoll.timer) return;
+  clearInterval(state.activityPoll.timer);
+  state.activityPoll.timer = null;
+  if (state.activityPoll.labelTimer) {
+    clearInterval(state.activityPoll.labelTimer);
+    state.activityPoll.labelTimer = null;
+  }
+}
+
 function applyMessageFilters() {
-  state.messageFilters = {
+  setMessageFilters('dm', {
     recipient: filterRecipientSelect?.value || '',
+    q: filterQueryInput?.value.trim() || '',
     session_tag: filterSessionInput?.value.trim() || '',
     since: filterSinceInput?.value || '',
     box: filterBoxSelect?.value || '',
-    unread_only: !!(filterUnreadCheckbox && filterUnreadCheckbox.checked)
-  };
-  loadMessages();
+    unread_only: !!(filterUnreadCheckbox && filterUnreadCheckbox.checked),
+    page: 0
+  });
+  loadMessages('dm');
 }
 
 function isDmViewer() {
@@ -2622,6 +5384,8 @@ async function loadEntities() {
     renderAdminDossiers();
     renderFocalPoiCard();
     populateDmGraphOptions();
+    setGraphSelectionIds('dm', state.dmGraphSelections);
+    setGraphSelectionIds('agent', state.agentGraphSelections);
     if (state.workspaceView === 'relations') {
       if (state.dmMode) {
         renderDmRelationsGraph();
@@ -2794,16 +5558,9 @@ function renderAgentDossiers() {
   const hasQuery = (filters.q || '').trim().length > 0;
   listTarget.innerHTML = '';
   if (isMobileDatabase) {
-    listTarget.style.display = hasQuery ? 'grid' : 'none';
+    listTarget.style.display = 'grid';
   } else {
     listTarget.style.display = '';
-  }
-  if (isMobileDatabase && !hasQuery) {
-    if (detailTarget) {
-      detailTarget.textContent = 'Busca una entidad o PdI para ver su dossier.';
-    }
-    renderAgentEntityDetailCard(null);
-    return;
   }
   if (!entities.length) {
     const empty = document.createElement('div');
@@ -2911,15 +5668,22 @@ function buildDossierCard(entity, dmView = false, active = false, compact = fals
   card.className = `dossier-card-row ${active ? 'active' : ''} ${locked ? 'locked' : ''}`;
   const badge = `<span class="badge">${getEntityTypeLabel(entity.type)}</span>`;
   const role = entity.type === 'poi' ? categoryLabels[entity.category] || entity.role : entity.role;
+  const nameParts = splitEntityName(entity.code_name || entity.name || 'Entidad');
+  const titleHtml = `
+      <span class="dossier-row-title">
+        <span class="dossier-title-primary">${sanitize(nameParts.primary)}</span>
+        <span class="dossier-title-secondary">${sanitize(nameParts.secondary)}</span>
+      </span>
+    `;
   if (locked) {
     card.innerHTML = `
-      <div class="dossier-row-header">${badge} <strong>${sanitize(entity.code_name || entity.name)}</strong></div>
+      <div class="dossier-row-header">${badge} ${titleHtml}</div>
       <div class="dossier-row-note">LOCKED — requiere clave</div>
     `;
   } else {
     const roleLine = sanitize(role || 'Sin rol');
     card.innerHTML = `
-      <div class="dossier-row-header">${badge} <strong>${sanitize(entity.code_name || entity.name)}</strong></div>
+      <div class="dossier-row-header">${badge} ${titleHtml}</div>
       <div class="dossier-row-meta">${roleLine}</div>
     `;
   }
@@ -2930,6 +5694,23 @@ function buildDossierCard(entity, dmView = false, active = false, compact = fals
     card.appendChild(pill);
   }
   return card;
+}
+
+function splitEntityName(name) {
+  const raw = String(name || '').trim();
+  if (!raw) return { primary: 'Entidad', secondary: '' };
+  const delimiters = [',', ' - ', ' — ', ' / ', ' | ', ': '];
+  for (const delimiter of delimiters) {
+    if (!raw.includes(delimiter)) continue;
+    const [head, ...rest] = raw.split(delimiter);
+    const primary = head.trim();
+    const secondary = rest.join(delimiter).trim();
+    if (primary) return { primary, secondary };
+  }
+  const words = raw.split(/\s+/);
+  const primary = words.shift() || raw;
+  const secondary = words.join(' ').trim();
+  return { primary, secondary };
 }
 
 function renderDossierDetailView(target, entity, options = {}) {
@@ -3203,6 +5984,374 @@ function formatAgentGraphLabel(entity) {
   return formatEntityGraphLabel(entity);
 }
 
+function setGraphSearchSelection(input, entity, formatter) {
+  if (!input || !entity) return;
+  input.value = formatter(entity);
+  input.dataset.entityId = String(entity.id);
+}
+
+function clearGraphSearchSelection(input) {
+  if (!input) return;
+  input.dataset.entityId = '';
+}
+
+function normalizeGraphSelectionIds(list, pool) {
+  const allowed = new Set((pool || []).map((entity) => String(entity.id)));
+  const seen = new Set();
+  return (list || [])
+    .map((id) => String(id))
+    .filter((id) => allowed.has(id) && !seen.has(id) && (seen.add(id) || true))
+    .map((id) => Number(id));
+}
+
+function getGraphSelectionPool(mode) {
+  return mode === 'dm' ? getDmGraphPool() : getAgentGraphPool();
+}
+
+function getGraphSelectionIds(mode) {
+  return mode === 'dm' ? state.dmGraphSelections : state.agentGraphSelections;
+}
+
+function setGraphSelectionIds(mode, ids) {
+  const pool = getGraphSelectionPool(mode);
+  const normalized = normalizeGraphSelectionIds(ids, pool);
+  if (mode === 'dm') {
+    state.dmGraphSelections = normalized;
+  } else {
+    state.agentGraphSelections = normalized;
+  }
+  renderGraphSelectionChips(mode, pool);
+  return normalized;
+}
+
+function renderGraphSelectionChips(mode, poolOverride) {
+  const chips = mode === 'dm' ? dmGraphChips : agentGraphChips;
+  const clearBtn = mode === 'dm' ? dmGraphClearBtn : agentGraphClearBtn;
+  const pool = poolOverride || getGraphSelectionPool(mode);
+  if (!chips) return;
+  chips.innerHTML = '';
+  const ids = getGraphSelectionIds(mode);
+  const formatter = mode === 'dm' ? formatDmGraphLabel : formatAgentGraphLabel;
+  ids.forEach((id) => {
+    const entity = pool.find((item) => Number(item.id) === Number(id));
+    if (!entity) return;
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    const label = document.createElement('span');
+    label.className = 'chip-label';
+    label.textContent = formatter(entity);
+    const actions = document.createElement('div');
+    actions.className = 'chip-actions';
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', () => {
+      const next = ids.filter((entry) => Number(entry) !== Number(id));
+      setGraphSelectionIds(mode, next);
+      if (mode === 'dm') {
+        renderDmRelationsGraph();
+      } else {
+        renderAgentRelationsGraph();
+      }
+    });
+    actions.appendChild(removeBtn);
+    chip.appendChild(label);
+    chip.appendChild(actions);
+    chips.appendChild(chip);
+  });
+  if (clearBtn) {
+    clearBtn.disabled = !ids.length;
+  }
+}
+
+function updateGraphSelectionControls(mode, enabled) {
+  const addBtn = mode === 'dm' ? dmGraphAddBtn : agentGraphAddBtn;
+  const clearBtn = mode === 'dm' ? dmGraphClearBtn : agentGraphClearBtn;
+  if (addBtn) addBtn.disabled = !enabled;
+  if (clearBtn) clearBtn.disabled = !enabled || !getGraphSelectionIds(mode).length;
+}
+
+function normalizeNodeId(rawId, typeHint = 'entity') {
+  if (rawId == null) return '';
+  const text = String(rawId);
+  if (text.startsWith('e-') || text.startsWith('p-')) return text;
+  const prefix = typeHint === 'poi' ? 'p' : 'e';
+  return `${prefix}-${text}`;
+}
+
+function ensureStubNode(nodes, id) {
+  if (!id || nodes.has(id)) return;
+  const isPoi = String(id).startsWith('p-');
+  nodes.set(id, {
+    id,
+    label: isPoi ? 'PdI' : 'Entidad',
+    type: isPoi ? 'poi' : 'npc',
+    entityId: id.replace(/^[ep]-/, ''),
+    role: '',
+    visibility: 'agent_public',
+    image_url: '',
+    session: '',
+    publicSummary: ''
+  });
+}
+
+function stripGraphPrefix(id) {
+  if (typeof id !== 'string') return id;
+  if (id.startsWith('e-') || id.startsWith('p-')) {
+    return id.slice(2);
+  }
+  return id;
+}
+
+function addGraphSelection(mode, id) {
+  const pool = getGraphSelectionPool(mode);
+  const num = Number(id);
+  if (!num || Number.isNaN(num)) return;
+  const allowed = new Set(pool.map((entity) => Number(entity.id)));
+  if (!allowed.has(num)) return;
+  const next = [...getGraphSelectionIds(mode), num];
+  setGraphSelectionIds(mode, next);
+  if (mode === 'dm') {
+    state.dmGraphFocusId = num;
+    renderDmRelationsGraph();
+  } else {
+    state.agentGraphFocusId = num;
+    renderAgentRelationsGraph();
+  }
+}
+
+function clearGraphSelections(mode) {
+  setGraphSelectionIds(mode, []);
+  if (mode === 'dm') {
+    renderDmRelationsGraph();
+  } else {
+    renderAgentRelationsGraph();
+  }
+}
+
+function buildGraphNodePayload(info) {
+  const fallbackId = info.id ?? info.entityId ?? info.poi_id ?? 'unknown';
+  const typeHint = info.type === 'poi' ? 'poi' : 'entity';
+  const nodeId = info.graphId || normalizeNodeId(fallbackId, typeHint);
+  const summaryText =
+    info.public_summary ||
+    info.publicSummary ||
+    info.summary ||
+    info.public_note ||
+    info.note ||
+    info.dm_notes ||
+    '';
+  return {
+    id: nodeId,
+    label: info.code_name || info.name || `Entidad ${fallbackId}`,
+    code_name: info.code_name || info.name || '',
+    name: info.name || info.code_name || '',
+    type: info.type || info.to_type || info.from_type || 'npc',
+    entityId: info.entityId ?? fallbackId,
+    threat: info.threat_level || info.threat,
+    role: info.role || info.to_role || info.from_role || '',
+    visibility: info.visibility || info.to_visibility || info.from_visibility || 'agent_public',
+    image_url: info.image_url || info.to_image_url || info.from_image_url || '',
+    session: info.first_session || info.sessions || info.session || '',
+    publicSummary: summaryText.trim()
+  };
+}
+
+function buildCombinedGraphContext(contexts, options = {}) {
+  const nodes = new Map();
+  const edges = new Map();
+  const helpers = createGraphHelpers();
+  const focusEntityId = Number(options.focusId);
+  let focusEntity = null;
+  contexts.forEach((ctx) => {
+    if (!ctx || !ctx.entity) return;
+    if (!focusEntity) focusEntity = ctx.entity;
+    if (focusEntityId && Number(ctx.entity.id) === focusEntityId) {
+      focusEntity = ctx.entity;
+    }
+    const focusNode = buildGraphNodePayload(ctx.entity);
+    const focusId = normalizeNodeId(focusNode.id, 'entity');
+    nodes.set(focusId, focusNode);
+    (ctx.relations || []).forEach((rel, idx) => {
+      if (!rel?.to_entity_id) return;
+      const nodeInfo = {
+        id: rel.to_entity_id,
+        code_name: rel.to_code_name || rel.target_name,
+        type: rel.to_type || rel.target_type,
+        role: rel.to_role || rel.target_role,
+        image_url: rel.to_image_url,
+        visibility: rel.to_visibility,
+        session: rel.session_tag || null
+      };
+      if (rel.to_public_summary || rel.to_public_note) {
+        nodeInfo.public_summary = rel.to_public_summary || rel.to_public_note;
+      }
+      const targetNode = buildGraphNodePayload(nodeInfo);
+      const targetId = normalizeNodeId(targetNode.id, 'entity');
+      nodes.set(targetId, { ...targetNode, id: targetId });
+      const edgeId = rel.id ? `rel-${rel.id}` : `rel-${ctx.entity.id}-${rel.to_entity_id}-${idx}`;
+      if (!edges.has(edgeId)) {
+        edges.set(edgeId, {
+          id: edgeId,
+          source: focusId,
+          target: targetId,
+          relation: rel.relation_type || rel.relation || 'vínculo',
+          strength: rel.strength || 1,
+          linkType: 'entity',
+          is_public: rel.is_public !== undefined ? rel.is_public : 1
+        });
+      }
+    });
+    (ctx.pois || []).forEach((link, idx) => {
+      if (!link?.poi_id) return;
+      const poiId = `p-${link.poi_id}`;
+      const imageFallback = helpers.getPoiImageUrl(Number(link.poi_id));
+      const poiNodeData = {
+        id: link.poi_id,
+        entityId: link.poi_id,
+        graphId: poiId,
+        code_name: link.name,
+        type: 'poi',
+        role: link.category || 'PdI',
+        image_url: link.image_url || imageFallback,
+        visibility: link.visibility,
+        session: link.session_tag || link.poi_session || ''
+      };
+      if (link.public_note) {
+        poiNodeData.public_summary = link.public_note;
+      }
+      const poiNode = buildGraphNodePayload(poiNodeData);
+      const poiNodeId = normalizeNodeId(poiNode.id, 'poi');
+      nodes.set(poiNodeId, { ...poiNode, id: poiNodeId });
+      const edgeId = link.id ? `poi-${link.id}` : `poi-${ctx.entity.id}-${link.poi_id}-${idx}`;
+      if (!edges.has(edgeId)) {
+        edges.set(edgeId, {
+          id: edgeId,
+          source: focusId,
+          target: poiNodeId,
+          relation: link.role_at_poi || 'PdI',
+          strength: 1,
+          linkType: 'poi',
+          is_public: link.is_public !== undefined ? link.is_public : 1
+        });
+      }
+    });
+  });
+
+  edges.forEach((edge) => {
+    ensureStubNode(nodes, edge.source);
+    ensureStubNode(nodes, edge.target);
+  });
+
+  const nodeList = Array.from(nodes.values()).map((data) => {
+    const graphId = typeof data.id === 'string' ? data.id : '';
+    const normalized = graphId ? stripGraphPrefix(graphId) : data.id;
+    return {
+      data: {
+        ...data,
+        graphId: graphId || data.graphId,
+        id: data.entityId ?? normalized
+      }
+    };
+  });
+  const nodeIds = new Set(nodeList.map((node) => node.data.graphId || node.data.id));
+  const edgeList = Array.from(edges.values())
+    .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+    .map((data) => ({ data }));
+  let focusId = options.focusId ? `e-${options.focusId}` : null;
+  if (!focusId || !nodes.has(focusId)) {
+    focusId = nodeList[0]?.data?.id || null;
+  }
+  const entity = focusEntity || {
+    id: 'multi',
+    code_name: 'Relaciones',
+    type: 'org',
+    role: 'Selección múltiple',
+    visibility: 'agent_public',
+    public_summary: 'Grafo combinado.'
+  };
+  return {
+    entity,
+    graph: {
+      nodes: nodeList,
+      edges: edgeList
+    },
+    graphFocusId: focusId
+  };
+}
+
+async function fetchGraphContext(id, mode) {
+  const url = mode === 'dm' ? `/api/dm/entities/${id}/context` : `/api/agent/entities/${id}/context`;
+  const response = await fetch(url);
+  if (response.status === 401) {
+    if (mode === 'dm') {
+      performLogout({ message: 'Sesión expirada. Vuelve a autenticarte.' });
+    } else {
+      handleUnauthorized();
+    }
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error('No se pudo cargar contexto para el grafo combinado.');
+  }
+  return response.json();
+}
+
+function resolveGraphFocusId(ids, preferredId) {
+  const preferred = Number(preferredId);
+  if (preferred && ids.includes(preferred)) return preferred;
+  return ids[0] || null;
+}
+
+async function renderCombinedRelationsGraph(mode) {
+  const container = mode === 'dm' ? dmGraphContainer : agentGraphContainer;
+  const pool = getGraphSelectionPool(mode);
+  const selections = normalizeGraphSelectionIds(getGraphSelectionIds(mode), pool);
+  const focusId = resolveGraphFocusId(
+    selections,
+    mode === 'dm' ? state.dmGraphFocusId : state.agentGraphFocusId
+  );
+  if (!selections.length) return false;
+  if (!container) return true;
+  try {
+    const results = await Promise.allSettled(selections.map((id) => fetchGraphContext(id, mode)));
+    const filtered = results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value)
+      .filter(Boolean);
+    results.forEach((result) => {
+      if (result.status === 'rejected') {
+        logDebug(`Grafo combinado error: ${result.reason?.message || result.reason}`);
+        console.error('Grafo combinado error', result.reason);
+      }
+    });
+    if (!filtered.length) {
+      container.textContent = 'No se pudo cargar el grafo combinado.';
+      return true;
+    }
+    const ctx = buildCombinedGraphContext(filtered, { focusId });
+    if (mode === 'dm') {
+      state.dmGraphFocusId = focusId;
+    } else {
+      state.agentGraphFocusId = focusId;
+    }
+    const api = mode === 'dm' ? ensureDmGraphApi() : ensureAgentGraphApi();
+    const baseLayout = mode === 'dm' ? state.dmGraphLayout : state.agentGraphLayout;
+    const isMulti = selections.length > 1;
+    const layout = isMulti ? 'cose' : baseLayout;
+    const fitPadding = isMulti ? 60 : undefined;
+    await api.update(ctx, { focusId: ctx.graphFocusId, mode, layout, fitPadding });
+    return true;
+  } catch (err) {
+    logDebug(`Grafo combinado error: ${err.message}`);
+    console.error('Grafo combinado error', err);
+    if (container) {
+      container.textContent = 'No se pudo dibujar el grafo combinado.';
+    }
+    return true;
+  }
+}
+
 function refreshDmGraphFuse() {
   const pool = getDmGraphPool();
   if (typeof Fuse === 'undefined' || !pool.length) {
@@ -3225,14 +6374,24 @@ function setDmGraphFocus(id) {
     }
     if (dmGraphSearchInput) {
       dmGraphSearchInput.value = DM_GRAPH_CAMPAIGN_LABEL;
+      clearGraphSearchSelection(dmGraphSearchInput);
     }
+    setGraphSelectionIds('dm', []);
+    updateGraphSelectionControls('dm', false);
     return renderDmCampaignGraph();
   }
   state.dmGraphScope = DM_GRAPH_SCOPE.ENTITY;
   const num = Number(id);
   state.dmGraphFocusId = Number.isNaN(num) ? null : num;
+  updateGraphSelectionControls('dm', true);
   if (dmGraphSelect) {
     dmGraphSelect.value = state.dmGraphFocusId ? String(state.dmGraphFocusId) : '';
+  }
+  if (dmGraphSearchInput && state.dmGraphFocusId) {
+    const selected = getDmGraphPool().find((item) => Number(item.id) === Number(state.dmGraphFocusId));
+    if (selected) {
+      setGraphSearchSelection(dmGraphSearchInput, selected, formatDmGraphLabel);
+    }
   }
   return renderDmRelationsGraph();
 }
@@ -3245,7 +6404,6 @@ function clearDmGraphSuggestions() {
 
 function renderDmGraphSearchResults(query) {
   if (!dmGraphSuggestions || !dmGraphSearchInput) return;
-  if (state.dmGraphScope === DM_GRAPH_SCOPE.CAMPAIGN) return;
   dmGraphSuggestions.innerHTML = '';
   dmGraphSuggestions.classList.remove('visible');
   const pool = getDmGraphPool();
@@ -3262,7 +6420,7 @@ function renderDmGraphSearchResults(query) {
     btn.textContent = formatDmGraphLabel(item);
     btn.addEventListener('click', () => {
       setDmGraphFocus(item.id);
-      dmGraphSearchInput.value = formatDmGraphLabel(item);
+      setGraphSearchSelection(dmGraphSearchInput, item, formatDmGraphLabel);
       clearDmGraphSuggestions();
     });
     dmGraphSuggestions.appendChild(btn);
@@ -3296,6 +6454,7 @@ function populateDmGraphOptions() {
     dmGraphSelect.value = DM_GRAPH_CAMPAIGN_VALUE;
     if (dmGraphSearchInput) {
       dmGraphSearchInput.value = DM_GRAPH_CAMPAIGN_LABEL;
+      clearGraphSearchSelection(dmGraphSearchInput);
     }
     return;
   }
@@ -3303,11 +6462,16 @@ function populateDmGraphOptions() {
     dmGraphSelect.value = String(state.dmGraphFocusId);
     if (dmGraphSearchInput) {
       const selected = pool.find((p) => p.id === state.dmGraphFocusId);
-      dmGraphSearchInput.value = formatDmGraphLabel(selected);
+      if (selected) {
+        setGraphSearchSelection(dmGraphSearchInput, selected, formatDmGraphLabel);
+      }
     }
   } else {
     if (dmGraphSelect) dmGraphSelect.value = '';
-    if (dmGraphSearchInput) dmGraphSearchInput.value = '';
+    if (dmGraphSearchInput) {
+      dmGraphSearchInput.value = '';
+      clearGraphSearchSelection(dmGraphSearchInput);
+    }
   }
 }
 
@@ -3322,6 +6486,15 @@ async function renderDmRelationsGraph() {
   }
   populateDmGraphOptions();
   state.dmGraphScope = DM_GRAPH_SCOPE.ENTITY;
+  const dmSelections = normalizeGraphSelectionIds(state.dmGraphSelections, getDmGraphPool());
+  if (dmSelections.length) {
+    state.dmGraphSelections = dmSelections;
+    state.dmGraphFocusId = resolveGraphFocusId(dmSelections, state.dmGraphFocusId);
+    renderGraphSelectionChips('dm', getDmGraphPool());
+    updateGraphSelectionControls('dm', true);
+    return renderCombinedRelationsGraph('dm');
+  }
+  updateGraphSelectionControls('dm', true);
   const focusId = state.dmGraphFocusId || (state.entities.find((e) => e.type !== 'poi')?.id || null);
   if (!focusId) {
     dmGraphContainer.textContent = 'No hay entidades para graficar.';
@@ -3331,7 +6504,7 @@ async function renderDmRelationsGraph() {
   if (dmGraphSearchInput) {
     const selected = getDmGraphPool().find((p) => p.id === focusId);
     if (selected) {
-      dmGraphSearchInput.value = formatDmGraphLabel(selected);
+      setGraphSearchSelection(dmGraphSearchInput, selected, formatDmGraphLabel);
     }
   }
   try {
@@ -3357,6 +6530,12 @@ async function renderDmCampaignGraph() {
     return;
   }
   state.dmGraphScope = DM_GRAPH_SCOPE.CAMPAIGN;
+  setGraphSelectionIds('dm', []);
+  updateGraphSelectionControls('dm', false);
+  if (dmGraphSearchInput) {
+    dmGraphSearchInput.value = DM_GRAPH_CAMPAIGN_LABEL;
+    clearGraphSearchSelection(dmGraphSearchInput);
+  }
   try {
     const response = await fetch('/api/dm/graph/campaign');
     if (response.status === 401) {
@@ -3406,6 +6585,7 @@ function populateAgentGraphOptions() {
     agentGraphSelect.value = AGENT_GRAPH_CAMPAIGN_VALUE;
     if (agentGraphSearchInput) {
       agentGraphSearchInput.value = AGENT_GRAPH_CAMPAIGN_LABEL;
+      clearGraphSearchSelection(agentGraphSearchInput);
     }
     return;
   }
@@ -3413,12 +6593,15 @@ function populateAgentGraphOptions() {
     agentGraphSelect.value = String(state.agentGraphFocusId);
     if (agentGraphSearchInput) {
       const selected = pool.find((p) => p.id === state.agentGraphFocusId);
-      agentGraphSearchInput.value = formatAgentGraphLabel(selected);
+      if (selected) {
+        setGraphSearchSelection(agentGraphSearchInput, selected, formatAgentGraphLabel);
+      }
     }
   } else {
     agentGraphSelect.value = '';
     if (agentGraphSearchInput) {
       agentGraphSearchInput.value = '';
+      clearGraphSearchSelection(agentGraphSearchInput);
     }
   }
   refreshAgentGraphFuse();
@@ -3445,7 +6628,6 @@ function clearAgentGraphSuggestions() {
 
 function renderAgentGraphSearchResults(query) {
   if (!agentGraphSuggestions) return;
-  if (state.agentGraphScope === AGENT_GRAPH_SCOPE.CAMPAIGN) return;
   agentGraphSuggestions.innerHTML = '';
   agentGraphSuggestions.classList.remove('visible');
   const pool = getAgentGraphPool();
@@ -3463,7 +6645,7 @@ function renderAgentGraphSearchResults(query) {
     btn.addEventListener('click', () => {
       setAgentGraphFocus(item.id);
       if (agentGraphSearchInput) {
-        agentGraphSearchInput.value = formatAgentGraphLabel(item);
+        setGraphSearchSelection(agentGraphSearchInput, item, formatAgentGraphLabel);
       }
       clearAgentGraphSuggestions();
     });
@@ -3483,14 +6665,24 @@ function setAgentGraphFocus(id) {
     }
     if (agentGraphSearchInput) {
       agentGraphSearchInput.value = AGENT_GRAPH_CAMPAIGN_LABEL;
+      clearGraphSearchSelection(agentGraphSearchInput);
     }
+    setGraphSelectionIds('agent', []);
+    updateGraphSelectionControls('agent', false);
     return renderAgentCampaignGraph();
   }
   state.agentGraphScope = AGENT_GRAPH_SCOPE.ENTITY;
   const num = Number(id);
   state.agentGraphFocusId = Number.isNaN(num) ? null : num;
+  updateGraphSelectionControls('agent', true);
   if (agentGraphSelect) {
     agentGraphSelect.value = state.agentGraphFocusId ? String(state.agentGraphFocusId) : '';
+  }
+  if (agentGraphSearchInput && state.agentGraphFocusId) {
+    const selected = getAgentGraphPool().find((item) => Number(item.id) === Number(state.agentGraphFocusId));
+    if (selected) {
+      setGraphSearchSelection(agentGraphSearchInput, selected, formatAgentGraphLabel);
+    }
   }
   return renderAgentRelationsGraph();
 }
@@ -3506,6 +6698,15 @@ async function renderAgentRelationsGraph() {
   }
   state.agentGraphScope = AGENT_GRAPH_SCOPE.ENTITY;
   populateAgentGraphOptions();
+  const agentSelections = normalizeGraphSelectionIds(state.agentGraphSelections, getAgentGraphPool());
+  if (agentSelections.length) {
+    state.agentGraphSelections = agentSelections;
+    state.agentGraphFocusId = resolveGraphFocusId(agentSelections, state.agentGraphFocusId);
+    renderGraphSelectionChips('agent', getAgentGraphPool());
+    updateGraphSelectionControls('agent', true);
+    return renderCombinedRelationsGraph('agent');
+  }
+  updateGraphSelectionControls('agent', true);
   const focusId =
     state.agentGraphFocusId ||
     state.activeEntityAgent?.id ||
@@ -3518,7 +6719,7 @@ async function renderAgentRelationsGraph() {
   if (agentGraphSearchInput) {
     const selected = getAgentGraphPool().find((p) => p.id === focusId);
     if (selected) {
-      agentGraphSearchInput.value = formatAgentGraphLabel(selected);
+      setGraphSearchSelection(agentGraphSearchInput, selected, formatAgentGraphLabel);
     }
   }
   try {
@@ -3545,6 +6746,12 @@ async function renderAgentCampaignGraph() {
     return;
   }
   state.agentGraphScope = AGENT_GRAPH_SCOPE.CAMPAIGN;
+  setGraphSelectionIds('agent', []);
+  updateGraphSelectionControls('agent', false);
+  if (agentGraphSearchInput) {
+    agentGraphSearchInput.value = AGENT_GRAPH_CAMPAIGN_LABEL;
+    clearGraphSearchSelection(agentGraphSearchInput);
+  }
   try {
     const response = await fetch('/api/agent/graph/campaign');
     if (response.status === 401) {
@@ -3636,6 +6843,7 @@ function setWorkspaceView(view) {
     const isDm = isDmViewer();
     document.body.classList.toggle('dm-hide-top-nav', isDm && view === 'entities');
   }
+  updateMobileStateBadge();
   workspaceTabs.forEach((tab) => {
     tab.classList.toggle('active', tab.dataset.view === view);
   });
@@ -3667,6 +6875,16 @@ function setWorkspaceView(view) {
   if (view === 'map' && isMobileView()) {
     scheduleMapResize();
   }
+  if (view === 'base') {
+    ensureBaseVisualDefaults();
+    applyBaseVisualSettings();
+    base3d.resize();
+    if (!baseState.baseViewActivated) {
+      base3d.resetCamera?.({ immediate: true });
+      baseState.baseViewActivated = true;
+    }
+  }
+  base3d.setActive?.(view === 'base');
   if (view === 'entities') {
     renderAgentDossiers();
     renderAdminDossiers();
@@ -3675,7 +6893,7 @@ function setWorkspaceView(view) {
     }
   }
   if (view === 'inbox') {
-    loadMessages();
+    showInboxView();
   }
   if (view === 'relations') {
     if (state.dmMode) {
@@ -3683,6 +6901,14 @@ function setWorkspaceView(view) {
     } else {
       renderAgentRelationsGraph();
     }
+  }
+  if (view === 'journal' && state.dmMode) {
+    reloadChatData();
+    connectChatSocket();
+  }
+  if (view === 'console' && state.agent) {
+    reloadChatData();
+    connectChatSocket();
   }
 }
 
@@ -3853,6 +7079,23 @@ function renderEntitiesMap(ctx, options = {}) {
   }
 }
 
+function ensureMobileDmEditToggle(detail) {
+  if (!detail || !isMobileView() || !isDmViewer()) return;
+  if (detail.querySelector('#dm-mobile-edit-toggle')) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'dm-mobile-edit-toggle';
+  button.className = 'ghost small dm-mobile-edit-toggle';
+  button.textContent = 'Editar dossier';
+  button.addEventListener('click', () => setMobileDmEditMode(true));
+  const title = detail.querySelector('.card-title');
+  if (title) {
+    title.insertAdjacentElement('afterend', button);
+  } else {
+    detail.prepend(button);
+  }
+}
+
 function renderDmEntityDetailCard(entity, ctx = {}) {
   const detail = document.getElementById('dm-entity-detail-card');
   const hero = document.getElementById('dm-entity-hero-card');
@@ -3906,6 +7149,7 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
       hero.innerHTML =
         '<div class="dm-entity-hero-body muted">Sin imagen disponible. Al elegir un dossier se mostrará aquí su foto o el plano.</div>';
     }
+    ensureMobileDmEditToggle(detail);
     if (bestiaryRoot) {
       bestiaryRoot.classList.add('hidden');
       bestiaryRoot.classList.remove('bestiary-promoted');
@@ -3961,6 +7205,7 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
         </div>
       </div>
     `;
+    ensureMobileDmEditToggle(detail);
   } else {
     // 2/3 pane: solo texto para entidades
     detail.innerHTML = `
@@ -3992,6 +7237,7 @@ function renderDmEntityDetailCard(entity, ctx = {}) {
         </div>
       </div>
     `;
+    ensureMobileDmEditToggle(detail);
   }
 
   const img = entity.image_url || entity.photo || '';
@@ -4379,7 +7625,6 @@ function updateRoleLayoutClasses() {
   document.body.classList.toggle('mode-dm', !!state.dmMode);
   document.body.classList.toggle('mode-agent', !state.dmMode);
   scheduleMapResize();
-  updateMessageBoxLabel();
   renderBestiary(state.activeEntityAdmin);
 }
 
@@ -4407,6 +7652,7 @@ function renderFocalPoiCard() {
       .join('')}</div>
       </div>`
     : '';
+  const focalLink = `<button type="button" class="focal-link" data-focal-poi-jump="${poi.id}">${sanitize(poi.name)}</button>`;
   const mobile = isMobileView();
   const mobileHtml = `
     <div class="mobile-focal-card">
@@ -4416,7 +7662,7 @@ function renderFocalPoiCard() {
       </div>
       <div class="mobile-focal-title">
         <span class="focal-icon">${icon}</span>
-        <div>${sanitize(poi.name)}</div>
+        ${focalLink}
       </div>
       <div class="mobile-focal-meta">
         <div class="mobile-focal-line"><span class="label">Amenaza</span><span>${poi.threat_level}</span></div>
@@ -4432,7 +7678,7 @@ function renderFocalPoiCard() {
 
   const desktopHtml = `
     <div class="poi-focal-header">
-      <div class="poi-name">${icon} ${sanitize(poi.name)}</div>
+      <div class="poi-name">${icon} ${focalLink}</div>
     <div class="poi-meta">Amenaza ${poi.threat_level} · Velo ${sanitize(formatVeilLabel(poi.veil_status))}</div>
   </div>
   <div class="poi-session">Sesión ${sanitize(poi.session_tag || '—')}</div>
@@ -4449,29 +7695,43 @@ function renderFocalPoiCard() {
 
 function renderActiveMessageCard() {
   const msg = state.activeMessage;
-  const viewer = state.dmMode ? 'Sr. Verdad' : state.agent?.display || '';
-  renderMessageReader(messageReader, msg, viewer);
-  renderMessageReader(messageReaderDm, msg, viewer);
+  const viewer = getMessageViewer();
+  const filters = getMessageFilters(state.activeMessageContext);
+  if (state.activeMessageContext === 'overlay') {
+    return;
+  }
+  if (state.dmMode) {
+    renderMessageReader(messageReader, msg, viewer, filters);
+  } else {
+    renderMessageReader(messageReaderDm, msg, viewer, filters);
+  }
 }
 
-function renderMessageReader(reader, msg, viewer) {
+function renderMessageReader(reader, msg, viewer, filters) {
   if (!reader) return;
   if (!msg) {
     reader.textContent = 'No hay despachos.';
     return;
   }
   const isRead = viewer ? Array.isArray(msg.read_by) && msg.read_by.includes(viewer) : true;
+  const threadLine = msg.thread_id ? `Hilo #${sanitize(msg.thread_id)}` : '';
+  const replyLine = msg.reply_to_id ? `Respuesta a #${sanitize(msg.reply_to_id)}` : '';
+  const priorityLine = msg.priority && msg.priority !== 'normal' ? `Prioridad ${sanitize(msg.priority)}` : '';
+  const metaExtras = [threadLine, replyLine, priorityLine].filter(Boolean).join(' · ');
+  const canReply =
+    filters?.box !== 'sent' && (state.dmMode || (msg.created_by || '') === DM_ACTOR);
   const html = `
     <div class="message-reader-header">
       <div class="title">${sanitize(msg.subject || '(Sin asunto)')}</div>
       <div class="meta">De: ${sanitize(msg.sender)} → ${sanitize(msg.recipient)} · ${new Date(
     msg.created_at
   ).toLocaleString()}</div>
+      ${metaExtras ? `<div class="meta">${metaExtras}</div>` : ''}
     </div>
     <div class="message-body">${sanitize(msg.body || '')}</div>
     <div class="message-actions">
       ${!isRead && viewer ? `<button type="button" class="ghost small" data-mark-read="${msg.id}">Marcar como leído</button>` : ''}
-      ${state.messageFilters.box === 'sent' ? '' : `<button type="button" class="ghost small" data-reply="${msg.id}">Responder</button>`}
+      ${canReply ? `<button type="button" class="ghost small" data-reply="${msg.id}">Responder</button>` : ''}
       <button type="button" class="ghost small danger" data-delete="${msg.id}">Eliminar</button>
     </div>
   `;
@@ -4486,7 +7746,11 @@ function renderMessageReader(reader, msg, viewer) {
     replyBtn.addEventListener('click', () => startReply(state.activeMessage));
   }
   if (deleteBtn && viewer) {
-    deleteBtn.addEventListener('click', () => deleteMessageForViewer(msg.id, viewer, state.messageFilters.box || 'inbox'));
+    deleteBtn.addEventListener('click', () => {
+      const ok = window.confirm('¿Eliminar este despacho?');
+      if (!ok) return;
+      deleteMessageForViewer(msg.id, viewer, filters?.box || 'inbox');
+    });
   }
 }
 
@@ -4563,6 +7827,9 @@ async function loadJournalEntry() {
   if (journalPublicInput && document.activeElement !== journalPublicInput) {
     journalPublicInput.value = state.missionNotes || '';
   }
+  if (state.dmMode) {
+    setJournalStatus('clean');
+  }
 }
 
 async function saveMissionNotes(text) {
@@ -4621,6 +7888,9 @@ async function handleJournalSave() {
       saveJournalDm(journalDmInput?.value || '');
     }
     showMessage('Journal actualizado.');
+    if (state.dmMode) {
+      setJournalStatus('saved');
+    }
   } catch (err) {
     logDebug(`Error guardando journal: ${err.message}`);
     showMessage('No se pudo guardar el journal.', true);
@@ -4713,6 +7983,102 @@ function isMobileView() {
   return window.innerWidth <= 900;
 }
 
+function updateMapInteractionMode() {
+  if (!state.map) return;
+  const mobile = isMobileView();
+  const isMapView = state.workspaceView === 'map' || document.body?.classList.contains('map-view');
+  const canvas = state.map.getCanvas?.();
+  const container = state.map.getCanvasContainer?.();
+  if (mobile) {
+    if (isMapView) {
+      state.map.dragPan.enable();
+      state.map.touchZoomRotate.enable();
+      state.map.scrollZoom.disable();
+      state.map.dragRotate.disable();
+      state.map.doubleClickZoom.disable();
+      state.map.keyboard.disable();
+      if (canvas) canvas.style.touchAction = 'none';
+      if (container) container.style.touchAction = 'none';
+    } else {
+      state.map.dragPan.disable();
+      state.map.scrollZoom.disable();
+      state.map.dragRotate.disable();
+      state.map.touchZoomRotate.disable();
+      state.map.doubleClickZoom.disable();
+      state.map.keyboard.disable();
+      if (canvas) canvas.style.touchAction = 'pan-y';
+      if (container) container.style.touchAction = 'pan-y';
+    }
+  } else {
+    state.map.dragPan.enable();
+    state.map.scrollZoom.enable();
+    state.map.dragRotate.enable();
+    state.map.touchZoomRotate.enable();
+    state.map.doubleClickZoom.enable();
+    state.map.keyboard.enable();
+    if (canvas) canvas.style.touchAction = '';
+    if (container) container.style.touchAction = '';
+  }
+}
+
+function syncMobileDmEditMode(forceOff = false) {
+  if (!document.body) return;
+  const mobile = isMobileView();
+  const dm = isDmViewer();
+  const onDatabase = state.mobileTab === 'database';
+  if (forceOff || !mobile || !dm || !onDatabase) {
+    state.mobileDmEditMode = false;
+  }
+  document.body.classList.toggle('mobile-dm-edit', mobile && dm && onDatabase && state.mobileDmEditMode);
+}
+
+function syncMobileDmConsoleTab(forceTab) {
+  if (!document.body) return;
+  const mobile = isMobileView();
+  const dm = isDmViewer();
+  const onConsole = state.mobileTab === 'console';
+  if (!mobile || !dm || !onConsole) {
+    document.body.removeAttribute('data-dm-console-tab');
+    if (journalPublicInput) journalPublicInput.readOnly = false;
+    return;
+  }
+  const tab = forceTab || state.mobileDmConsoleTab || 'messages';
+  state.mobileDmConsoleTab = tab;
+  document.body.setAttribute('data-dm-console-tab', tab);
+  dmMobileConsoleTabs.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.dmConsoleTab === tab);
+  });
+  if (journalPublicInput) {
+    journalPublicInput.readOnly = tab === 'journal';
+  }
+}
+
+function setMobileDmConsoleTab(tab) {
+  state.mobileDmConsoleTab = tab;
+  syncMobileDmConsoleTab(tab);
+}
+
+function setMobileDmEditMode(enabled) {
+  state.mobileDmEditMode = !!enabled;
+  syncMobileDmEditMode();
+  if (state.mobileDmEditMode) {
+    window.scrollTo(0, 0);
+  }
+}
+
+function updateMobileStateBadge() {
+  if (!document.body) return;
+  if (!mobileStateBadge) return;
+  const mobileTab = document.body.dataset.mobileTab || 'none';
+  const workspaceView = document.body.dataset.workspaceView || 'none';
+  const isMobile = isMobileView() ? 'mobile' : 'desktop';
+  const hasMobileClass = document.body.classList.contains('is-mobile') ? 'yes' : 'no';
+  mobileStateBadge.textContent =
+    `tab:${mobileTab}\n` +
+    `view:${workspaceView}\n` +
+    `mode:${isMobile} is-mobile:${hasMobileClass}`;
+}
+
 function setMobileTab(tab) {
   updateViewportMode();
   state.mobileTab = tab;
@@ -4726,13 +8092,27 @@ function setMobileTab(tab) {
   document.querySelectorAll('.mobile-tab').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.mobileTab === tab);
   });
+  updateMobileStateBadge();
   if (tab === 'map') {
     setWorkspaceView('map');
     scheduleMapResize();
   } else if (tab === 'console') {
-    setWorkspaceView('console');
+    if (isDmViewer()) {
+      setWorkspaceView('journal');
+      setMobileDmConsoleTab('messages');
+    } else {
+      setWorkspaceView('console');
+    }
+  } else if (tab === 'base') {
+    setWorkspaceView('base');
   } else if (tab === 'database') {
-    setWorkspaceView('database');
+    if (isDmViewer()) {
+      setWorkspaceView('entities');
+    } else {
+      setWorkspaceView('database');
+    }
+  } else if (tab === 'sheet') {
+    setWorkspaceView('sheet');
   } else if (tab === 'pois') {
     // Reuse el focal PdI sin mapa en móvil
     setWorkspaceView('map');
@@ -4745,6 +8125,8 @@ function setMobileTab(tab) {
       }
     }
   }
+  syncMobileDmEditMode(tab !== 'database');
+  syncMobileDmConsoleTab();
 }
 
 function updateViewportMode() {
@@ -4752,6 +8134,10 @@ function updateViewportMode() {
   if (!document.body) return;
   document.body.classList.toggle('mobile-mode', mobile);
   document.body.classList.toggle('is-mobile', mobile);
+  updateMapInteractionMode();
+  syncMobileDmEditMode();
+  syncMobileDmConsoleTab();
+  updateMobileStateBadge();
 }
 
 async function attemptUnlock(id, code) {
@@ -4795,7 +8181,7 @@ function updateMessageFromField() {
   if (state.dmMode) {
     messageFromInput.readOnly = false;
     if (!messageFromInput.value || messageFromInput.value === 'Agente de Campo') {
-      messageFromInput.value = 'Sr. Verdad';
+      messageFromInput.value = DM_DEFAULT_SENDER;
     }
     return;
   }
@@ -5423,6 +8809,7 @@ async function confirmEntityDeletion() {
     if (entity.type === 'poi') {
       await loadPois();
     }
+    loadActivity();
   } catch (err) {
     logDebug(`Error borrando entidad: ${err.message}`);
     showMessage('No se pudo eliminar la entidad.', true);
@@ -5523,6 +8910,7 @@ async function saveEntity({ kind = 'entity' } = {}) {
     showMessage(isEdit ? `Entidad ${label} actualizada.` : `Entidad ${label} creada.`);
     pulseSavedButton();
     resetEntityForm();
+    loadActivity();
   } catch (err) {
     logDebug(`Error guardando entidad: ${err.message}`);
     showMessage('No se pudo guardar la entidad.', true);
@@ -5534,6 +8922,15 @@ async function saveEntity({ kind = 'entity' } = {}) {
 
 function findEntityById(id) {
   return state.entities.find((e) => Number(e.id) === Number(id));
+}
+
+function findPoiEntityById(id) {
+  return state.entities.find((entity) => {
+    const isPoi = entity.type === 'poi' || entity.kind === 'poi';
+    if (!isPoi) return false;
+    const candidate = entity.poi_id || entity.id;
+    return Number(candidate) === Number(id);
+  });
 }
 
 function findEntityByName(name) {
@@ -5662,11 +9059,13 @@ function initAgentNotesEditor(root, entity, ctx) {
   if (!root) return;
   const panel = root.querySelector('[data-agent-dossier-panel="notes"]');
   if (!panel) return;
-  if (!entity || entity.visibility === 'locked' || entity.type === 'poi') return;
+  if (!entity || entity.visibility === 'locked') return;
 
   const notesInput = panel.querySelector('[data-agent-notes-input]');
   const status = panel.querySelector('[data-agent-notes-status]');
   const saveBtn = panel.querySelector('[data-agent-notes-save]');
+  const poisBlock = panel.querySelector('[data-agent-notes-pois-block]');
+  const linksBlock = panel.querySelector('[data-agent-notes-links-block]');
   const poisSearch = panel.querySelector('[data-agent-pois-search]');
   const poisSuggestions = panel.querySelector('[data-agent-pois-suggestions]');
   const poisChips = panel.querySelector('[data-agent-pois-chips]');
@@ -5677,48 +9076,56 @@ function initAgentNotesEditor(root, entity, ctx) {
   const linksHidden = panel.querySelector('[data-agent-links-hidden]');
 
   if (notesInput) notesInput.value = entity.agent_notes || '';
+  const isPoi = entity.type === 'poi';
+  if (poisBlock) poisBlock.classList.toggle('hidden', isPoi);
+  if (linksBlock) linksBlock.classList.toggle('hidden', isPoi);
+
   const poiTokens = buildMultiTokens(ctx?.pois || [], 'poi');
   const linkTokens = buildMultiTokens(ctx?.relations || [], 'entity');
-  if (poisHidden) poisHidden.value = poiTokens.join(',');
-  if (linksHidden) linksHidden.value = linkTokens.join(',');
+  if (poisHidden) poisHidden.value = isPoi ? '' : poiTokens.join(',');
+  if (linksHidden) linksHidden.value = isPoi ? '' : linkTokens.join(',');
 
-  const poiConfig = {
-    input: poisSearch,
-    suggestions: poisSuggestions,
-    chips: poisChips,
-    hidden: poisHidden,
-    allowVisibilityToggle: false,
-    forceVisibility: 'public',
-    showVisibilityLabel: false
-  };
-  const linkConfig = {
-    input: linksSearch,
-    suggestions: linksSuggestions,
-    chips: linksChips,
-    hidden: linksHidden,
-    allowVisibilityToggle: false,
-    forceVisibility: 'public',
-    showVisibilityLabel: false,
-    showRelationType: true,
-    allowRelationEdit: true
-  };
+  let poiConfig = null;
+  let linkConfig = null;
+  if (!isPoi) {
+    poiConfig = {
+      input: poisSearch,
+      suggestions: poisSuggestions,
+      chips: poisChips,
+      hidden: poisHidden,
+      allowVisibilityToggle: false,
+      forceVisibility: 'public',
+      showVisibilityLabel: false
+    };
+    linkConfig = {
+      input: linksSearch,
+      suggestions: linksSuggestions,
+      chips: linksChips,
+      hidden: linksHidden,
+      allowVisibilityToggle: false,
+      forceVisibility: 'public',
+      showVisibilityLabel: false,
+      showRelationType: true,
+      allowRelationEdit: true
+    };
 
-  setupMultiSelect(
-    poiConfig,
-    () => (state.pois || []).filter((p) => p.visibility === 'agent_public'),
-    'poi'
-  );
-  setupMultiSelect(
-    linkConfig,
-    () => (state.entities || []).filter((e) => e.type !== 'poi' && e.visibility === 'agent_public'),
-    'entity'
-  );
+    setupMultiSelect(
+      poiConfig,
+      () => (state.pois || []).filter((p) => p.visibility === 'agent_public'),
+      'poi'
+    );
+    setupMultiSelect(
+      linkConfig,
+      () => (state.entities || []).filter((e) => e.type !== 'poi' && e.visibility === 'agent_public'),
+      'entity'
+    );
 
-  if (poisHidden && poiConfig.renderChips) {
-    poiConfig.renderChips(tokensFromHidden(poisHidden));
-  }
-  if (linksHidden && linkConfig.renderChips) {
-    linkConfig.renderChips(tokensFromHidden(linksHidden));
+    if (poisHidden && poiConfig.renderChips) {
+      poiConfig.renderChips(tokensFromHidden(poisHidden));
+    }
+    if (linksHidden && linkConfig.renderChips) {
+      linkConfig.renderChips(tokensFromHidden(linksHidden));
+    }
   }
 
   if (saveBtn) {
@@ -5726,10 +9133,12 @@ function initAgentNotesEditor(root, entity, ctx) {
       if (!entity?.id) return;
       if (status) status.textContent = '';
       const payload = {
-        agent_notes: notesInput?.value.trim() || '',
-        poi_links: parseMultiSelect(poisHidden?.value, 'poi'),
-        relations: parseMultiSelect(linksHidden?.value, 'entity')
+        agent_notes: notesInput?.value.trim() || ''
       };
+      if (!isPoi) {
+        payload.poi_links = parseMultiSelect(poisHidden?.value, 'poi');
+        payload.relations = parseMultiSelect(linksHidden?.value, 'entity');
+      }
       setSavingButton(saveBtn, true, 'Guardando…');
       try {
         const response = await fetch(`/api/agent/entities/${entity.id}/notes`, {
@@ -5749,6 +9158,7 @@ function initAgentNotesEditor(root, entity, ctx) {
         if (status) status.textContent = 'Notas actualizadas.';
         state.agentDossierPanel = 'notes';
         await loadAgentContext(entity.id);
+        loadActivity();
       } catch (err) {
         if (status) status.textContent = 'No se pudo guardar.';
       } finally {
@@ -5905,7 +9315,34 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
             </div>
           </div>
           <div class="agent-dossier-panel" data-agent-dossier-panel="notes">
-            <div class="agent-notes-empty">Notas de agente no disponibles para PdI.</div>
+            <div class="agent-notes-form" data-agent-notes-entity="${sanitize(String(entity.id))}">
+              <div>
+                <div class="section-title">Notas agentes</div>
+                <textarea rows="6" placeholder="Escribe observaciones de campo..." data-agent-notes-input></textarea>
+              </div>
+              <div data-agent-notes-pois-block>
+                <div class="section-title">PdIs vinculados</div>
+                <div class="multi-select">
+                  <input type="search" placeholder="Buscar PdI..." autocomplete="off" data-agent-pois-search />
+                  <div class="multi-suggestions" data-agent-pois-suggestions></div>
+                  <div class="multi-chips" data-agent-pois-chips></div>
+                </div>
+                <input type="hidden" data-agent-pois-hidden />
+              </div>
+              <div data-agent-notes-links-block>
+                <div class="section-title">Conexiones</div>
+                <div class="multi-select">
+                  <input type="search" placeholder="Buscar PJ/PNJ/Org..." autocomplete="off" data-agent-links-search />
+                  <div class="multi-suggestions" data-agent-links-suggestions></div>
+                  <div class="multi-chips" data-agent-links-chips></div>
+                </div>
+                <input type="hidden" data-agent-links-hidden />
+              </div>
+              <div class="agent-notes-actions">
+                <button type="button" class="ghost" data-agent-notes-save>Guardar</button>
+              </div>
+              <p class="muted" data-agent-notes-status></p>
+            </div>
           </div>
         </div>
       `;
@@ -5987,7 +9424,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
                 <div class="section-title">Notas agentes</div>
                 <textarea rows="6" placeholder="Escribe observaciones de campo..." data-agent-notes-input></textarea>
               </div>
-              <div>
+              <div data-agent-notes-pois-block>
                 <div class="section-title">PdIs vinculados</div>
                 <div class="multi-select">
                   <input type="search" placeholder="Buscar PdI..." autocomplete="off" data-agent-pois-search />
@@ -5996,7 +9433,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
                 </div>
                 <input type="hidden" data-agent-pois-hidden />
               </div>
-              <div>
+              <div data-agent-notes-links-block>
                 <div class="section-title">Conexiones</div>
                 <div class="multi-select">
                   <input type="search" placeholder="Buscar PJ/PNJ/Org..." autocomplete="off" data-agent-links-search />
@@ -6045,6 +9482,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
       if (bestiaryRoot) bestiaryRoot.classList.add('hidden');
       renderBestiary(null, { variant: 'agent', root: bestiaryRoot });
       bindAgentDossierTabs(detail);
+      initAgentNotesEditor(detail, entity, ctx);
       return;
     }
 
@@ -6107,14 +9545,13 @@ function logDebug(message) {
 }
 
 async function showInboxView() {
-  if (!inboxOverlay || !inboxMessages) return;
-  await loadMessages();
-  renderInboxCards(state.messages);
-  inboxOverlay.classList.remove('hidden');
+  setWorkspaceView('console');
+  await reloadChatData();
+  chatInput?.focus();
 }
 
 function hideInboxView() {
-  inboxOverlay?.classList.add('hidden');
+  return;
 }
 
 function renderInboxCards(messages) {
@@ -6315,4 +9752,14 @@ function saveTickerProgress() {
   persistTickerState(currentFraction, tickerDatasetSignature);
 }
 
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch((err) => {
+      logDebug(`Service worker failed: ${err.message}`);
+    });
+  });
+}
+
+registerServiceWorker();
 init();

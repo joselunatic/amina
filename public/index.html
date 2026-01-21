@@ -4,8 +4,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#03140c" />
   <title>AMINA // Análisis de Misiones e Investigación de Nuevas Amenazas</title>
   <link rel="icon" href="favicon.ico" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/AMINA.png" />
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <link
     href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css"
@@ -34,13 +37,16 @@
             <button id="boot-dm">ACCESO SR. VERDAD</button>
           </div>
           <div id="agent-login" class="agent-login hidden">
-            <label for="agent-select">Agente</label>
-            <select id="agent-select"></select>
-            <label for="agent-pass">Contraseña de Agente</label>
-            <input type="password" id="agent-pass" autocomplete="off" />
-            <button type="button" id="agent-login-button">Autorizar</button>
-            <button type="button" id="agent-password-toggle" class="ghost small">Configurar contraseña</button>
-            <div id="agent-password-panel" class="agent-password-panel hidden">
+            <form id="agent-login-form" class="agent-login-form">
+              <label for="agent-select">Agente</label>
+              <select id="agent-select"></select>
+              <label for="agent-pass">Contraseña de Agente</label>
+              <input type="password" id="agent-pass" autocomplete="off" />
+              <button type="button" id="agent-login-button">Autorizar</button>
+              <button type="button" id="agent-password-toggle" class="ghost small">Configurar contraseña</button>
+              <p id="agent-login-status" class="boot-status"></p>
+            </form>
+            <form id="agent-password-panel" class="agent-password-panel hidden">
               <div id="agent-pass-current-wrap">
                 <label for="agent-pass-current">Contraseña actual</label>
                 <input type="password" id="agent-pass-current" autocomplete="off" />
@@ -54,15 +60,14 @@
                 <button type="button" id="agent-pass-cancel">Cancelar</button>
               </div>
               <p id="agent-pass-status" class="boot-status"></p>
-            </div>
-            <p id="agent-login-status" class="boot-status"></p>
+            </form>
           </div>
           <div id="command-menu" class="command-menu hidden text-left">
             <div class="command-header">INTERFAZ DE COMANDOS</div>
             <div id="command-log" class="command-log text-xs italic">
               listo // escriba MOSTRAR MAPA AMINA o MOSTRAR BANDEJA DE ENTRADA
             </div>
-            <input id="command-input" type="text" class="command-input" value="MOSTRAR MAPA AMINA" />
+            <input id="command-input" type="text" class="command-input" value="MOSTRAR MAPA AMINA" aria-label="Comando" placeholder="Escribe un comando" />
             <div class="command-actions">
               <button type="button" id="command-map">MOSTRAR MAPA AMINA</button>
               <button type="button" id="command-inbox">MOSTRAR BANDEJA DE ENTRADA</button>
@@ -75,23 +80,23 @@
               <button type="submit">ACCEDER</button>
               <button type="button" id="boot-cancel">CANCELAR</button>
             </div>
-            <button type="button" id="boot-dm-change" class="ghost small">Configurar contraseña</button>
-            <div id="boot-dm-password-panel" class="boot-dm-password hidden">
-              <div id="boot-dm-current-wrap">
-                <label for="boot-dm-current">Contraseña actual</label>
-                <input type="password" id="boot-dm-current" autocomplete="off" />
-              </div>
-              <label for="boot-dm-new">Nueva contraseña</label>
-              <input type="password" id="boot-dm-new" autocomplete="off" />
-              <label for="boot-dm-confirm">Confirmar contraseña</label>
-              <input type="password" id="boot-dm-confirm" autocomplete="off" />
-              <div class="boot-actions">
-                <button type="button" id="boot-dm-save">Guardar</button>
-                <button type="button" id="boot-dm-cancel">Cancelar</button>
-              </div>
-              <p id="boot-dm-pass-status" class="boot-status"></p>
-            </div>
             <p id="boot-status" class="boot-status"></p>
+          </form>
+          <button type="button" id="boot-dm-change" class="ghost small">Configurar contraseña</button>
+          <form id="boot-dm-password-panel" class="boot-dm-password hidden">
+            <div id="boot-dm-current-wrap">
+              <label for="boot-dm-current">Contraseña actual</label>
+              <input type="password" id="boot-dm-current" autocomplete="off" />
+            </div>
+            <label for="boot-dm-new">Nueva contraseña</label>
+            <input type="password" id="boot-dm-new" autocomplete="off" />
+            <label for="boot-dm-confirm">Confirmar contraseña</label>
+            <input type="password" id="boot-dm-confirm" autocomplete="off" />
+            <div class="boot-actions">
+              <button type="button" id="boot-dm-save">Guardar</button>
+              <button type="button" id="boot-dm-cancel">Cancelar</button>
+            </div>
+            <p id="boot-dm-pass-status" class="boot-status"></p>
           </form>
         </div>
       </div>
@@ -114,6 +119,7 @@
     </div>
   </div>
   <div class="crt-screen">
+    <div class="crt-scanline" aria-hidden="true"></div>
     <header class="amina-topbar">
       <div class="top-ticker">
         <span class="top-ticker-label">FEED GLOBAL OV</span>
@@ -170,39 +176,27 @@
                 </div>
               </div>
               <div class="workspace-top agent-top" data-view="console">
-                <div class="console-card inbox-card" id="console-message-card">
-                  <div class="card-title">BUZÓN <span id="msg-box-label" class="badge-soft">Entrada</span></div>
-                  <div class="mail-toolbar">
-                    <div class="mail-filters">
-                      <div class="pill-switch">
-                        <button type="button" id="msg-box-inbox" class="small ghost active" data-box="">Entrada</button>
-                        <button type="button" id="msg-box-sent" class="small ghost" data-box="sent">Enviados</button>
+                <div class="console-card chat-terminal-card" id="agent-chat-card">
+                  <div class="card-title">TERMINAL DE MENSAJERIA <span id="chat-unread-badge-agent" class="badge-unread-count hidden" aria-live="polite"></span></div>
+                  <div class="chat-terminal" data-variant="agent">
+                    <div class="chat-terminal-header">
+                      <div class="chat-terminal-status">
+                        <span id="chat-agent-label">Agente: --</span>
+                        <span id="chat-identity-label">Identidad: --</span>
                       </div>
-                      <label class="checkbox-inline">
-                        <input type="checkbox" id="filter-unread-only" />
-                        No leídos
-                      </label>
+                      <button type="button" class="ghost small" id="chat-sync">Sincronizar</button>
                     </div>
-                    <div class="mail-actions">
-                      <button type="button" id="msg-prev" class="small ghost">Ant</button>
-                      <button type="button" id="msg-next" class="small ghost">Sig</button>
-                    </div>
-                  </div>
-                  <div class="mail-layout">
-                    <div class="mail-list" id="message-list-dm"></div>
-                    <div class="mail-reader">
-                      <div id="message-reader-dm">Sin despachos.</div>
-                      <div class="reply-pane" id="mailbox-reply-dm">
-                        <div class="reply-header">
-                          <span class="reply-label" id="reply-label-dm">Responder</span>
-                          <button type="button" id="reply-cancel-dm" class="small ghost">Cancelar</button>
-                        </div>
-                        <textarea id="reply-body-dm" rows="3" placeholder="Compón tu respuesta…"></textarea>
-                        <div class="form-actions">
-                          <button type="button" id="reply-send-dm" class="ghost">Enviar</button>
-                        </div>
+                    <div class="chat-terminal-body">
+                      <div class="chat-thread-list" id="chat-identity-list"></div>
+                      <div class="chat-terminal-screen">
+                        <div class="chat-terminal-output" id="chat-transcript"></div>
+                        <div class="chat-terminal-scanline"></div>
                       </div>
                     </div>
+                    <form class="chat-terminal-input" id="chat-form">
+                      <input type="text" id="chat-input" placeholder="Escribe un mensaje..." autocomplete="off" />
+                      <button type="submit">Enviar</button>
+                    </form>
                   </div>
                 </div>
               </div>
@@ -219,7 +213,7 @@
                         <div class="dm-entity-detail-body">
                           <div class="dm-entity-detail-grid">
                             <div class="dm-entity-map-container">
-                              <div id="agent-entity-detail-map" class="dm-entities-map" aria-label="Mapa de entidad"></div>
+                              <div id="agent-entity-detail-map" class="dm-entities-map" role="img" aria-label="Mapa de entidad"></div>
                             </div>
                             <div class="dm-entity-detail-pane">
                               <div class="dm-detail-badge-row"></div>
@@ -288,24 +282,66 @@
                   </div>
                 </div>
               </div>
+              <div class="workspace-top base-top" data-view="base">
+                <div class="base3d-root" id="base3d-root">
+                  <canvas id="base3d-canvas"></canvas>
+                  <svg class="base-focus-link" id="base-focus-link" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <polyline points="0,0 0,0 0,0"></polyline>
+                  </svg>
+                  <div class="base3d-hud-overlay" id="base3d-hud-overlay">
+                    <div class="base3d-controls">
+                      <button type="button" class="base-reset-camera" id="base-reset-camera" aria-label="Resetear camara">
+                        R
+                      </button>
+                      <button type="button" class="base-fullscreen-toggle" id="base-fullscreen-toggle" aria-label="Alternar pantalla completa">
+                        Pantalla completa
+                      </button>
+                    </div>
+                    <div class="console-card base-focus-card" id="base-focus-card">
+                      <div class="card-title">FOCO DE ZONA</div>
+                      <div class="console-card-body base-focus-body">
+                        <div class="base-zone-name" id="base-zone-name">COMANDO</div>
+                        <div class="base-zone-status" id="base-zone-status">
+                          <span class="badge-soft base-status-pill" data-status="tag">CENTRAL</span>
+                        </div>
+                        <div class="base-zone-note" id="base-zone-note">SINCRONIA DE SISTEMA EN LINEA.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <nav class="workspace-nav primary-nav" aria-label="Modo de consola">
             <div class="workspace-tabs agent-tabs">
               <button type="button" class="workspace-tab active" data-view="map">Mapa</button>
               <button type="button" class="workspace-tab" data-view="console">Consola</button>
+              <button type="button" class="workspace-tab" data-view="sheet">Ficha</button>
               <button type="button" class="workspace-tab" data-view="database">Base de Datos</button>
+              <button type="button" class="workspace-tab" data-view="base">ENTROPIA</button>
               <button type="button" class="workspace-tab" data-view="relations">Relaciones</button>
             </div>
             <div class="workspace-tabs dm-tabs">
               <button type="button" class="workspace-tab active" data-view="map">Mapa</button>
               <button type="button" class="workspace-tab" data-view="journal">Journal</button>
               <button type="button" class="workspace-tab" data-view="entities">Entidades</button>
+              <button type="button" class="workspace-tab" data-view="base">ENTROPIA</button>
               <button type="button" class="workspace-tab" data-view="relations">Relaciones</button>
             </div>
           </nav>
 
           <section class="workspace" id="workspace">
+            <section class="activity-panel activity-panel--workspace" id="activity-panel" aria-live="polite">
+              <div class="activity-header">
+                <div class="activity-title">Registro de actividad</div>
+                <div class="activity-subtitle" id="activity-status">Esperando sesión...</div>
+                <div class="activity-connection" id="activity-connection">Ultima conexion con mainframe: —</div>
+              </div>
+              <ul class="activity-list" id="activity-list"></ul>
+              <div class="activity-footer">
+                <button type="button" id="activity-more" class="ghost small">Cargar mas</button>
+              </div>
+            </section>
             <div class="workspace-view agent-view active" data-view="map">
               <div class="console-stack"></div>
             </div>
@@ -326,12 +362,14 @@
                           </div>
                         </div>
                       </div>
-                      <label for="agent-journal-public">Notas de misión (agente)</label>
+                      <div class="field-label" id="agent-journal-public-label">Notas de misión (agente)</div>
                       <div
                         id="agent-journal-public"
                         class="mission-notes"
                         role="textbox"
+                        aria-labelledby="agent-journal-public-label"
                         aria-multiline="true"
+                        aria-readonly="true"
                         contenteditable="false"
                       >Esperando directivas.</div>
                       <div class="form-actions">
@@ -339,8 +377,74 @@
                       </div>
                     </div>
                   </div>
+              </div>
+            </div>
+            <div class="workspace-view agent-view" data-view="sheet">
+              <div class="console-stack character-sheet-stack">
+                <div class="console-card character-sheet-card" id="character-sheet-card">
+                  <div class="card-title">FICHA DE PERSONAJE</div>
+                  <div class="console-card-body character-sheet-body">
+                    <div class="sheet-header">
+                      <div class="sheet-header-main">
+                        <div class="sheet-name" id="sheet-character-name">—</div>
+                        <div class="sheet-role" id="sheet-character-role"></div>
+                      </div>
+                      <div class="sheet-status-pill" id="sheet-save-state" data-state="idle">sin cambios</div>
+                    </div>
+                    <div class="sheet-overview">
+                      <div class="sheet-metrics">
+                        <div class="sheet-metric">
+                          <div class="metric-label">Salud</div>
+                          <div class="metric-controls">
+                            <button type="button" class="metric-btn" data-sheet-adjust="health" data-delta="-1" aria-label="Restar salud">-</button>
+                            <span class="metric-current" id="sheet-health-current">0</span>
+                            <span class="metric-max">/ <span id="sheet-health-max">0</span></span>
+                            <button type="button" class="metric-btn" data-sheet-adjust="health" data-delta="1" aria-label="Sumar salud">+</button>
+                          </div>
+                        </div>
+                        <div class="sheet-metric">
+                          <div class="metric-label">Estabilidad</div>
+                          <div class="metric-controls">
+                            <button type="button" class="metric-btn" data-sheet-adjust="stability" data-delta="-1" aria-label="Restar estabilidad">-</button>
+                            <span class="metric-current" id="sheet-stability-current">0</span>
+                            <span class="metric-max">/ <span id="sheet-stability-max">0</span></span>
+                            <button type="button" class="metric-btn" data-sheet-adjust="stability" data-delta="1" aria-label="Sumar estabilidad">+</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="sheet-summary">
+                        <div class="summary-row">
+                          <span>Generales disponibles</span>
+                          <strong id="sheet-general-total">0</strong>
+                        </div>
+                        <div class="summary-row">
+                          <span>Investigación disponible</span>
+                          <strong id="sheet-investigation-total">0</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="sheet-refresh">
+                      <button type="button" class="ghost" id="sheet-refresh">Refrescar reservas</button>
+                      <span class="sheet-refresh-note">Restaura las reservas al máximo permitido.</span>
+                    </div>
+                    <div class="sheet-section">
+                      <div class="sheet-section-title">Habilidades Generales</div>
+                      <div class="sheet-section-hint">Gasto táctico inmediato para modificar 1d6.</div>
+                      <div class="sheet-skill-list" id="sheet-general-list"></div>
+                      <details class="sheet-collapse" id="sheet-general-collapse">
+                        <summary>Más habilidades</summary>
+                        <div class="sheet-skill-list" id="sheet-general-extra"></div>
+                      </details>
+                    </div>
+                    <div class="sheet-section">
+                      <div class="sheet-section-title">Habilidades de Investigación</div>
+                      <div class="sheet-section-hint">Consumibles de conocimiento para efectos automáticos.</div>
+                      <div class="sheet-investigation" id="sheet-investigation-list"></div>
+                    </div>
+                  </div>
                 </div>
               </div>
+            </div>
             <div class="workspace-view agent-view" data-view="database">
               <div class="database-stack">
                 <div class="console-card dossier-card" id="dossier-card">
@@ -362,20 +466,86 @@
                 </div>
               </div>
             </div>
+            <div class="workspace-view base-view" data-view="base">
+              <div class="base-stack">
+                <div class="console-card base-detail-card" id="base-detail-card">
+                  <div class="card-title">DETALLE DE ZONA</div>
+                  <div class="console-card-body base-detail-body">
+                    <div class="base-style-controls">
+                      <div class="base-style-control">
+                        <label for="base-visual-mode">Estilo</label>
+                        <select id="base-visual-mode">
+                          <option value="subtle">Sutil</option>
+                          <option value="technical">Tecnico</option>
+                          <option value="dramatic">Dramatico</option>
+                        </select>
+                      </div>
+                      <div class="base-style-control">
+                        <label for="base-visual-palette">Paleta</label>
+                        <select id="base-visual-palette">
+                          <option value="standard">Estandar</option>
+                          <option value="amber">Acento ambar</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="base-detail-title" id="base-detail-title">CMD-01 COMANDO</div>
+                    <div class="base-detail-grid">
+                      <div class="base-detail-row">
+                        <span class="base-detail-label">MODULOS</span>
+                        <span class="base-detail-value" id="base-detail-status">0</span>
+                      </div>
+                      <div class="base-detail-row">
+                        <span class="base-detail-label">DISPONIBLES</span>
+                        <span class="base-detail-value" id="base-detail-event">0</span>
+                      </div>
+                      <div class="base-detail-row">
+                        <span class="base-detail-label">BLOQUEADOS</span>
+                        <span class="base-detail-value" id="base-detail-access">0</span>
+                      </div>
+                      <div class="base-detail-notes">
+                        <div class="base-detail-label">RESUMEN</div>
+                        <div class="base-detail-notes-text" id="base-detail-notes">Sin incidencias. Flujo estable.</div>
+                      </div>
+                    </div>
+                    <div class="base-activity">
+                      <div class="base-activity-title">Modulos</div>
+                      <ul class="base-activity-list" id="base-activity-list"></ul>
+                    </div>
+                    <div class="base-editor" id="base-editor">
+                      <div class="base-editor-header">
+                        <div class="base-editor-title">Edicion rapida</div>
+                        <button type="button" class="ghost" id="base-editor-toggle">Editar zona</button>
+                      </div>
+                      <div class="base-editor-body hidden" id="base-editor-body">
+                        <textarea id="base-editor-text" rows="10" spellcheck="false" aria-label="Editor JSON de zona" placeholder="Pega o edita el JSON de la zona"></textarea>
+                        <div class="base-editor-actions">
+                          <button type="button" class="ghost" id="base-editor-cancel">Cancelar</button>
+                          <button type="button" id="base-editor-save">Guardar</button>
+                        </div>
+                        <div class="base-editor-hint">JSON de zona (modules/items). Guardado completo.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="workspace-view agent-view" data-view="relations">
               <div class="console-stack">
                   <div class="console-card" id="agent-relations-card">
                     <div class="card-title">Relaciones</div>
                   <div class="dm-graph-toolbar">
                     <div class="dm-graph-search">
-                      <label for="agent-graph-search">Buscar entidad</label>
+                      <label for="agent-graph-search">Entidad</label>
                       <input type="search" id="agent-graph-search" placeholder="Nombre o callsign…" autocomplete="off" />
                       <div class="multi-suggestions" id="agent-graph-suggestions"></div>
                     </div>
-                    <label for="agent-graph-entity">Entidad</label>
-                    <select id="agent-graph-entity">
-                      <option value="">Selecciona entidad</option>
-                    </select>
+                    <div class="graph-selection" id="agent-graph-selection">
+                      <div class="graph-selection-actions">
+                        <button type="button" class="ghost small" id="agent-graph-add">Añadir grafo</button>
+                        <button type="button" class="ghost small" id="agent-graph-clear">Limpiar</button>
+                      </div>
+                      <div class="multi-chips" id="agent-graph-chips"></div>
+                    </div>
                     <button type="button" class="ghost small graph-fullscreen-btn" id="agent-graph-fullscreen">
                       Pantalla completa
                     </button>
@@ -400,74 +570,62 @@
             </div>
             <div class="workspace-view dm-view" data-view="journal">
               <div class="dm-journal-grid">
-                <div class="console-card inbox-card" id="dm-inbox-card">
-                  <div class="card-title">Despachos a agentes</div>
-                  <form id="message-form" class="message-form dm-only">
-                    <label for="message-from">De</label>
-                    <input type="text" id="message-from" value="Sr. Verdad" required />
-
-                    <label for="message-to">Para</label>
-                    <select id="message-to" required>
-                      <option value="Howard Pike">Howard Pike</option>
-                      <option value="Victoria Allen">Victoria Allen</option>
-                      <option value="Billy Bob">Billy Bob</option>
-                      <option value="Agent Local">Agente Local</option>
-                    </select>
-
-                    <label for="message-subject">Asunto</label>
-                    <input type="text" id="message-subject" placeholder="Asunto..." required />
-
-                    <label for="message-body">Cuerpo</label>
-                    <textarea id="message-body" rows="4" required></textarea>
-
-                    <div class="form-actions">
-                      <button type="submit" id="message-submit">Emitir</button>
-                      <button type="button" id="message-clear" class="ghost small">Limpiar</button>
+                <div class="dm-mobile-console-tabs" role="tablist" aria-label="Consola DM">
+                  <button type="button" class="dm-mobile-console-tab active" data-dm-console-tab="messages">Mensajería</button>
+                  <button type="button" class="dm-mobile-console-tab" data-dm-console-tab="journal">Journal</button>
+                </div>
+                <div class="dm-console-panel" data-dm-console-panel="messages">
+                  <div class="console-card inbox-card" id="dm-chat-card">
+                    <div class="card-title">
+                      Mensajería táctica
+                      <span id="dm-chat-session-status" class="status-pill" data-status="idle">Sin sesión</span>
+                      <span id="chat-unread-badge-dm" class="badge-unread-count hidden" aria-live="polite"></span>
                     </div>
-                  </form>
-                  <div class="mail-toolbar">
-                    <div class="mail-filters">
-                      <div class="filter-group">
-                        <label for="filter-box">Ver</label>
-                        <select id="filter-box">
-                          <option value="">Entrada</option>
-                          <option value="sent">Enviados</option>
-                        </select>
-                      </div>
-                      <div class="filter-group">
-                        <label for="filter-recipient">Destinatario</label>
-                        <select id="filter-recipient">
-                          <option value="">Todos los agentes</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="mail-actions">
-                      <button type="button" id="msg-prev" class="small ghost">Ant</button>
-                      <button type="button" id="msg-next" class="small ghost">Sig</button>
-                      <button type="button" id="msg-reply" class="small ghost">Responder</button>
-                    </div>
-                  </div>
-                  <div class="message-filters">
-                    <input type="text" id="filter-session" placeholder="1x02" aria-label="Sesión" />
-                    <input type="date" id="filter-since" aria-label="Desde" />
-                    <label for="filter-unread" class="checkbox-inline">
-                      <input type="checkbox" id="filter-unread" />
-                      No leídos
-                    </label>
-                    <button type="button" id="filter-apply" class="ghost">Aplicar Filtros</button>
-                  </div>
-                  <div class="mail-layout">
-                    <div class="mail-list" id="message-list"></div>
-                    <div class="mail-reader">
-                      <div id="message-reader">Sin despachos.</div>
-                      <div class="reply-pane" id="mailbox-reply">
-                        <div class="reply-header">
-                          <span class="reply-label" id="reply-label">Responder</span>
-                          <button type="button" id="reply-cancel" class="small ghost">Cancelar</button>
+                    <div class="dm-chat-grid">
+                      <div class="dm-chat-sidebar">
+                        <div class="dm-chat-controls">
+                          <label for="dm-chat-agent">Agente</label>
+                          <select id="dm-chat-agent"></select>
+                          <label for="dm-chat-identity">Identidad</label>
+                          <select id="dm-chat-identity"></select>
+                          <button type="button" id="dm-chat-open" class="ghost">Abrir sesión</button>
                         </div>
-                        <textarea id="reply-body" rows="3" placeholder="Compón tu respuesta…"></textarea>
-                        <div class="form-actions">
-                          <button type="button" id="reply-send" class="ghost">Enviar</button>
+                        <div class="dm-chat-threads" id="dm-chat-thread-list"></div>
+                        <div class="dm-identity-manager collapsible">
+                          <button type="button" class="collapsible-toggle">
+                            <span>Identidades DM</span>
+                            <span class="collapsible-icon">+</span>
+                          </button>
+                          <div class="collapsible-body collapsed">
+                            <div id="dm-identity-list" class="dm-identity-list"></div>
+                            <form id="dm-identity-form" class="dm-identity-form">
+                              <input type="text" id="dm-identity-name" placeholder="Nueva identidad..." autocomplete="off" />
+                              <div class="form-actions">
+                                <button type="submit" id="dm-identity-save">Guardar</button>
+                                <button type="button" id="dm-identity-cancel" class="ghost small">Cancelar</button>
+                              </div>
+                            </form>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="dm-chat-main">
+                        <div class="chat-terminal" data-variant="dm">
+                          <div class="chat-terminal-header">
+                            <div class="chat-terminal-status">
+                              <span id="dm-chat-active-label">Selecciona un par agente/identidad.</span>
+                            </div>
+                            <button type="button" class="ghost small" id="dm-chat-refresh">Sincronizar</button>
+                          </div>
+                          <div class="chat-terminal-body">
+                            <div class="chat-terminal-screen full">
+                              <div class="chat-terminal-output" id="dm-chat-transcript"></div>
+                              <div class="chat-terminal-scanline"></div>
+                            </div>
+                          </div>
+                          <form class="chat-terminal-input" id="dm-chat-form">
+                            <input type="text" id="dm-chat-input" placeholder="Responder..." autocomplete="off" />
+                            <button type="submit">Enviar</button>
+                          </form>
                         </div>
                       </div>
                     </div>
@@ -481,27 +639,32 @@
                     <button type="button" class="workspace-tab" data-view="relations">Relaciones</button>
                   </div>
                 </nav>
-                <div class="console-card mission-card">
-                  <div class="card-title">Journal de sesión</div>
-                  <div class="inline-fields">
-                    <div class="flex-row gap-sm">
-                      <div class="flex-col equal">
-                        <label for="journal-season">Temporada</label>
-                        <input type="number" id="journal-season" min="1" max="20" value="2" />
-                      </div>
-                      <div class="flex-col equal">
-                        <label for="journal-session">Sesión</label>
-                        <input type="number" id="journal-session" min="0" max="99" value="0" />
+                <div class="dm-console-panel" data-dm-console-panel="journal">
+                  <div class="console-card mission-card">
+                    <div class="card-title">
+                      Journal de sesión
+                      <span id="dm-journal-status" class="status-pill" data-status="clean">Sin cambios</span>
+                    </div>
+                    <div class="inline-fields">
+                      <div class="flex-row gap-sm">
+                        <div class="flex-col equal">
+                          <label for="journal-season">Temporada</label>
+                          <input type="number" id="journal-season" min="1" max="20" value="2" />
+                        </div>
+                        <div class="flex-col equal">
+                          <label for="journal-session">Sesión</label>
+                          <input type="number" id="journal-session" min="0" max="99" value="0" />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <label for="journal-public">Resumen para agentes</label>
-                  <textarea id="journal-public" rows="4"
-                    placeholder="Breve resumen visible para agentes en Base de Datos."></textarea>
-                  <label for="journal-dm">Notas del DJ</label>
-                  <textarea id="journal-dm" rows="6" placeholder="Notas privadas del DJ para esta sesión."></textarea>
-                  <div class="form-actions">
-                    <button type="button" id="journal-save">Guardar Journal</button>
+                    <label for="journal-public">Resumen para agentes</label>
+                    <textarea id="journal-public" rows="4"
+                      placeholder="Breve resumen visible para agentes en Base de Datos."></textarea>
+                    <label for="journal-dm">Notas del DJ</label>
+                    <textarea id="journal-dm" rows="6" placeholder="Notas privadas del DJ para esta sesión."></textarea>
+                    <div class="form-actions">
+                      <button type="button" id="journal-save">Guardar Journal</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -612,13 +775,15 @@
                     <div class="dossier-admin-header">
                       <div>
                         <div class="dm-form-title">Dossier editable</div>
+                        <div class="dm-mobile-edit-state">Modo edición</div>
                         <p class="text-xs muted">Actualiza identidad, actividad y control de visibilidad.</p>
                       </div>
                       <div class="entity-editor-actions">
+                        <button type="button" class="ghost small dm-mobile-edit-exit" id="dm-mobile-edit-exit">Salir de edición</button>
                         <button type="button" id="entity-new" class="ghost small">Crear nuevo</button>
                         <button type="button" id="entity-cancel" class="ghost small hidden" disabled>Descartar edición</button>
-                        <button type="button" id="entity-delete" class="danger small hidden">Eliminar entidad</button>
-                        <button type="button" id="entity-reset" class="hidden" aria-hidden="true">Reset</button>
+                        <button type="button" data-entity-delete class="danger small hidden">Eliminar entidad</button>
+                        <button type="button" id="entity-reset" class="hidden">Reset</button>
                       </div>
                     </div>
                     <form id="entity-form" class="entity-form">
@@ -756,7 +921,7 @@
                             </label>
                             <div class="form-actions">
                               <button type="submit" id="entity-submit">Guardar dossier</button>
-                              <button type="button" id="entity-delete" class="danger small hidden">Borrar
+                              <button type="button" data-entity-delete class="danger small hidden">Borrar
                                 Entidad</button>
                             </div>
                           </div>
@@ -784,14 +949,17 @@
                   <div class="card-title">Relaciones (DJ)</div>
                   <div class="dm-graph-toolbar">
                     <div class="dm-graph-search">
-                      <label for="dm-graph-search">Buscar entidad</label>
+                      <label for="dm-graph-search">Entidad</label>
                       <input type="search" id="dm-graph-search" placeholder="Nombre o callsign…" autocomplete="off" />
                       <div class="multi-suggestions" id="dm-graph-suggestions"></div>
                     </div>
-                    <label for="dm-graph-entity">Entidad focal</label>
-                    <select id="dm-graph-entity">
-                      <option value="">Selecciona entidad</option>
-                    </select>
+                    <div class="graph-selection" id="dm-graph-selection">
+                      <div class="graph-selection-actions">
+                        <button type="button" class="ghost small" id="dm-graph-add">Añadir grafo</button>
+                        <button type="button" class="ghost small" id="dm-graph-clear">Limpiar</button>
+                      </div>
+                      <div class="multi-chips" id="dm-graph-chips"></div>
+                    </div>
                     <button type="button" class="ghost small graph-fullscreen-btn" id="dm-graph-fullscreen">
                       Pantalla completa
                     </button>
@@ -804,8 +972,7 @@
           </section>
         </section>
       </div>
-    </main>
-    <nav class="mobile-nav" id="mobile-nav">
+      <nav class="mobile-nav" id="mobile-nav">
       <button type="button" class="mobile-tab active" data-mobile-tab="map">
         <span class="mobile-tab-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
@@ -821,16 +988,6 @@
           </svg>
         </span>
         <span class="mobile-tab-label">Mapa</span>
-      </button>
-      <button type="button" class="mobile-tab" data-mobile-tab="pois">
-        <span class="mobile-tab-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2" />
-            <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2" />
-            <path d="M12 4v3M20 12h-3M12 20v-3M4 12h3" fill="none" stroke="currentColor" stroke-width="2" />
-          </svg>
-        </span>
-        <span class="mobile-tab-label">PdI</span>
       </button>
       <button type="button" class="mobile-tab" data-mobile-tab="database">
         <span class="mobile-tab-icon" aria-hidden="true">
@@ -855,7 +1012,50 @@
             />
           </svg>
         </span>
-        <span class="mobile-tab-label">Base</span>
+        <span class="mobile-tab-label">Dossier</span>
+      </button>
+      <button type="button" class="mobile-tab" data-mobile-tab="base">
+        <span class="mobile-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path
+              d="M12 3l7 4v6c0 4-3.3 7-7 8-3.7-1-7-4-7-8V7l7-4Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M12 8l3 2-3 2-3-2 3-2Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </span>
+        <span class="mobile-tab-label">Entropia</span>
+      </button>
+      <button type="button" class="mobile-tab" data-mobile-tab="sheet">
+        <span class="mobile-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path
+              d="M7 3h7l5 5v13H7z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M14 3v5h5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
+            <path d="M9 12h8M9 16h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </span>
+        <span class="mobile-tab-label">Ficha</span>
       </button>
       <button type="button" class="mobile-tab" data-mobile-tab="console">
         <span class="mobile-tab-icon" aria-hidden="true">
@@ -867,7 +1067,9 @@
         </span>
         <span class="mobile-tab-label">Consola</span>
       </button>
-    </nav>
+      </nav>
+    </main>
+    <div id="mobile-state-badge" class="mobile-state-badge">tab:?<br>view:?<br>mode:?</div>
     <footer class="app-footer">
       <div class="footer-status">
         <span id="footer-membrane-status">ESTABILIDAD DE MEMBRANA: 92%</span>
@@ -896,11 +1098,13 @@
           </div>
           <button type="button" id="unlock-close" class="ghost small">Cerrar</button>
         </header>
-        <label for="unlock-code-input">Código de desbloqueo</label>
-        <input type="password" id="unlock-code-input" autocomplete="off" />
-        <div class="form-actions">
-          <button type="button" id="unlock-confirm">Desbloquear</button>
-        </div>
+        <form id="unlock-form" class="unlock-form">
+          <label for="unlock-code-input">Código de desbloqueo</label>
+          <input type="password" id="unlock-code-input" autocomplete="off" />
+          <div class="form-actions">
+            <button type="button" id="unlock-confirm">Desbloquear</button>
+          </div>
+        </form>
       </div>
     </div>
     <div id="image-lightbox" class="lightbox hidden" role="dialog" aria-modal="true">
@@ -919,7 +1123,7 @@
   <script src="vendor/cytoscape-spread.js"></script>
   <script src="vendor/cytoscape-dblclick.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"></script>
-  <script src="app.v2.js?v=mel-toggle1" type="module"></script>
+  <script src="app.v2.js" type="module"></script>
 </body>
 
 </html>
