@@ -12,6 +12,17 @@ const categoryIcons = {
   RUMOR: '❓'
 };
 
+const categoryIconNames = {
+  OV_BASE: 'pdi-base',
+  CRIME_SCENE: 'pdi-crime',
+  ESOTERROR_CELL: 'pdi-cell',
+  MUNDANE_TOWN: 'pdi-town',
+  INDUSTRIAL_SITE: 'pdi-industrial',
+  NATURAL_SITE: 'pdi-natural',
+  NPC: 'pdi-npc',
+  RUMOR: 'pdi-rumor'
+};
+
 const categoryLabels = {
   OV_BASE: 'Base OV',
   CRIME_SCENE: 'Escena del Crimen',
@@ -127,6 +138,11 @@ const state = {
   map: null,
   pois: [],
   poiMarkers: new Map(),
+  poiPopup: null,
+  poiHoverPopup: null,
+  poiHoverId: null,
+  poiSelectedId: null,
+  poiLayerBound: false,
   dmMode: false,
   agent: null,
   characterSheet: null,
@@ -282,6 +298,18 @@ const TICKER_REFRESH_INTERVAL = 1000 * 60 * 2;
 const FOOTER_CLOCK_INTERVAL = 1000;
 const MEMBRANE_STATUS_TEXT = 'ESTABILIDAD DE MEMBRANA: 92%';
 const TICKER_STATE_KEY = 'amina_ticker_state';
+const POI_SOURCE_ID = 'pois';
+const POI_LAYER_IDS = {
+  clusters: 'poi-clusters',
+  clusterCount: 'poi-cluster-count',
+  clusterPips: 'poi-cluster-pips',
+  ring: 'poi-ring',
+  fallback: 'poi-fallback',
+  icons: 'poi-icons',
+  pips: 'poi-pips',
+  pipsFocus: 'poi-pips-focus',
+  hit: 'poi-hit'
+};
 let dmGraphFuse = null;
 let agentGraphFuse = null;
 
@@ -1169,6 +1197,7 @@ const base3dCanvas = document.getElementById('base3d-canvas');
 const baseZoneName = document.getElementById('base-zone-name');
 const baseZoneStatus = document.getElementById('base-zone-status');
 const baseZoneNote = document.getElementById('base-zone-note');
+const baseZoneModule = document.getElementById('base-zone-module');
 const baseDetailTitle = document.getElementById('base-detail-title');
 const baseDetailStatus = document.getElementById('base-detail-status');
 const baseDetailEvent = document.getElementById('base-detail-event');
@@ -1289,6 +1318,7 @@ const baseState = {
   focusCardSize: null,
   isOverview: false,
   openModuleByZone: {},
+  activeModuleByZone: {},
   visualDefaultsApplied: false,
   baseViewActivated: false
 };
@@ -1329,12 +1359,15 @@ async function initBaseModule() {
     });
   }
   baseState.zonesData = await loadBaseZoneData();
+  baseState.activeModuleByZone = syncActiveModules(baseState.zonesData, {});
   if (base3dCanvas) {
   base3d.init({
     canvas: base3dCanvas,
     root: base3dRoot,
     zonesData: baseState.zonesData,
+    activeModules: baseState.activeModuleByZone,
     onSelect: (zoneId) => selectBaseZone(zoneId, { source: 'three', force: true }),
+    onSelectModule: (zoneId, moduleId) => setBaseActiveModule(zoneId, moduleId),
     onToggleFullscreen: () => toggleBaseFullscreen(),
     onFlyOff: () => {
       baseState.isOverview = true;
@@ -1353,9 +1386,28 @@ async function initBaseModule() {
 
 async function loadBaseZoneData() {
   const apiZones = await fetchEntropiaZones();
-  if (apiZones) return apiZones;
+  if (apiZones) return mergeBaseZoneData(apiZones);
   showMessage('Entropia: requiere sesion para cargar zonas.', true);
-  return {};
+  return mergeBaseZoneData(null);
+}
+
+async function refreshBaseZoneData(options = {}) {
+  const { silent = false } = options;
+  const zones = await fetchEntropiaZones();
+  if (!zones) {
+    if (!silent) showMessage('Entropia: requiere sesion para cargar zonas.', true);
+    return;
+  }
+  baseState.zonesData = mergeBaseZoneData(zones);
+  baseState.activeModuleByZone = syncActiveModules(baseState.zonesData, baseState.activeModuleByZone);
+  base3d.setZonesData(baseState.zonesData);
+  base3d.setActiveModules?.(baseState.activeModuleByZone);
+  const zoneIds = Object.keys(baseState.zonesData);
+  if (!zoneIds.length) return;
+  if (!baseState.selectedZoneId || !baseState.zonesData[baseState.selectedZoneId]) {
+    baseState.selectedZoneId = zoneIds[0];
+  }
+  selectBaseZone(baseState.selectedZoneId, { immediateFocus: true, force: true });
 }
 
 function applyBaseVisualSettings() {
@@ -1531,12 +1583,30 @@ function startBaseFocusLinkLoop() {
   baseState.focusLinkRaf = requestAnimationFrame(tick);
 }
 
+function setBaseActiveModule(zoneId, moduleId) {
+  if (!zoneId || !moduleId) return;
+  const zone = baseState.zonesData[zoneId];
+  if (!zone) return;
+  const modules = Array.isArray(zone.modules) ? zone.modules : [];
+  const exists = modules.some((module) => module && module.module_id === moduleId);
+  if (!exists) return;
+  baseState.activeModuleByZone[zoneId] = moduleId;
+  base3d.setActiveModule?.(zoneId, moduleId);
+  if (zoneId === baseState.selectedZoneId) {
+    updateBaseFocusPanel(zone);
+  }
+}
+
 function selectBaseZone(zoneId, options = {}) {
   const zoneData = baseState.zonesData[zoneId];
   if (!zoneData) return;
   const isSame = baseState.selectedZoneId === zoneId;
   const allowSameToggle = options.source === 'three' && isSame;
   baseState.selectedZoneId = zoneId;
+  const activeModuleId = ensureActiveModuleForZone(zoneData);
+  if (activeModuleId) {
+    base3d.setActiveModule?.(zoneId, activeModuleId);
+  }
   if (!allowSameToggle) {
     baseState.isOverview = false;
     baseFocusCard?.classList.remove('is-hidden');
@@ -1590,6 +1660,11 @@ function updateBaseFocusPanel(zoneData) {
   if (baseZoneName) baseZoneName.textContent = zoneData.name;
   if (baseZoneNote) {
     baseZoneNote.textContent = zoneData.summary || 'SISTEMA: SIN RESUMEN';
+  }
+  if (baseZoneModule) {
+    const label = getActiveModuleLabel(zoneData);
+    baseZoneModule.textContent = label ? `MODULO ACTIVO: ${label}` : '';
+    baseZoneModule.classList.toggle('is-hidden', !label);
   }
   baseState.focusCardSize = null;
   renderBaseStatusPills(zoneData.tags || [], zoneData.modules || []);
@@ -1650,6 +1725,10 @@ function renderBaseModulesList(modules) {
 
     const head = document.createElement('div');
     head.className = 'base-module-head';
+    head.addEventListener('click', (event) => {
+      if (event.target && event.target.closest('button')) return;
+      setBaseActiveModule(zoneKey, module.module_id);
+    });
 
     const label = document.createElement('div');
     label.className = 'base-module-label';
@@ -1757,6 +1836,75 @@ function getZoneMetrics(modules = []) {
   const total = modules.length;
   const available = modules.filter((module) => module && module.available === true).length;
   return { total, available, locked: Math.max(total - available, 0) };
+}
+
+function getDefaultActiveModuleId(modules = []) {
+  if (!Array.isArray(modules) || !modules.length) return null;
+  const available = modules.find((module) => module && module.available === true && module.module_id);
+  if (available) return available.module_id;
+  const fallback = modules.find((module) => module && module.module_id);
+  return fallback ? fallback.module_id : null;
+}
+
+function ensureActiveModuleForZone(zoneData) {
+  if (!zoneData || !zoneData.id) return null;
+  const zoneId = zoneData.id;
+  const modules = Array.isArray(zoneData.modules) ? zoneData.modules : [];
+  const current = baseState.activeModuleByZone[zoneId];
+  const hasCurrent = current && modules.some((module) => module && module.module_id === current);
+  const next = hasCurrent ? current : getDefaultActiveModuleId(modules);
+  if (next) {
+    baseState.activeModuleByZone[zoneId] = next;
+  } else {
+    delete baseState.activeModuleByZone[zoneId];
+  }
+  return next || null;
+}
+
+function syncActiveModules(zonesData = {}, currentMap = {}) {
+  const nextMap = { ...currentMap };
+  Object.entries(zonesData).forEach(([zoneId, zoneData]) => {
+    if (!zoneData) return;
+    const modules = Array.isArray(zoneData.modules) ? zoneData.modules : [];
+    const current = nextMap[zoneId];
+    const hasCurrent = current && modules.some((module) => module && module.module_id === current);
+    if (!hasCurrent) {
+      const fallback = getDefaultActiveModuleId(modules);
+      if (fallback) {
+        nextMap[zoneId] = fallback;
+      } else {
+        delete nextMap[zoneId];
+      }
+    }
+  });
+  return nextMap;
+}
+
+function mergeBaseZoneData(apiZones) {
+  const merged = { ...baseZoneFallback };
+  if (!apiZones || typeof apiZones !== 'object') return merged;
+  Object.entries(apiZones).forEach(([zoneId, zoneData]) => {
+    if (!zoneId || !zoneData) return;
+    const previous = merged[zoneId] || {};
+    merged[zoneId] = {
+      ...previous,
+      ...zoneData,
+      modules: Array.isArray(zoneData.modules) ? zoneData.modules : previous.modules || [],
+      tags: Array.isArray(zoneData.tags) ? zoneData.tags : previous.tags || []
+    };
+  });
+  return merged;
+}
+
+function getActiveModuleLabel(zoneData) {
+  if (!zoneData) return '';
+  const zoneId = zoneData.id;
+  if (!zoneId) return '';
+  const modules = Array.isArray(zoneData.modules) ? zoneData.modules : [];
+  const activeId = baseState.activeModuleByZone[zoneId];
+  if (!activeId) return '';
+  const active = modules.find((module) => module && module.module_id === activeId);
+  return active ? String(active.label || active.module_id || '').trim() : '';
 }
 
 async function fetchEntropiaZones() {
@@ -1902,7 +2050,9 @@ async function saveBaseEditor() {
     const saved = await response.json();
     const normalizedMap = normalizeBaseZones(saved.zones || []);
     baseState.zonesData = normalizedMap;
+    baseState.activeModuleByZone = syncActiveModules(baseState.zonesData, baseState.activeModuleByZone);
     base3d.setZonesData(baseState.zonesData);
+    base3d.setActiveModules?.(baseState.activeModuleByZone);
     const zone = baseState.zonesData[normalized.id];
     if (zone) {
       updateBaseFocusPanel(zone);
@@ -2470,6 +2620,582 @@ const bootLines = [
   'Canales de autorización disponibles:'
 ];
 
+function clampThreatLevel(raw) {
+  const value = Number(raw);
+  if (Number.isNaN(value)) return 1;
+  return Math.max(1, Math.min(5, value));
+}
+
+function resolvePoiIconName(category) {
+  return categoryIconNames[category] || 'pdi-unknown';
+}
+
+function buildPoiGeoJSON(pois) {
+  const features = (pois || []).flatMap((poi, idx) => {
+    const id = Number(poi.id);
+    const lng = Number(poi.longitude);
+    const lat = Number(poi.latitude);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return [];
+    const iconName = resolvePoiIconName(poi.category);
+    return [
+      {
+        type: 'Feature',
+        id: Number.isFinite(id) ? id : idx,
+        geometry: {
+          type: 'Point',
+          coordinates: [lng, lat]
+        },
+        properties: {
+          id: Number.isFinite(id) ? id : idx,
+          name: poi.name || '',
+          category: poi.category || '',
+          icon: categoryIcons[poi.category] || '⬤',
+          icon_name: iconName,
+          icon_fallback: !categoryIconNames[poi.category],
+          threat_level: clampThreatLevel(poi.threat_level),
+          session_tag: poi.session_tag || '',
+          veil_status: poi.veil_status || ''
+        }
+      }
+    ];
+  });
+  return { type: 'FeatureCollection', features };
+}
+
+function getPipAngles(count) {
+  if (count <= 1) return [-90];
+  const start = -140;
+  const end = -40;
+  const step = (end - start) / (count - 1);
+  return Array.from({ length: count }, (_, idx) => start + step * idx);
+}
+
+const POI_ICON_SIZE = 64;
+
+function createPoiIconImageData(name) {
+  const size = POI_ICON_SIZE;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, size, size);
+  ctx.strokeStyle = 'rgba(255, 186, 108, 0.95)';
+  ctx.fillStyle = 'rgba(255, 186, 108, 0.95)';
+  ctx.lineWidth = Math.max(2, size * 0.06);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  const center = size / 2;
+  const pad = size * 0.18;
+
+  const drawPolygon = (points, fill = false) => {
+    ctx.beginPath();
+    points.forEach(([x, y], idx) => {
+      if (idx === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    if (fill) ctx.fill();
+    ctx.stroke();
+  };
+
+  switch (name) {
+    case 'pdi-base': {
+      drawPolygon(
+        [
+          [center, pad],
+          [size - pad, center],
+          [center, size - pad],
+          [pad, center]
+        ],
+        false
+      );
+      break;
+    }
+    case 'pdi-crime': {
+      ctx.beginPath();
+      ctx.moveTo(pad, pad);
+      ctx.lineTo(size - pad, size - pad);
+      ctx.moveTo(size - pad, pad);
+      ctx.lineTo(pad, size - pad);
+      ctx.stroke();
+      break;
+    }
+    case 'pdi-cell': {
+      drawPolygon(
+        [
+          [center, pad],
+          [size - pad, size - pad],
+          [pad, size - pad]
+        ],
+        false
+      );
+      break;
+    }
+    case 'pdi-town': {
+      drawPolygon(
+        [
+          [pad, pad],
+          [size - pad, pad],
+          [size - pad, size - pad],
+          [pad, size - pad]
+        ],
+        false
+      );
+      break;
+    }
+    case 'pdi-industrial': {
+      const step = (size - pad * 2) / 4;
+      drawPolygon(
+        [
+          [pad, center - step],
+          [pad + step, pad],
+          [pad + step * 2, center - step],
+          [pad + step * 3, pad],
+          [size - pad, center - step],
+          [size - pad, size - pad],
+          [pad, size - pad]
+        ],
+        false
+      );
+      break;
+    }
+    case 'pdi-natural': {
+      ctx.beginPath();
+      ctx.arc(center, center, size * 0.22, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(center, center + size * 0.22);
+      ctx.lineTo(center, size - pad);
+      ctx.stroke();
+      break;
+    }
+    case 'pdi-npc': {
+      ctx.beginPath();
+      ctx.arc(center, center, size * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'pdi-rumor':
+    case 'pdi-unknown':
+    default: {
+      ctx.font = `600 ${Math.round(size * 0.5)}px "Fira Code", monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('?', center, center + size * 0.04);
+      break;
+    }
+  }
+
+  const imageData = ctx.getImageData(0, 0, size, size);
+  return { width: size, height: size, data: imageData.data };
+}
+
+function createPipImageData(count) {
+  const size = 96;
+  const center = size / 2;
+  const radius = size * 0.34;
+  const pipRadius = size * 0.085;
+  const outlineRadius = pipRadius + 1.4;
+  const data = new Uint8ClampedArray(size * size * 4);
+  const angles = getPipAngles(count);
+
+  const drawDot = (cx, cy, r, color) => {
+    const r2 = r * r;
+    const minX = Math.max(0, Math.floor(cx - r));
+    const maxX = Math.min(size - 1, Math.ceil(cx + r));
+    const minY = Math.max(0, Math.floor(cy - r));
+    const maxY = Math.min(size - 1, Math.ceil(cy + r));
+    for (let y = minY; y <= maxY; y += 1) {
+      for (let x = minX; x <= maxX; x += 1) {
+        const dx = x - cx;
+        const dy = y - cy;
+        if (dx * dx + dy * dy > r2) continue;
+        const idx = (y * size + x) * 4;
+        data[idx] = color[0];
+        data[idx + 1] = color[1];
+        data[idx + 2] = color[2];
+        data[idx + 3] = color[3];
+      }
+    }
+  };
+
+  angles.forEach((deg) => {
+    const rad = (deg * Math.PI) / 180;
+    const x = center + Math.cos(rad) * radius;
+    const y = center + Math.sin(rad) * radius;
+    drawDot(x, y, outlineRadius, [46, 28, 12, 220]);
+    drawDot(x, y, pipRadius, [255, 186, 108, 235]);
+  });
+
+  return { width: size, height: size, data };
+}
+
+function ensurePoiImages(map) {
+  for (let i = 1; i <= 5; i += 1) {
+    const name = `poi-pips-${i}`;
+    if (map.hasImage(name)) continue;
+    const image = createPipImageData(i);
+    map.addImage(name, image, { pixelRatio: 2 });
+  }
+
+  const iconNames = [
+    'pdi-base',
+    'pdi-crime',
+    'pdi-cell',
+    'pdi-town',
+    'pdi-industrial',
+    'pdi-natural',
+    'pdi-npc',
+    'pdi-rumor',
+    'pdi-unknown'
+  ];
+  iconNames.forEach((name) => {
+    if (map.hasImage(name)) return;
+    const image = createPoiIconImageData(name);
+    if (!image) return;
+    map.addImage(name, image, { pixelRatio: 2 });
+  });
+}
+
+function ensurePoiSource(map) {
+  const data = buildPoiGeoJSON(state.pois);
+  if (map.getSource(POI_SOURCE_ID)) {
+    map.getSource(POI_SOURCE_ID).setData(data);
+    return;
+  }
+  map.addSource(POI_SOURCE_ID, {
+    type: 'geojson',
+    data,
+    cluster: true,
+    clusterRadius: 52,
+    clusterMaxZoom: 13,
+    clusterProperties: {
+      threat_max: ['max', ['get', 'threat_level']]
+    }
+  });
+}
+
+function ensurePoiLayers(map) {
+  if (!map.getLayer(POI_LAYER_IDS.clusters)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.clusters,
+      type: 'circle',
+      source: POI_SOURCE_ID,
+      filter: ['==', 'cluster', true],
+      paint: {
+        'circle-color': 'rgba(22, 14, 8, 0.85)',
+        'circle-radius': ['step', ['get', 'point_count'], 16, 12, 20, 30, 26],
+        'circle-stroke-color': 'rgba(255, 186, 108, 0.7)',
+        'circle-stroke-width': 1
+      }
+    });
+  }
+
+  if (!map.getLayer(POI_LAYER_IDS.clusterCount)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.clusterCount,
+      type: 'symbol',
+      source: POI_SOURCE_ID,
+      filter: ['==', 'cluster', true],
+      minzoom: 5,
+      layout: {
+        'text-field': '{point_count_abbreviated}',
+        'text-size': ['interpolate', ['linear'], ['zoom'], 6, 10, 10, 12, 13, 13],
+        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+        'text-allow-overlap': true,
+        'text-ignore-placement': true
+      },
+      paint: {
+        'text-color': '#ffe1c0',
+        'text-halo-color': 'rgba(10, 6, 4, 0.7)',
+        'text-halo-width': 1
+      }
+    });
+  }
+
+  if (!map.getLayer(POI_LAYER_IDS.clusterPips)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.clusterPips,
+      type: 'symbol',
+      source: POI_SOURCE_ID,
+      filter: ['==', 'cluster', true],
+      minzoom: 5,
+      layout: {
+        'icon-image': [
+          'match',
+          ['to-number', ['get', 'threat_max']],
+          1,
+          'poi-pips-1',
+          2,
+          'poi-pips-2',
+          3,
+          'poi-pips-3',
+          4,
+          'poi-pips-4',
+          5,
+          'poi-pips-5',
+          'poi-pips-1'
+        ],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.8, 9, 1.05, 12, 1.25],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true
+      },
+      paint: {
+        'icon-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.35, 9, 0.6, 12, 0.85, 14, 0.95]
+      }
+    });
+  }
+
+  if (!map.getLayer(POI_LAYER_IDS.ring)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.ring,
+      type: 'circle',
+      source: POI_SOURCE_ID,
+      filter: ['!=', 'cluster', true],
+      minzoom: 9,
+      paint: {
+        'circle-color': 'rgba(16, 10, 6, 0.65)',
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 13, 10, 15, 12, 18, 14, 21],
+        'circle-stroke-color': 'rgba(255, 186, 108, 0.7)',
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1.2, 12, 1.6, 14, 2]
+      }
+    });
+  }
+
+  if (!map.getLayer(POI_LAYER_IDS.fallback)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.fallback,
+      type: 'circle',
+      source: POI_SOURCE_ID,
+      filter: ['all', ['!=', 'cluster', true], ['==', ['get', 'icon_fallback'], true]],
+      minzoom: 9,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.6, 12, 3.2, 14, 3.6],
+        'circle-color': 'rgba(255, 186, 108, 0.85)',
+        'circle-translate': [8, -8],
+        'circle-translate-anchor': 'viewport'
+      }
+    });
+  }
+
+  if (!map.getLayer(POI_LAYER_IDS.icons)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.icons,
+      type: 'symbol',
+      source: POI_SOURCE_ID,
+      filter: ['!=', 'cluster', true],
+      minzoom: 9,
+      layout: {
+        'icon-image': ['get', 'icon_name'],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.8, 10, 0.95, 12, 1.15, 14, 1.35],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-anchor': 'center',
+        'icon-padding': 3
+      },
+      paint: {}
+    });
+  }
+
+  if (!map.getLayer(POI_LAYER_IDS.pips)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.pips,
+      type: 'symbol',
+      source: POI_SOURCE_ID,
+      filter: ['!=', 'cluster', true],
+      minzoom: 9,
+      layout: {
+        'icon-image': [
+          'match',
+          ['to-number', ['get', 'threat_level']],
+          1,
+          'poi-pips-1',
+          2,
+          'poi-pips-2',
+          3,
+          'poi-pips-3',
+          4,
+          'poi-pips-4',
+          5,
+          'poi-pips-5',
+          'poi-pips-1'
+        ],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 1.15, 10, 1.35, 12, 1.6, 14, 1.9],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-padding': 3
+      },
+      paint: {
+        'icon-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.5, 10, 0.75, 12, 0.95, 14, 1]
+      }
+    });
+  }
+
+  if (!map.getLayer(POI_LAYER_IDS.pipsFocus)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.pipsFocus,
+      type: 'symbol',
+      source: POI_SOURCE_ID,
+      filter: ['!=', 'cluster', true],
+      minzoom: 9,
+      layout: {
+        'icon-image': [
+          'match',
+          ['to-number', ['get', 'threat_level']],
+          1,
+          'poi-pips-1',
+          2,
+          'poi-pips-2',
+          3,
+          'poi-pips-3',
+          4,
+          'poi-pips-4',
+          5,
+          'poi-pips-5',
+          'poi-pips-1'
+        ],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 1.25, 10, 1.45, 12, 1.75, 14, 2.05],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-padding': 3
+      },
+      paint: {
+        'icon-opacity': [
+          'case',
+          ['boolean', ['feature-state', 'hover'], false],
+          1,
+          ['boolean', ['feature-state', 'selected'], false],
+          1,
+          0
+        ]
+      }
+    });
+  }
+
+  if (!map.getLayer(POI_LAYER_IDS.hit)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.hit,
+      type: 'circle',
+      source: POI_SOURCE_ID,
+      filter: ['!=', 'cluster', true],
+      minzoom: 9,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 20, 10, 24, 12, 28, 14, 34],
+        'circle-color': 'rgba(0,0,0,0)'
+      }
+    });
+  }
+}
+
+function bindPoiLayerInteractions(map) {
+  if (state.poiLayerBound) return;
+  state.poiLayerBound = true;
+
+  map.on('mouseenter', POI_LAYER_IDS.hit, () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+
+  map.on('mouseleave', POI_LAYER_IDS.hit, () => {
+    if (state.poiHoverId !== null && state.poiHoverId !== undefined) {
+      map.setFeatureState({ source: POI_SOURCE_ID, id: state.poiHoverId }, { hover: false });
+      state.poiHoverId = null;
+    }
+    hidePoiThreatTooltip();
+    map.getCanvas().style.cursor = '';
+  });
+
+  map.on('mousemove', POI_LAYER_IDS.hit, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    const id = feature.id;
+    if (id === undefined || id === null) return;
+    if (state.poiHoverId !== null && state.poiHoverId !== id) {
+      map.setFeatureState({ source: POI_SOURCE_ID, id: state.poiHoverId }, { hover: false });
+    }
+    state.poiHoverId = id;
+    map.setFeatureState({ source: POI_SOURCE_ID, id }, { hover: true });
+    const poi = state.pois.find((item) => Number(item.id) === Number(feature.properties?.id));
+    showPoiThreatTooltip(poi, event.lngLat);
+  });
+
+  map.on('click', POI_LAYER_IDS.hit, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    const id = feature.properties?.id;
+    const poi = state.pois.find((item) => Number(item.id) === Number(id));
+    if (poi) {
+      setFocalPoi(poi);
+      openPoiPopup(poi, event.lngLat);
+    }
+  });
+
+  map.on('mouseenter', POI_LAYER_IDS.clusters, () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+
+  map.on('mouseleave', POI_LAYER_IDS.clusters, () => {
+    map.getCanvas().style.cursor = '';
+  });
+
+  map.on('click', POI_LAYER_IDS.clusters, (event) => {
+    const feature = event.features?.[0];
+    const clusterId = feature?.properties?.cluster_id;
+    if (!feature || clusterId === undefined || clusterId === null) return;
+    const source = map.getSource(POI_SOURCE_ID);
+    source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+      if (err) return;
+      map.easeTo({ center: feature.geometry.coordinates, zoom });
+    });
+  });
+}
+
+function ensurePoiPopup() {
+  if (!state.map || state.poiPopup) return;
+  state.poiPopup = new mapboxgl.Popup({ offset: 24 });
+}
+
+function ensurePoiHoverPopup() {
+  if (!state.map || state.poiHoverPopup) return;
+  state.poiHoverPopup = new mapboxgl.Popup({
+    offset: 16,
+    closeButton: false,
+    closeOnClick: false,
+    className: 'poi-threat-tooltip'
+  });
+}
+
+function openPoiPopup(poi, lngLatOverride) {
+  if (!state.map || !poi) return;
+  ensurePoiPopup();
+  const lngLat = lngLatOverride || [poi.longitude, poi.latitude];
+  state.poiPopup.setLngLat(lngLat).setHTML(buildPopupHtml(poi)).addTo(state.map);
+}
+
+function showPoiThreatTooltip(poi, lngLat) {
+  if (!state.map || !poi) return;
+  ensurePoiHoverPopup();
+  state.poiHoverPopup
+    .setLngLat(lngLat)
+    .setHTML(`<span>Amenaza ${clampThreatLevel(poi.threat_level)}</span>`)
+    .addTo(state.map);
+}
+
+function hidePoiThreatTooltip() {
+  state.poiHoverPopup?.remove();
+}
+
+function setPoiSelected(id) {
+  if (!state.map || !state.map.getSource(POI_SOURCE_ID)) return;
+  if (state.poiSelectedId !== null && state.poiSelectedId !== undefined) {
+    state.map.setFeatureState({ source: POI_SOURCE_ID, id: state.poiSelectedId }, { selected: false });
+  }
+  state.poiSelectedId = id ?? null;
+  if (state.poiSelectedId !== null && state.poiSelectedId !== undefined) {
+    state.map.setFeatureState({ source: POI_SOURCE_ID, id: state.poiSelectedId }, { selected: true });
+  }
+}
+
 async function setupMap() {
   console.log('DEBUG: setupMap started');
   const config = await fetch('/api/config').then((res) => res.json());
@@ -2541,6 +3267,7 @@ async function setupMap() {
   bindPickHandler(state.map);
   state.map.on('style.load', () => {
     update3DBuildings();
+    renderMarkers();
   });
   updateMapInteractionMode();
 }
@@ -2663,49 +3390,67 @@ async function loadPois() {
   }
   state.pois = await response.json();
   renderPoiList();
-  renderMarkers();
-  focusMapOnPois();
-  if (state.poiFocal) {
-    const updated = state.pois.find((poi) => poi.id === state.poiFocal.id);
-    setFocalPoi(updated || state.pois[0] || null);
-  } else if (state.pois.length) {
-    setFocalPoi(state.pois[0]);
-  } else {
-    setFocalPoi(null);
+  try {
+    renderMarkers();
+  } catch (err) {
+    console.error('renderMarkers failed', err);
+  }
+  try {
+    focusMapOnPois();
+  } catch (err) {
+    console.error('focusMapOnPois failed', err);
+  }
+  try {
+    if (state.poiFocal) {
+      const updated = state.pois.find((poi) => poi.id === state.poiFocal.id);
+      setFocalPoi(updated || state.pois[0] || null);
+    } else if (state.pois.length) {
+      setFocalPoi(state.pois[0]);
+    } else {
+      setFocalPoi(null);
+    }
+  } catch (err) {
+    console.error('setFocalPoi failed', err);
   }
 }
 
 function renderMarkers() {
+  if (!state.map) return;
+  if (!state.map.loaded()) {
+    state.map.once('load', renderMarkers);
+    return;
+  }
+
   state.poiMarkers.forEach(({ marker, popup }) => {
     marker.remove();
     popup.remove();
   });
   state.poiMarkers.clear();
 
-  state.pois.forEach((poi) => {
-    const el = document.createElement('div');
-    el.className = 'marker-dot';
-    el.textContent = categoryIcons[poi.category] || '⬤';
-
-    const popup = new mapboxgl.Popup({ offset: 24 }).setHTML(buildPopupHtml(poi));
-    const marker = new mapboxgl.Marker(el).setLngLat([poi.longitude, poi.latitude]).setPopup(popup).addTo(state.map);
-    marker.getElement().addEventListener('click', () => setFocalPoi(poi));
-
-    state.poiMarkers.set(poi.id, { marker, popup, poi });
-  });
+  ensurePoiImages(state.map);
+  ensurePoiSource(state.map);
+  ensurePoiLayers(state.map);
+  bindPoiLayerInteractions(state.map);
+  if (state.poiFocal?.id !== undefined && state.poiFocal?.id !== null) {
+    setPoiSelected(state.poiFocal.id);
+  }
 }
 
 function focusMapOnPois() {
   if (!state.map || !state.pois.length) return;
-  if (state.pois.length === 1) {
-    const poi = state.pois[0];
-    state.map.flyTo({ center: [poi.longitude, poi.latitude], zoom: 13 });
+  const valid = state.pois
+    .map((poi) => ({ poi, lng: Number(poi.longitude), lat: Number(poi.latitude) }))
+    .filter((entry) => Number.isFinite(entry.lng) && Number.isFinite(entry.lat));
+  if (!valid.length) return;
+  if (valid.length === 1) {
+    const { lng, lat } = valid[0];
+    state.map.flyTo({ center: [lng, lat], zoom: 13 });
     return;
   }
 
-  const bounds = state.pois.reduce((acc, poi) => {
-    return acc.extend([poi.longitude, poi.latitude]);
-  }, new mapboxgl.LngLatBounds([state.pois[0].longitude, state.pois[0].latitude], [state.pois[0].longitude, state.pois[0].latitude]));
+  const bounds = valid.reduce((acc, entry) => {
+    return acc.extend([entry.lng, entry.lat]);
+  }, new mapboxgl.LngLatBounds([valid[0].lng, valid[0].lat], [valid[0].lng, valid[0].lat]));
 
   state.map.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 1200 });
 }
@@ -3095,10 +3840,11 @@ function renderMapFilters(container) {
   });
 }
 function focusOnPoi(id) {
-  const markerData = state.poiMarkers.get(id);
-  if (!markerData) return;
-  state.map.flyTo({ center: [markerData.poi.longitude, markerData.poi.latitude], zoom: 12 });
-  markerData.popup.addTo(state.map);
+  if (!state.map) return;
+  const poi = state.pois.find((item) => Number(item.id) === Number(id));
+  if (!poi) return;
+  state.map.flyTo({ center: [poi.longitude, poi.latitude], zoom: 12 });
+  openPoiPopup(poi);
 }
 
 function exitDmMode(silent = false, options = {}) {
@@ -3133,6 +3879,7 @@ function activateDmMode() {
   loadEntities();
   loadMissionNotes();
   loadActivity();
+  void refreshBaseZoneData({ silent: true });
   setWorkspaceView('map');
   syncMobileDmEditMode(true);
 }
@@ -4855,6 +5602,7 @@ async function handleAgentLogin() {
 
   const agent = await response.json();
   setAgent(agent);
+  await refreshBaseZoneData();
   bootMenu.classList.add('hidden');
   hideAgentLogin();
   hideBootScreen();
@@ -7758,11 +8506,13 @@ function setFocalPoi(poi) {
   const normalized = state.workspaceView || 'map';
   if (!poi) {
     state.poiFocal = null;
+    setPoiSelected(null);
     renderFocalPoiCard();
     highlightPoiInList(null);
     return;
   }
   state.poiFocal = poi;
+  setPoiSelected(poi?.id);
   renderFocalPoiCard();
   highlightPoiInList(poi?.id);
   if (state.dmMode && state.activeDmBlade === 'entities') {

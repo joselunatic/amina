@@ -55,6 +55,15 @@ Visit [http://localhost:3002](http://localhost:3002) to access the AMINA console
 - The list on the left can filter by category and session tag.
 - Clicking a POI in the list or on the map opens its popup with public intel.
 
+### Amenaza en el mapa (pips)
+- Cada PdI dibuja pips (microdots) alrededor del icono según `threat_level` (1..5).
+- Los clusters usan el máximo `threat_level` del grupo para definir el anillo de pips.
+- Ajustes de tamaño/opacidad por zoom, `minzoom` y geometría de pips en `public/app.v2.js` (funciones `createPipImageData` y `ensurePoiLayers`).
+- Escalado actual PDIs: icono base `icon-size` ~0.8@z9 → 1.35@z14, pips `icon-size` ~1.15@z9 → 1.9@z14, anillo de presencia `circle-radius` ~13@z9 → 21@z14.
+- Fallback de iconos: `icon_name` se resuelve como específico → categoría → `pdi-unknown`; iconos generados por canvas en `ensurePoiImages`.
+- Iconos disponibles: `pdi-base`, `pdi-crime`, `pdi-cell`, `pdi-town`, `pdi-industrial`, `pdi-natural`, `pdi-npc`, `pdi-rumor`, `pdi-unknown`.
+- Ajustes de tamaño/opacidad por zoom están en `public/app.v2.js` dentro de `ensurePoiLayers()` y el tamaño del asset en `createPipCanvas()`.
+
 ### Sr. Verdad Access (DM Command Layer)
 1. From the boot terminal choose **Sr. Verdad Access** and submit the clearance code (same as the old DM secret). You can later hit the **Change Clearance** button on the control panel to re-open the boot overlay and switch roles.
 1. Enter the shared secret en el boot overlay (se valida una vez y se guarda la sesión del DJ en cookie HttpOnly; no se expone el secreto al frontend).
@@ -94,8 +103,8 @@ All responses are JSON and include `dm_note` and `image_url`; the frontend decid
 - Customize `public/favicon.ico` or styling assets as desired.
 ### Agent credentials
 - Default field agents:
-  - `pike` / `123456` (Howard Pike)
-  - `allen` / `123456` (Victoria Allen)
+  - `pike` / `amarok` (Howard Pike)
+  - `allen` / `amarok` (Victoria Allen)
 - These usernames appear in the **Field Operative** flow; enter their password to authenticate.
 
 ## Real-Time Effects System
