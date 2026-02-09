@@ -79,6 +79,42 @@ async function main() {
   });
   await expectJsonError(missingDmEntityRes, 404);
 
+  const guestDmMessageRes = await fetch(`${BASE_URL}/api/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sender: 'DM', recipient: 'Agent', subject: 'X', body: 'Y' })
+  });
+  await expectJsonError(guestDmMessageRes, 401);
+
+  const guestAgentMessageRes = await fetch(`${BASE_URL}/api/messages/agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recipient: 'DM', subject: 'X', body: 'Y' })
+  });
+  await expectJsonError(guestAgentMessageRes, 401);
+
+  const guestEntropiaGetRes = await fetch(`${BASE_URL}/api/entropia/zones`);
+  await expectJsonError(guestEntropiaGetRes, 401);
+
+  const invalidEntropiaPutRes = await fetch(`${BASE_URL}/api/entropia/zones`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Cookie: dmCookie },
+    body: JSON.stringify({ zones: 'invalid' })
+  });
+  await expectJsonError(invalidEntropiaPutRes, 400);
+
+  const invalidChatThreadIdRes = await fetch(`${BASE_URL}/api/chat/threads/not-a-number/messages`, {
+    headers: { Cookie: dmCookie }
+  });
+  await expectJsonError(invalidChatThreadIdRes, 400);
+
+  const emptyChatMessageRes = await fetch(`${BASE_URL}/api/chat/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: dmCookie },
+    body: JSON.stringify({ body: '   ' })
+  });
+  await expectJsonError(emptyChatMessageRes, 400);
+
   const payload = {
     type: 'org',
     code_name: `EntityAPI-${Date.now()}`,
