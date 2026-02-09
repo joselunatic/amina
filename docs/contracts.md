@@ -36,7 +36,7 @@ If README differs, code wins.
 - `POST /api/auth/dm`
   - Body: `{ password }` (or header `x-dm-secret`)
   - 204 on success
-  - 400 missing password, 401 invalid credentials, 409 DM password not configured
+  - 400 missing password / invalid JSON payload, 401 invalid credentials, 409 DM password not configured
 - `GET /api/auth/agents`
   - 200: `[{ username, display, configured }]`
 - `GET /api/auth/bootstrap`
@@ -176,3 +176,9 @@ Client -> server effect trigger:
 - README says several DM write routes require `x-dm-secret`; code requires an active DM session cookie for protected DM endpoints.
 - README summary for `GET /api/messages` is agent-only; code supports role-aware inbox/sent filters for DM and agent.
 - README endpoint list is incomplete (chat, entities, journals, entropia, activity, character sheet are present in code).
+
+## Error payload contract note
+
+- Error shape is always JSON `{ error: string }` through the global error handler.
+- For malformed JSON (`Content-Type: application/json` with invalid body), status is `400`.
+  - Message text may vary by parser/runtime (`'Invalid JSON payload.'` or parser-native text), but shape and status are stable.

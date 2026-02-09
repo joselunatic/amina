@@ -11,6 +11,14 @@ function jarFromResponse(res) {
   return first.split(';')[0];
 }
 
+async function expectJsonError(res, expectedStatus) {
+  assert.equal(res.status, expectedStatus);
+  const payload = await res.json();
+  assert.equal(typeof payload.error, 'string');
+  assert.ok(payload.error.length > 0);
+  return payload.error;
+}
+
 async function main() {
   const cfgRes = await fetch(`${BASE_URL}/api/config`);
   assert.equal(cfgRes.status, 200);
@@ -21,6 +29,28 @@ async function main() {
   assert.equal(meGuestRes.status, 200);
   const meGuest = await meGuestRes.json();
   assert.equal(meGuest.role, 'guest');
+
+  const guestIdentityRes = await fetch(`${BASE_URL}/api/messages/identities`);
+  await expectJsonError(guestIdentityRes, 401);
+
+  const missingPasswordRes = await fetch(`${BASE_URL}/api/auth/dm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  await expectJsonError(missingPasswordRes, 400);
+
+  const invalidJsonRes = await fetch(`${BASE_URL}/api/auth/dm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{'
+  });
+  const invalidJsonMessage = await expectJsonError(invalidJsonRes, 400);
+  assert.ok(
+    invalidJsonMessage === 'Invalid JSON payload.' ||
+      invalidJsonMessage.includes('JSON') ||
+      invalidJsonMessage.includes('property name')
+  );
 
   const dmLoginRes = await fetch(`${BASE_URL}/api/auth/dm`, {
     method: 'POST',
@@ -37,6 +67,17 @@ async function main() {
   assert.equal(dmMeRes.status, 200);
   const dmMe = await dmMeRes.json();
   assert.equal(dmMe.role, 'dm');
+
+  const invalidCategoryRes = await fetch(`${BASE_URL}/api/pois?category=INVALID_CATEGORY`);
+  await expectJsonError(invalidCategoryRes, 400);
+
+  const missingPoiRes = await fetch(`${BASE_URL}/api/pois/99999999`);
+  await expectJsonError(missingPoiRes, 404);
+
+  const missingDmEntityRes = await fetch(`${BASE_URL}/api/dm/entities/999999/context`, {
+    headers: { Cookie: dmCookie }
+  });
+  await expectJsonError(missingDmEntityRes, 404);
 
   const payload = {
     type: 'org',
