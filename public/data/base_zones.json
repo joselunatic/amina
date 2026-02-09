@@ -1,0 +1,104 @@
+{
+  "zone_cmd": {
+    "id": "zone_cmd",
+    "code": "CMD-01",
+    "name": "COMANDO",
+    "status": "normal",
+    "accessLevel": "L4",
+    "lastEvent": "SINCRONIA_OK // 00:13:22Z",
+    "notes": [
+      "Consola principal en linea.",
+      "Rutas de control redundantes activas."
+    ],
+    "activityLog": [
+      { "ts": "00:13:22Z", "level": "INFO", "msg": "Sincronia de mainframe normal" },
+      { "ts": "00:09:41Z", "level": "INFO", "msg": "Chequeo de rele completado" },
+      { "ts": "00:04:07Z", "level": "TRACE", "msg": "Barrido de telemetria registrado" }
+    ]
+  },
+  "zone_lab": {
+    "id": "zone_lab",
+    "code": "LAB-03",
+    "name": "LABORATORIO",
+    "status": "alert",
+    "accessLevel": "L3",
+    "lastEvent": "CALIBRACION // 00:06:18Z",
+    "notes": [
+      "Sensores recalibrados.",
+      "Mantener acceso restringido."
+    ],
+    "activityLog": [
+      { "ts": "00:06:18Z", "level": "WARN", "msg": "Calibracion de red de sensores" },
+      { "ts": "00:02:55Z", "level": "INFO", "msg": "Bahia de muestras sellada" },
+      { "ts": "00:01:12Z", "level": "TRACE", "msg": "Filtros de aire estables" }
+    ]
+  },
+  "zone_arm": {
+    "id": "zone_arm",
+    "code": "ARM-02",
+    "name": "ARMERIA",
+    "status": "normal",
+    "accessLevel": "L3",
+    "lastEvent": "ESCANEO_TAQUILLAS // 00:11:03Z",
+    "notes": [
+      "Inventario nominal.",
+      "Acceso bajo autorizacion."
+    ],
+    "activityLog": [
+      { "ts": "00:11:03Z", "level": "INFO", "msg": "Escaneo de taquillas correcto" },
+      { "ts": "00:07:22Z", "level": "INFO", "msg": "Conteo de municion sincronizado" },
+      { "ts": "00:03:45Z", "level": "TRACE", "msg": "Cierre de puerta verificado" }
+    ]
+  },
+  "zone_gar": {
+    "id": "zone_gar",
+    "code": "GAR-04",
+    "name": "GARAJE",
+    "status": "normal",
+    "accessLevel": "L2",
+    "lastEvent": "BAHIA_VEHICULOS // 00:08:32Z",
+    "notes": [
+      "Bahia operativa.",
+      "Sin obstrucciones registradas."
+    ],
+    "activityLog": [
+      { "ts": "00:08:32Z", "level": "INFO", "msg": "Bahia de vehiculos operativa" },
+      { "ts": "00:05:09Z", "level": "INFO", "msg": "Ruta despejada" },
+      { "ts": "00:01:39Z", "level": "TRACE", "msg": "Niveles de combustible verificados" }
+    ]
+  },
+  "zone_med": {
+    "id": "zone_med",
+    "code": "MED-05",
+    "name": "MEDICO",
+    "status": "normal",
+    "accessLevel": "L2",
+    "lastEvent": "CIERRE_SUMINISTROS // 00:10:10Z",
+    "notes": [
+      "Suministros dentro de umbral.",
+      "Revision de inventario pendiente."
+    ],
+    "activityLog": [
+      { "ts": "00:10:10Z", "level": "INFO", "msg": "Cierre de suministros correcto" },
+      { "ts": "00:06:24Z", "level": "INFO", "msg": "Chequeo de triaje" },
+      { "ts": "00:02:08Z", "level": "TRACE", "msg": "Camara frigorifica estable" }
+    ]
+  },
+  "zone_sec": {
+    "id": "zone_sec",
+    "code": "SEC-06",
+    "name": "SEGURIDAD",
+    "status": "lockdown",
+    "accessLevel": "L4",
+    "lastEvent": "PERIMETRO // 00:12:05Z",
+    "notes": [
+      "Perimetro en cierre controlado.",
+      "Solo acceso con clave de mando."
+    ],
+    "activityLog": [
+      { "ts": "00:12:05Z", "level": "ALERT", "msg": "Bloqueo de perimetro" },
+      { "ts": "00:07:58Z", "level": "INFO", "msg": "Barrido de camaras" },
+      { "ts": "00:03:26Z", "level": "TRACE", "msg": "Prueba de intrusion correcta" }
+    ]
+  }
+}

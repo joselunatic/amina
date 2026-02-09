@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3002';
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
 const AGENT_USERNAME = 'pike';
-const AGENT_PASSWORD = '123456';
+const AGENT_PASSWORD = 'amarok';
 const DM_SECRET = process.env.TEST_DM_SECRET || 'Pill4skiM0nAm0ur';
 type MobileTab = 'map' | 'pois' | 'console' | 'database';
 const mobileTabSelector = (tab: MobileTab) => `#mobile-nav button[data-mobile-tab="${tab}"]`;

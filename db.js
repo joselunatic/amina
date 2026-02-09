@@ -37,6 +37,119 @@ const DEFAULT_AGENT_USERS = [
   { username: 'redwood', display: 'Karen Redwood' }
 ];
 const DEFAULT_DM_USER = { username: 'dm', display: 'Sr. Verdad' };
+const DEFAULT_GENERAL_MAX = 4;
+const DEFAULT_INVESTIGATION_MAX = 1;
+const GENERAL_SKILL_NAMES = [
+  'Atletismo',
+  'Conducir',
+  'Escaramuza',
+  'Infiltración',
+  'Preparación',
+  'Vigilancia',
+  'Desarmado',
+  'Mecánica',
+  'Primeros auxilios',
+  'Psiquiatría'
+];
+const INVESTIGATION_SKILL_GROUPS = {
+  academicas: [
+    'Antropología',
+    'Arquitectura',
+    'Conocimiento local',
+    'Contabilidad',
+    'Cultura general',
+    'Derecho',
+    'Historia',
+    'Historia del arte',
+    'Historia natural',
+    'Idiomas',
+    'Investigar',
+    'Lingüística',
+    'Ocultismo',
+    'Patología',
+    'Psicología forense'
+  ],
+  interpersonales: [
+    'Adular',
+    'Bajos fondos',
+    'Burocracia',
+    'Consolar',
+    'Detección de mentiras',
+    'Interrogar',
+    'Intimidar',
+    'Jerga policial',
+    'Ligar',
+    'Negociar',
+    'Suplantar'
+  ],
+  tecnicas: [
+    'Análisis de documentos',
+    'Astronomía',
+    'Balística',
+    'Criptografía',
+    'Entomología forense',
+    'Explosivos',
+    'Fotografía',
+    'Huellas dactilares',
+    'Medicina forense',
+    'Química',
+    'Recoger pruebas',
+    'Recuperar datos',
+    'Vigilancia electrónica'
+  ]
+};
+const INVESTIGATION_MAX_OVERRIDES = {
+  'historia natural': 2
+};
+
+function slugifySkillName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function buildDefaultSkillEntry(name, max, group) {
+  const maxValue = Math.max(0, Number(max) || 0);
+  return {
+    id: slugifySkillName(name),
+    name: String(name),
+    max: maxValue,
+    current: maxValue,
+    group: group ? String(group) : ''
+  };
+}
+
+function buildDefaultGeneralSkills() {
+  return GENERAL_SKILL_NAMES.map((name) => buildDefaultSkillEntry(name, DEFAULT_GENERAL_MAX, ''));
+}
+
+function buildDefaultInvestigationSkills() {
+  return Object.entries(INVESTIGATION_SKILL_GROUPS).flatMap(([group, skills]) =>
+    skills.map((name) => {
+      const overrideKey = String(name || '').toLowerCase();
+      const max = INVESTIGATION_MAX_OVERRIDES[overrideKey] || DEFAULT_INVESTIGATION_MAX;
+      return buildDefaultSkillEntry(name, max, group);
+    })
+  );
+}
+
+function buildDefaultCharacterSheet(agentUsername, agentDisplay) {
+  const display = agentDisplay || agentUsername || 'Agente';
+  return {
+    agent_username: agentUsername,
+    character_name: display,
+    character_role: 'Agente de campo OV',
+    health_current: 10,
+    health_max: 10,
+    stability_current: 8,
+    stability_max: 8,
+    general_skills: buildDefaultGeneralSkills(),
+    investigation_skills: buildDefaultInvestigationSkills()
+  };
+}
 
 const seedData = [
   {
@@ -341,12 +454,18 @@ async function initialize() {
   await ensureMessageSessionColumn();
   await ensureMessageReadByColumn();
   await ensureMessageDeletedByColumn();
+  await ensureMessageThreadColumns();
+  await ensureChatTables();
   await ensureJournalTable();
   await ensureAuthUsersTable();
   await ensureAuthSeed();
+  await ensureCharacterSheetTable();
   await ensurePoiVisibilityColumns();
+  await ensureActivityTable();
 
   await ensureEntitiesTables();
+  await ensureChatIdentitySeed();
+  await seedCharacterSheetsIfMissing();
   await seedPoisIfEmpty();
   await seedEntitiesIfEmpty();
 }
@@ -527,8 +646,8 @@ async function getPoiById(id) {
 async function createPoi(poi) {
   const sql = `
     INSERT INTO pois
-    (name, category, latitude, longitude, image_url, public_note, dm_note, threat_level, veil_status, session_tag, visibility, unlock_code, locked_hint)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (name, category, latitude, longitude, image_url, public_note, dm_note, agent_notes, threat_level, veil_status, session_tag, visibility, unlock_code, locked_hint)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   const result = await run(sql, [
     poi.name,
@@ -538,6 +657,7 @@ async function createPoi(poi) {
     poi.image_url || null,
     poi.public_note || null,
     poi.dm_note || null,
+    poi.agent_notes || null,
     poi.threat_level,
     poi.veil_status,
     poi.session_tag || null,
@@ -559,6 +679,7 @@ async function updatePoi(id, poi) {
       image_url = ?,
       public_note = ?,
       dm_note = ?,
+      agent_notes = ?,
       threat_level = ?,
       veil_status = ?,
       session_tag = ?,
@@ -576,6 +697,7 @@ async function updatePoi(id, poi) {
     poi.image_url || null,
     poi.public_note || null,
     poi.dm_note || null,
+    poi.agent_notes || null,
     poi.threat_level,
     poi.veil_status,
     poi.session_tag || null,
@@ -614,6 +736,8 @@ async function deletePoi(id) {
 async function getMessages(filters = {}) {
   const conditions = [];
   const params = [];
+  const role = filters.role;
+  const dmActor = filters.dmActor || 'MrTruth';
 
   if (filters.recipient) {
     conditions.push('recipient = ?');
@@ -625,9 +749,28 @@ async function getMessages(filters = {}) {
     params.push(filters.session_tag);
   }
 
-  if (filters.box === 'sent' && filters.viewer) {
-    conditions.push('created_by = ?');
-    params.push(filters.viewer);
+  if (filters.q) {
+    const needle = `%${filters.q.toLowerCase()}%`;
+    conditions.push(
+      '(LOWER(subject) LIKE ? OR LOWER(body) LIKE ? OR LOWER(sender) LIKE ? OR LOWER(recipient) LIKE ?)'
+    );
+    params.push(needle, needle, needle, needle);
+  }
+
+  if (filters.box === 'sent') {
+    if (role === 'dm') {
+      conditions.push('created_by = ?');
+      params.push(dmActor);
+    } else if (filters.viewer) {
+      conditions.push('created_by = ?');
+      params.push(filters.viewer);
+      if (role === 'agent' && dmActor) {
+        conditions.push(
+          'EXISTS (SELECT 1 FROM messages parent WHERE parent.id = messages.reply_to_id AND parent.created_by = ?)'
+        );
+        params.push(dmActor);
+      }
+    }
   } else if (filters.enforceDmInbox && Array.isArray(filters.agentDisplays)) {
     const placeholders = filters.agentDisplays.map(() => '?').join(',');
     conditions.push(
@@ -657,8 +800,8 @@ async function getMessages(filters = {}) {
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const rows = await all(
-    `SELECT * FROM messages ${where} ORDER BY created_at DESC LIMIT ?`,
-    [...params, filters.limit || 100]
+    `SELECT * FROM messages ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    [...params, filters.limit || 100, filters.offset || 0]
   );
   const viewer = filters.viewer;
   const parsed = rows.map((row) => ({
@@ -674,6 +817,39 @@ async function getMessages(filters = {}) {
     return parsed.filter((msg) => !hasBeenDeletedBy(msg, viewer, filters.box || 'inbox'));
   }
   return parsed;
+}
+
+async function listDmMessageIdentities(dmActor) {
+  const rows = await all(
+    'SELECT DISTINCT sender FROM messages WHERE created_by = ? ORDER BY sender COLLATE NOCASE',
+    [dmActor]
+  );
+  return rows.map((row) => row.sender).filter(Boolean);
+}
+
+async function listAgentMessageIdentities(dmActor, agentDisplay) {
+  if (!agentDisplay) return [];
+  const recipients = [
+    agentDisplay,
+    'All agents',
+    'all agents',
+    'Todos los agentes',
+    'todos los agentes'
+  ];
+  const placeholders = recipients.map(() => '?').join(',');
+  const rows = await all(
+    `SELECT DISTINCT sender
+     FROM messages
+     WHERE created_by = ? AND recipient IN (${placeholders})
+     ORDER BY sender COLLATE NOCASE`,
+    [dmActor, ...recipients]
+  );
+  return rows.map((row) => row.sender).filter(Boolean);
+}
+
+async function getMessageById(id) {
+  if (!id) return null;
+  return get('SELECT * FROM messages WHERE id = ?', [id]);
 }
 
 async function ensureMessageSessionColumn() {
@@ -697,6 +873,9 @@ async function ensurePoiVisibilityColumns() {
   if (!existing.has('locked_hint')) {
     pending.push('ALTER TABLE pois ADD COLUMN locked_hint TEXT');
   }
+  if (!existing.has('agent_notes')) {
+    pending.push('ALTER TABLE pois ADD COLUMN agent_notes TEXT');
+  }
   for (const sql of pending) {
     await run(sql);
   }
@@ -715,6 +894,64 @@ async function ensureMessageDeletedByColumn() {
   const hasDeletedBy = columns.some((col) => col.name === 'deleted_by');
   if (!hasDeletedBy) {
     await run('ALTER TABLE messages ADD COLUMN deleted_by TEXT');
+  }
+}
+
+async function ensureMessageThreadColumns() {
+  const columns = await all(`PRAGMA table_info(messages)`);
+  const existing = new Set(columns.map((col) => col.name));
+  if (!existing.has('reply_to_id')) {
+    await run('ALTER TABLE messages ADD COLUMN reply_to_id INTEGER');
+  }
+  if (!existing.has('thread_id')) {
+    await run('ALTER TABLE messages ADD COLUMN thread_id INTEGER');
+  }
+  if (!existing.has('priority')) {
+    await run("ALTER TABLE messages ADD COLUMN priority TEXT DEFAULT 'normal'");
+  }
+}
+
+async function ensureChatTables() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS dm_identities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`
+    CREATE TABLE IF NOT EXISTS chat_threads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_username TEXT NOT NULL,
+      dm_identity_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(agent_username, dm_identity_id),
+      FOREIGN KEY (dm_identity_id) REFERENCES dm_identities(id)
+    )
+  `);
+  await run(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id INTEGER NOT NULL,
+      sender_role TEXT NOT NULL CHECK(sender_role IN ('dm','agent')),
+      sender_label TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (thread_id) REFERENCES chat_threads(id)
+    )
+  `);
+}
+
+async function ensureChatIdentitySeed() {
+  const defaults = ['Sr. Verdad', 'Sra. Lealtad'];
+  for (const name of defaults) {
+    await run(
+      `INSERT OR IGNORE INTO dm_identities (name, created_at, updated_at)
+       VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [name]
+    );
   }
 }
 
@@ -744,6 +981,23 @@ async function ensureAuthUsersTable() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(role, username)
+    )
+  `);
+}
+
+async function ensureCharacterSheetTable() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS agent_character_sheets (
+      agent_username TEXT PRIMARY KEY,
+      character_name TEXT,
+      character_role TEXT,
+      health_current INTEGER DEFAULT 0,
+      health_max INTEGER DEFAULT 0,
+      stability_current INTEGER DEFAULT 0,
+      stability_max INTEGER DEFAULT 0,
+      general_skills TEXT,
+      investigation_skills TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 }
@@ -780,7 +1034,7 @@ async function updateAuthPassword({ role, username, password_hash, password_salt
 }
 
 async function ensureAuthSeed() {
-  const defaultAgentPassword = process.env.AGENT_DEFAULT_PASSWORD || '123456';
+  const defaultAgentPassword = process.env.AGENT_DEFAULT_PASSWORD || 'amarok';
   const defaultDmPassword = process.env.DM_SECRET || process.env.DM_DEFAULT_PASSWORD || '';
 
   const dmUser = await getAuthUser('dm', DEFAULT_DM_USER.username);
@@ -806,6 +1060,65 @@ async function ensureAuthSeed() {
       password_hash: agentCreds ? agentCreds.hash : null,
       password_salt: agentCreds ? agentCreds.salt : null
     });
+  }
+}
+
+async function seedCharacterSheetsIfMissing() {
+  const agents = await listAuthUsersByRole('agent');
+  for (const agent of agents) {
+    const existing = await get('SELECT agent_username FROM agent_character_sheets WHERE agent_username = ?', [
+      agent.username
+    ]);
+    if (existing) continue;
+    const defaults = buildDefaultCharacterSheet(agent.username, agent.display);
+    await run(
+      `
+      INSERT INTO agent_character_sheets (
+        agent_username,
+        character_name,
+        character_role,
+        health_current,
+        health_max,
+        stability_current,
+        stability_max,
+        general_skills,
+        investigation_skills,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `,
+      [
+        defaults.agent_username,
+        defaults.character_name,
+        defaults.character_role,
+        defaults.health_current,
+        defaults.health_max,
+        defaults.stability_current,
+        defaults.stability_max,
+        JSON.stringify(defaults.general_skills),
+        JSON.stringify(defaults.investigation_skills)
+      ]
+    );
+  }
+}
+
+async function ensureActivityTable() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS entity_activity (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER,
+      entity_label TEXT NOT NULL,
+      action TEXT NOT NULL,
+      updated_fields TEXT,
+      actor_name TEXT,
+      visibility TEXT NOT NULL DEFAULT 'agent_public',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const columns = await all(`PRAGMA table_info(entity_activity)`);
+  const hasActor = columns.some((col) => col.name === 'actor_name');
+  if (!hasActor) {
+    await run(`ALTER TABLE entity_activity ADD COLUMN actor_name TEXT`);
   }
 }
 
@@ -914,10 +1227,16 @@ function hasBeenReadBy(message, viewer) {
 }
 
 async function createMessage(message) {
+  let threadId = message.thread_id || null;
+  if (!threadId && message.reply_to_id) {
+    const parent = await get('SELECT id, thread_id FROM messages WHERE id = ?', [message.reply_to_id]);
+    threadId = parent ? parent.thread_id || parent.id : message.reply_to_id;
+  }
+  const priority = message.priority || 'normal';
   const sql = `
     INSERT INTO messages
-    (sender, recipient, subject, body, session_tag, created_by, read_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    (sender, recipient, subject, body, session_tag, reply_to_id, thread_id, priority, created_by, read_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   await run(sql, [
     message.sender,
@@ -925,6 +1244,9 @@ async function createMessage(message) {
     message.subject,
     message.body,
     message.session_tag || null,
+    message.reply_to_id || null,
+    threadId,
+    priority,
     message.created_by,
     null
   ]);
@@ -990,6 +1312,141 @@ async function listJournalEntries() {
   return all('SELECT * FROM journal_entries ORDER BY season DESC, session DESC');
 }
 
+function clampNumber(value, min, max) {
+  if (Number.isNaN(value)) return min;
+  return Math.max(min, Math.min(max, value));
+}
+
+function parseSkillList(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function normalizeSkillEntry(entry) {
+  if (!entry) return null;
+  const name = String(entry.name || '').trim() || 'Habilidad';
+  const id = entry.id ? String(entry.id) : slugifySkillName(name);
+  const max = Math.max(0, Number(entry.max) || 0);
+  const current = clampNumber(Number(entry.current) || 0, 0, max);
+  return {
+    id,
+    name,
+    max,
+    current,
+    group: entry.group ? String(entry.group) : ''
+  };
+}
+
+function normalizeSkillList(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((entry) => normalizeSkillEntry(entry))
+    .filter((entry) => entry);
+}
+
+function normalizeCharacterSheetRow(row, fallback) {
+  if (!row && !fallback) return null;
+  const source = row || fallback;
+  const generalRaw = row ? row.general_skills : source.general_skills;
+  const investigationRaw = row ? row.investigation_skills : source.investigation_skills;
+  const generalSkills = normalizeSkillList(
+    typeof generalRaw === 'string' ? parseSkillList(generalRaw) : generalRaw
+  );
+  const investigationSkills = normalizeSkillList(
+    typeof investigationRaw === 'string' ? parseSkillList(investigationRaw) : investigationRaw
+  );
+  return {
+    agent_username: source.agent_username,
+    character_name: source.character_name || '',
+    character_role: source.character_role || '',
+    health_max: Math.max(0, Number(source.health_max) || 0),
+    stability_max: Math.max(0, Number(source.stability_max) || 0),
+    health_current: clampNumber(Number(source.health_current) || 0, 0, Math.max(0, Number(source.health_max) || 0)),
+    stability_current: clampNumber(
+      Number(source.stability_current) || 0,
+      0,
+      Math.max(0, Number(source.stability_max) || 0)
+    ),
+    general_skills: generalSkills,
+    investigation_skills: investigationSkills,
+    updated_at: source.updated_at || null
+  };
+}
+
+async function getAgentCharacterSheet(agentUsername, agentDisplay) {
+  if (!agentUsername) return null;
+  const row = await get('SELECT * FROM agent_character_sheets WHERE agent_username = ?', [agentUsername]);
+  if (row) return normalizeCharacterSheetRow(row);
+  const defaults = buildDefaultCharacterSheet(agentUsername, agentDisplay);
+  await run(
+    `
+    INSERT INTO agent_character_sheets (
+      agent_username,
+      character_name,
+      character_role,
+      health_current,
+      health_max,
+      stability_current,
+      stability_max,
+      general_skills,
+      investigation_skills,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `,
+    [
+      defaults.agent_username,
+      defaults.character_name,
+      defaults.character_role,
+      defaults.health_current,
+      defaults.health_max,
+      defaults.stability_current,
+      defaults.stability_max,
+      JSON.stringify(defaults.general_skills),
+      JSON.stringify(defaults.investigation_skills)
+    ]
+  );
+  return normalizeCharacterSheetRow(null, defaults);
+}
+
+async function updateAgentCharacterSheet(agentUsername, payload) {
+  if (!agentUsername || !payload) return null;
+  const normalized = normalizeCharacterSheetRow(payload, payload);
+  if (!normalized) return null;
+  await run(
+    `
+    INSERT OR REPLACE INTO agent_character_sheets (
+      agent_username,
+      character_name,
+      character_role,
+      health_current,
+      health_max,
+      stability_current,
+      stability_max,
+      general_skills,
+      investigation_skills,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `,
+    [
+      agentUsername,
+      normalized.character_name,
+      normalized.character_role,
+      normalized.health_current,
+      normalized.health_max,
+      normalized.stability_current,
+      normalized.stability_max,
+      JSON.stringify(normalized.general_skills),
+      JSON.stringify(normalized.investigation_skills)
+    ]
+  );
+  const saved = await get('SELECT * FROM agent_character_sheets WHERE agent_username = ?', [agentUsername]);
+  return normalizeCharacterSheetRow(saved);
+}
+
 async function deleteMessageForViewer(id, viewer, box) {
   const message = await get('SELECT * FROM messages WHERE id = ?', [id]);
   if (!message) return null;
@@ -1000,6 +1457,161 @@ async function deleteMessageForViewer(id, viewer, box) {
     await run('UPDATE messages SET deleted_by = ? WHERE id = ?', [JSON.stringify(current), id]);
   }
   return get('SELECT * FROM messages WHERE id = ?', [id]);
+}
+
+async function listChatIdentities() {
+  return all('SELECT * FROM dm_identities ORDER BY name COLLATE NOCASE');
+}
+
+async function getChatIdentityById(id) {
+  return get('SELECT * FROM dm_identities WHERE id = ?', [id]);
+}
+
+async function createChatIdentity(name) {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) return null;
+  await run(
+    `INSERT INTO dm_identities (name, created_at, updated_at)
+     VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [trimmed]
+  );
+  return get('SELECT * FROM dm_identities WHERE name = ?', [trimmed]);
+}
+
+async function updateChatIdentity(id, name) {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) return null;
+  await run(
+    `UPDATE dm_identities
+     SET name = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [trimmed, id]
+  );
+  return get('SELECT * FROM dm_identities WHERE id = ?', [id]);
+}
+
+async function deleteChatIdentity(id) {
+  const usage = await get('SELECT COUNT(*) as count FROM chat_threads WHERE dm_identity_id = ?', [id]);
+  if (usage && usage.count > 0) {
+    return { ok: false, reason: 'in_use' };
+  }
+  const result = await run('DELETE FROM dm_identities WHERE id = ?', [id]);
+  return { ok: result.changes > 0 };
+}
+
+async function getChatThreadById(id) {
+  return get(
+    `
+    SELECT t.id,
+           t.agent_username,
+           u.display as agent_display,
+           t.dm_identity_id,
+           i.name as dm_identity_name,
+           t.created_at,
+           t.updated_at
+    FROM chat_threads t
+    JOIN dm_identities i ON i.id = t.dm_identity_id
+    LEFT JOIN auth_users u ON u.username = t.agent_username AND u.role = 'agent'
+    WHERE t.id = ?
+  `,
+    [id]
+  );
+}
+
+async function getChatThreadByKey(agentUsername, identityId) {
+  return get(
+    `
+    SELECT t.id,
+           t.agent_username,
+           u.display as agent_display,
+           t.dm_identity_id,
+           i.name as dm_identity_name,
+           t.created_at,
+           t.updated_at
+    FROM chat_threads t
+    JOIN dm_identities i ON i.id = t.dm_identity_id
+    LEFT JOIN auth_users u ON u.username = t.agent_username AND u.role = 'agent'
+    WHERE t.agent_username = ? AND t.dm_identity_id = ?
+  `,
+    [agentUsername, identityId]
+  );
+}
+
+async function resolveChatThread(agentUsername, identityId) {
+  await run(
+    `INSERT OR IGNORE INTO chat_threads (agent_username, dm_identity_id, created_at, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [agentUsername, identityId]
+  );
+  return getChatThreadByKey(agentUsername, identityId);
+}
+
+async function listChatThreads({ role, agentUsername }) {
+  const params = [];
+  const conditions = [];
+  if (role === 'agent' && agentUsername) {
+    conditions.push('t.agent_username = ?');
+    params.push(agentUsername);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const rows = await all(
+    `
+    SELECT t.id,
+           t.agent_username,
+           u.display as agent_display,
+           t.dm_identity_id,
+           i.name as dm_identity_name,
+           t.created_at,
+           t.updated_at,
+           m.id as last_message_id,
+           m.sender_role as last_message_role,
+           m.sender_label as last_message_label,
+           m.body as last_message_body,
+           m.created_at as last_message_at
+    FROM chat_threads t
+    JOIN dm_identities i ON i.id = t.dm_identity_id
+    LEFT JOIN auth_users u ON u.username = t.agent_username AND u.role = 'agent'
+    LEFT JOIN chat_messages m ON m.id = (
+      SELECT id
+      FROM chat_messages
+      WHERE thread_id = t.id
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    )
+    ${where}
+    ORDER BY COALESCE(m.created_at, t.updated_at) DESC, t.id DESC
+  `,
+    params
+  );
+  return rows;
+}
+
+async function listChatMessages(threadId, { limit = 200, offset = 0 } = {}) {
+  return all(
+    `
+    SELECT *
+    FROM chat_messages
+    WHERE thread_id = ?
+    ORDER BY created_at ASC, id ASC
+    LIMIT ? OFFSET ?
+  `,
+    [threadId, limit, offset]
+  );
+}
+
+async function createChatMessage({ threadId, senderRole, senderLabel, body }) {
+  await run(
+    `
+    INSERT INTO chat_messages (thread_id, sender_role, sender_label, body)
+    VALUES (?, ?, ?, ?)
+  `,
+    [threadId, senderRole, senderLabel, body]
+  );
+  await run('UPDATE chat_threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [threadId]);
+  return get(
+    'SELECT * FROM chat_messages WHERE thread_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+    [threadId]
+  );
 }
 
 // --- Helpers de entidades (v2) ---
@@ -1096,6 +1708,7 @@ function mapPoiToEntity(row) {
     public_summary: row.public_note || '',
     dm_notes: row.dm_notes || row.dm_note || '',
     dm_note: row.dm_notes || row.dm_note || '',
+    agent_notes: row.agent_notes || '',
     visibility,
     unlock_code: row.unlock_code || null,
     locked_hint: row.locked_hint || '',
@@ -1708,6 +2321,181 @@ async function updateAgentNotesAndLinks(entityId, agentNotes, relations = {}) {
   });
 }
 
+async function updatePoiAgentNotes(poiId, agentNotes) {
+  await run('UPDATE pois SET agent_notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [
+    agentNotes || '',
+    poiId
+  ]);
+  return getPoiById(poiId);
+}
+
+async function logEntityActivity({
+  entity_type,
+  entity_id,
+  entity_label,
+  action,
+  updated_fields,
+  visibility,
+  actor_name
+}) {
+  if (!entity_type || !entity_label || !action) return;
+  const fieldsValue = Array.isArray(updated_fields) ? JSON.stringify(updated_fields) : null;
+  await run(
+    `
+    INSERT INTO entity_activity
+      (entity_type, entity_id, entity_label, action, updated_fields, actor_name, visibility)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `,
+    [
+      String(entity_type),
+      entity_id == null ? null : Number(entity_id),
+      String(entity_label),
+      String(action),
+      fieldsValue,
+      actor_name ? String(actor_name) : null,
+      normalizeVisibility(visibility)
+    ]
+  );
+}
+
+async function listEntityActivity({ limit = 10, offset = 0, mode = 'dm' } = {}) {
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 10;
+  const safeOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
+  const where = mode === 'agent' ? "WHERE visibility = 'agent_public'" : '';
+  const rows = await all(
+    `SELECT * FROM entity_activity ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+    [safeLimit, safeOffset]
+  );
+  const totalRow = await get(`SELECT COUNT(*) as total FROM entity_activity ${where}`);
+  const items = rows.map((row) => ({
+    ...row,
+    updated_fields: row.updated_fields ? JSON.parse(row.updated_fields) : []
+  }));
+  return { items, total: totalRow ? totalRow.total : 0 };
+}
+
+async function listEntropiaZones() {
+  const zoneRows = await all('SELECT * FROM entropia_zones ORDER BY id');
+  const moduleRows = await all('SELECT * FROM entropia_modules ORDER BY zone_id, sort_order, id');
+  const itemRows = await all('SELECT * FROM entropia_module_items ORDER BY module_ref, sort_order, id');
+
+  const zoneMap = new Map();
+  zoneRows.forEach((row) => {
+    zoneMap.set(row.id, {
+      id: row.id,
+      code: row.code || null,
+      name: row.name,
+      summary: row.summary || '',
+      tags: row.tags ? JSON.parse(row.tags) : [],
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by || null,
+      modules: []
+    });
+  });
+
+  const moduleMap = new Map();
+  moduleRows.forEach((row) => {
+    const zone = zoneMap.get(row.zone_id);
+    if (!zone) return;
+    const module = {
+      module_id: row.module_id,
+      label: row.label,
+      type: row.type,
+      available: row.available === 1,
+      summary: row.summary || '',
+      items: []
+    };
+    zone.modules.push(module);
+    moduleMap.set(row.id, module);
+  });
+
+  itemRows.forEach((row) => {
+    const module = moduleMap.get(row.module_ref);
+    if (!module) return;
+    module.items.push({
+      item_id: row.item_id || null,
+      label: row.label,
+      status: row.status || null,
+      qty: row.qty == null ? null : Number(row.qty),
+      notes: row.notes || ''
+    });
+  });
+
+  return Array.from(zoneMap.values());
+}
+
+async function replaceEntropiaZones(zones = [], actorName = 'Sistema') {
+  const normalizedZones = Array.isArray(zones) ? zones : [];
+  return withTransaction(async () => {
+    await run('DELETE FROM entropia_module_items');
+    await run('DELETE FROM entropia_modules');
+    await run('DELETE FROM entropia_zones');
+
+    for (const zone of normalizedZones) {
+      if (!zone || !zone.id || !zone.name) continue;
+      const tagsValue = Array.isArray(zone.tags) ? JSON.stringify(zone.tags) : JSON.stringify([]);
+      await run(
+        `INSERT INTO entropia_zones
+          (id, code, name, summary, tags, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+        [
+          String(zone.id),
+          zone.code ? String(zone.code) : null,
+          String(zone.name),
+          zone.summary ? String(zone.summary) : '',
+          tagsValue,
+          actorName
+        ]
+      );
+
+      const modules = Array.isArray(zone.modules) ? zone.modules : [];
+      for (let idx = 0; idx < modules.length; idx += 1) {
+        const module = modules[idx];
+        const moduleId = module.module_id || module.id;
+        if (!module || !moduleId || !module.label || !module.type) continue;
+        const result = await run(
+          `INSERT INTO entropia_modules
+            (zone_id, module_id, label, type, available, summary, sort_order, updated_at, updated_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+          [
+            String(zone.id),
+            String(moduleId),
+            String(module.label),
+            String(module.type),
+            module.available ? 1 : 0,
+            module.summary ? String(module.summary) : '',
+            idx,
+            actorName
+          ]
+        );
+
+        const items = Array.isArray(module.items) ? module.items : [];
+        for (let j = 0; j < items.length; j += 1) {
+          const item = items[j];
+          if (!item || !item.label) continue;
+          const itemId = item.item_id || item.id;
+          await run(
+            `INSERT INTO entropia_module_items
+              (module_ref, item_id, label, status, qty, notes, sort_order, updated_at, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+            [
+              result.lastID,
+              itemId ? String(itemId) : null,
+              String(item.label),
+              item.status ? String(item.status) : null,
+              item.qty == null ? null : Number(item.qty),
+              item.notes ? String(item.notes) : '',
+              j,
+              actorName
+            ]
+          );
+        }
+      }
+    }
+    return listEntropiaZones();
+  });
+}
+
 async function unlockEntity(id, code) {
   const entity = await get('SELECT * FROM entities WHERE id = ?', [id]);
   if (entity) {
@@ -1756,6 +2544,9 @@ module.exports = {
   CATEGORY_VALUES,
   VEIL_VALUES,
   getMessages,
+  listDmMessageIdentities,
+  listAgentMessageIdentities,
+  getMessageById,
   createMessage,
   markMessageRead,
   deleteMessageForViewer,
@@ -1777,11 +2568,28 @@ module.exports = {
   upsertJournalEntry,
   getJournalEntry,
   listJournalEntries,
+  getAgentCharacterSheet,
+  updateAgentCharacterSheet,
   getAuthUser,
   listAuthUsersByRole,
   createAuthUser,
   updateAuthPassword,
-  updateAgentNotesAndLinks
+  updateAgentNotesAndLinks,
+  updatePoiAgentNotes,
+  listChatIdentities,
+  getChatIdentityById,
+  createChatIdentity,
+  updateChatIdentity,
+  deleteChatIdentity,
+  getChatThreadById,
+  resolveChatThread,
+  listChatThreads,
+  listChatMessages,
+  createChatMessage,
+  logEntityActivity,
+  listEntityActivity,
+  listEntropiaZones,
+  replaceEntropiaZones
 };
 
 initialize().catch((err) => {

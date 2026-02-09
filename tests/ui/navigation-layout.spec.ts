@@ -2,7 +2,7 @@ import { devices, expect, test, type Page } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const AGENT_USERNAME = 'pike';
-const AGENT_PASSWORD = '123456';
+const AGENT_PASSWORD = 'amarok';
 const DM_SECRET = process.env.TEST_DM_SECRET || 'Pill4skiM0nAm0ur';
 const iPhone13 = devices['iPhone 13'];
 

@@ -6,6 +6,10 @@
   --panel: #0c1218;
   --accent: #00ff88;
   --accent-muted: rgba(0, 255, 136, 0.2);
+  --accent-amber: #ffb05a;
+  --accent-amber-muted: rgba(255, 176, 90, 0.25);
+  --accent-amber-soft: rgba(255, 176, 90, 0.18);
+  --accent-amber-strong: rgba(255, 214, 170, 0.92);
   --text: #e5f5ee;
   --muted: #7f8b8f;
   --danger: #ff5f5f;
@@ -222,7 +226,7 @@ body.crt::after {
 
 .pill-switch {
   display: inline-flex;
-  border: 1px solid rgba(0, 255, 136, 0.25);
+  border: 1px solid var(--accent-amber-muted);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -874,6 +878,10 @@ body[data-mobile-tab='base'] #base3d-canvas {
   color: rgba(255, 208, 160, 0.7);
 }
 
+.base3d-root[data-palette='amber'].has-focus .base-zone-module {
+  color: rgba(255, 210, 170, 0.75);
+}
+
 .base3d-root[data-palette='amber'].has-focus .base-status-pill[data-status='tag'] {
   border-color: rgba(255, 186, 108, 0.45);
   color: rgba(255, 215, 170, 0.9);
@@ -979,6 +987,17 @@ body[data-mobile-tab='base'] #base3d-canvas {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: rgba(140, 255, 208, 0.7);
+}
+
+.base-zone-module {
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(160, 255, 220, 0.72);
+}
+
+.base-zone-module.is-hidden {
+  display: none;
 }
 
 .base-focus-card .card-title {
@@ -1661,6 +1680,28 @@ body[data-mobile-tab='base'] #base3d-canvas {
   flex-wrap: nowrap;
   overflow-x: auto;
   padding-bottom: 0.1rem;
+  scrollbar-color: var(--accent-amber-muted) rgba(0, 0, 0, 0.35);
+  scrollbar-width: thin;
+}
+
+.map-filter-chips::-webkit-scrollbar {
+  height: 8px;
+}
+
+.map-filter-chips::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 176, 90, 0.18);
+  border-radius: 12px;
+}
+
+.map-filter-chips::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255, 176, 90, 0.55), rgba(255, 176, 90, 0.3));
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(255, 176, 90, 0.25);
+}
+
+.map-filter-chips::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 176, 90, 0.7);
 }
 
 .map-filters .map-geocoder {
@@ -1686,8 +1727,8 @@ body[data-mobile-tab='base'] #base3d-canvas {
 }
 
 .map-style-switch button.active {
-  border-color: rgba(0, 255, 136, 0.6);
-  box-shadow: 0 0 0 1px rgba(0, 255, 136, 0.25);
+  border-color: rgba(255, 176, 90, 0.7);
+  box-shadow: 0 0 0 1px rgba(255, 176, 90, 0.35);
 }
 
 .map-style-switch + .map-filters {
@@ -1695,9 +1736,9 @@ body[data-mobile-tab='base'] #base3d-canvas {
 }
 
 .filter-chip {
-  border: 1px solid rgba(0, 255, 136, 0.25);
+  border: 1px solid var(--accent-amber-muted);
   background: rgba(0, 0, 0, 0.5);
-  color: rgba(0, 255, 136, 0.9);
+  color: var(--accent-amber-strong);
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
   text-transform: uppercase;
@@ -1708,8 +1749,8 @@ body[data-mobile-tab='base'] #base3d-canvas {
 }
 
 .filter-chip.active {
-  background: rgba(0, 255, 136, 0.18);
-  border-color: rgba(0, 255, 136, 0.6);
+  background: var(--accent-amber-soft);
+  border-color: rgba(255, 176, 90, 0.7);
 }
 
 .brand-watermark {
@@ -5803,7 +5844,7 @@ textarea {
 .mapboxgl-popup-content {
   background: rgba(5, 7, 9, 0.95);
   color: var(--text);
-  border: 1px solid rgba(0, 255, 136, 0.4);
+  border: 1px solid rgba(255, 176, 90, 0.45);
   font-family: 'Fira Code', monospace;
   border-radius: 12px;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
@@ -5811,12 +5852,29 @@ textarea {
 
 .mapboxgl-popup-content h3 {
   margin-top: 0;
-  color: var(--accent);
+  color: var(--accent-amber);
+}
+
+.poi-threat-tooltip {
+  pointer-events: none;
+}
+
+.poi-threat-tooltip .mapboxgl-popup-content {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 176, 90, 0.55);
+  background: rgba(12, 8, 5, 0.92);
+  box-shadow: none;
+}
+
+.poi-threat-tooltip .mapboxgl-popup-tip {
+  border-top-color: rgba(12, 8, 5, 0.92);
 }
 
 .map-popup-image {
   margin: 0.5rem 0;
-  border: 1px solid rgba(0, 255, 136, 0.3);
+  border: 1px solid rgba(255, 176, 90, 0.35);
   padding: 0.2rem;
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.4);
@@ -6139,7 +6197,7 @@ textarea {
 .mapboxgl-ctrl-geocoder,
 .mapboxgl-ctrl-geocoder .mapboxgl-ctrl-geocoder--input {
   background: rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(0, 255, 136, 0.35);
+  border: 1px solid rgba(255, 176, 90, 0.45);
   border-radius: 0.6rem;
 }
 

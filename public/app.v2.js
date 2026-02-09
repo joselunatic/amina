@@ -2968,7 +2968,7 @@ function ensurePoiLayers(map) {
       id: POI_LAYER_IDS.fallback,
       type: 'circle',
       source: POI_SOURCE_ID,
-      filter: ['all', ['!=', 'cluster', true], ['==', ['get', 'icon_fallback'], true]],
+      filter: ['all', ['!=', 'cluster', true], ['==', 'icon_fallback', true]],
       minzoom: 9,
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.6, 12, 3.2, 14, 3.6],

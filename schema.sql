@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS pois (
   image_url TEXT,
   public_note TEXT,
   dm_note TEXT,
+  agent_notes TEXT,
   threat_level INTEGER NOT NULL DEFAULT 1 CHECK(threat_level BETWEEN 1 AND 5),
   veil_status TEXT NOT NULL DEFAULT 'intact' CHECK(veil_status IN ('intact','frayed','torn')),
   session_tag TEXT,
@@ -24,9 +25,39 @@ CREATE TABLE IF NOT EXISTS messages (
   subject TEXT NOT NULL,
   body TEXT NOT NULL,
   session_tag TEXT,
+  reply_to_id INTEGER,
+  thread_id INTEGER,
+  priority TEXT DEFAULT 'normal',
   created_by TEXT NOT NULL,
   read_by TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dm_identities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS chat_threads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_username TEXT NOT NULL,
+  dm_identity_id INTEGER NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(agent_username, dm_identity_id),
+  FOREIGN KEY (dm_identity_id) REFERENCES dm_identities(id)
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  thread_id INTEGER NOT NULL,
+  sender_role TEXT NOT NULL CHECK(sender_role IN ('dm','agent')),
+  sender_label TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (thread_id) REFERENCES chat_threads(id)
 );
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,6 +65,9 @@ CREATE TABLE IF NOT EXISTS messages (
   recipient TEXT NOT NULL,
   subject TEXT NOT NULL,
   body TEXT NOT NULL,
+  reply_to_id INTEGER,
+  thread_id INTEGER,
+  priority TEXT DEFAULT 'normal',
   created_by TEXT NOT NULL,
   read_by TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -84,6 +118,58 @@ CREATE TABLE IF NOT EXISTS entity_session_links (
   summary_dm TEXT,
   is_public INTEGER DEFAULT 1,
   FOREIGN KEY (entity_id) REFERENCES entities(id)
+);
+
+-- Entropia zones + modules
+CREATE TABLE IF NOT EXISTS entropia_zones (
+  id TEXT PRIMARY KEY,
+  code TEXT,
+  name TEXT NOT NULL,
+  summary TEXT,
+  tags TEXT,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_by TEXT
+);
+
+CREATE TABLE IF NOT EXISTS entropia_modules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  zone_id TEXT NOT NULL,
+  module_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  type TEXT NOT NULL,
+  available INTEGER DEFAULT 0,
+  summary TEXT,
+  sort_order INTEGER DEFAULT 0,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_by TEXT,
+  FOREIGN KEY (zone_id) REFERENCES entropia_zones(id)
+);
+
+CREATE TABLE IF NOT EXISTS entropia_module_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  module_ref INTEGER NOT NULL,
+  item_id TEXT,
+  label TEXT NOT NULL,
+  status TEXT,
+  qty INTEGER,
+  notes TEXT,
+  sort_order INTEGER DEFAULT 0,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_by TEXT,
+  FOREIGN KEY (module_ref) REFERENCES entropia_modules(id)
+);
+
+CREATE TABLE IF NOT EXISTS agent_character_sheets (
+  agent_username TEXT PRIMARY KEY,
+  character_name TEXT,
+  character_role TEXT,
+  health_current INTEGER DEFAULT 0,
+  health_max INTEGER DEFAULT 0,
+  stability_current INTEGER DEFAULT 0,
+  stability_max INTEGER DEFAULT 0,
+  general_skills TEXT,
+  investigation_skills TEXT,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Grafo entidad-entidad

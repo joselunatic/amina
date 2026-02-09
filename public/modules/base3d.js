@@ -124,6 +124,20 @@ const CAMERA_ZOOM = {
   maxFactor: 1.35,
   wheelSpeed: 0.0018
 };
+const MODULE_SIGNAL = {
+  ringFactor: 0.52,
+  ringMin: 10,
+  ringMax: 32,
+  pipFactor: 0.1,
+  pipMin: 3.2,
+  pipMax: 6.0,
+  ringInset: 2.6,
+  pipZOffset: 0.7,
+  microZOffset: 0.55,
+  microFactor: 0.56,
+  microMin: 1.2,
+  microMax: 2.4
+};
 
 const VISUAL_MODES = {
   subtle: {
@@ -234,6 +248,7 @@ export function createBase3d() {
   let animationFrame;
   let isAnimating = false;
   let onSelect;
+  let onSelectModule;
   let onFlyOff;
   let onToggleFullscreen;
   let rootEl;
@@ -244,10 +259,13 @@ export function createBase3d() {
   const zoneVisuals = new Map();
   const zoneCenters = new Map();
   const clickable = [];
+  const pipTargets = [];
+  const pipLookup = new Map();
 
   const state = {
     selectedZoneId: null,
     zonesData: {},
+    activeModuleByZone: {},
     sceneSize: new THREE.Vector3(1, 1, 1),
     sceneBounds: new THREE.Box3(),
     lookAt: new THREE.Vector3(0, 0, 0),
@@ -302,6 +320,7 @@ export function createBase3d() {
     needsRender: true,
     hasDynamicLEDs: false,
     hoveredZoneId: null,
+    hoveredModuleKey: null,
     supportsHover: false,
     ledScaleMultiplier: 1,
     cameraLimits: {
@@ -322,13 +341,24 @@ export function createBase3d() {
   const materialCache = createMaterialCache();
   const activeTouches = new Map();
 
-  function init({ canvas, root, zonesData, onSelect: onSelectCb, onFlyOff: onFlyOffCb, onToggleFullscreen: onToggleFullscreenCb }) {
+  function init({
+    canvas,
+    root,
+    zonesData,
+    activeModules,
+    onSelect: onSelectCb,
+    onSelectModule: onSelectModuleCb,
+    onFlyOff: onFlyOffCb,
+    onToggleFullscreen: onToggleFullscreenCb
+  }) {
     if (!canvas) return;
     rootEl = root || canvas.parentElement;
     onSelect = onSelectCb;
+    onSelectModule = onSelectModuleCb;
     onFlyOff = onFlyOffCb;
     onToggleFullscreen = onToggleFullscreenCb;
     state.zonesData = zonesData || {};
+    state.activeModuleByZone = activeModules || {};
     state.supportsHover = Boolean(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
 
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -490,6 +520,7 @@ export function createBase3d() {
     scene.add(rootGroup);
     buildPulseRing();
     updateZoneCenters();
+    updateModuleSignals();
     updateCameraLimits();
   }
 
@@ -539,7 +570,13 @@ export function createBase3d() {
         icon: null,
         led: null,
         anchor: null,
-        status: state.zonesData[zoneId]?.status || 'normal'
+        status: state.zonesData[zoneId]?.status || 'normal',
+        modulePipGroup: null,
+        modulePipEntries: [],
+        modulePipMap: new Map(),
+        moduleRing: null,
+        microdotsGroup: null,
+        modulePipConfig: null
       };
       zoneVisuals.set(zoneId, visuals);
     }
@@ -566,6 +603,9 @@ export function createBase3d() {
       const box = new THREE.Box3().setFromObject(visuals.group);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
+      visuals.plateSize = size;
+      visuals.plateCenter = center;
+      visuals.plateTop = box.max.z;
 
       visuals.baseY = visuals.group.position.y;
       visuals.lift = {
@@ -645,6 +685,367 @@ export function createBase3d() {
     led.userData.zoneId = zoneId;
     led.userData.status = status;
     return led;
+  }
+
+  function createSignalMaterials() {
+    const markShared = (material) => {
+      material.userData = { ...material.userData, sharedSignal: true };
+      return material;
+    };
+    return {
+      microSolid: markShared(new THREE.MeshBasicMaterial({
+        color: activePalette.edgeStrong,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+        depthTest: false
+      })),
+      microLine: markShared(new THREE.LineBasicMaterial({
+        color: activePalette.edgeDim,
+        transparent: true,
+        opacity: 0.32,
+        depthWrite: false,
+        depthTest: false
+      })),
+      microTick: markShared(new THREE.LineBasicMaterial({
+        color: activePalette.edgeDim,
+        transparent: true,
+        opacity: 0.34,
+        depthWrite: false,
+        depthTest: false
+      })),
+      pipFill: markShared(new THREE.MeshStandardMaterial({
+        color: activePalette.edgeStrong,
+        emissive: activePalette.edgeStrong,
+        emissiveIntensity: 0.3,
+        roughness: 0.6,
+        metalness: 0.15,
+        transparent: true,
+        opacity: 0.24,
+        depthWrite: false,
+        depthTest: false
+      })),
+      ring: markShared(new THREE.LineBasicMaterial({
+        color: activePalette.edgeDim,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+        depthTest: false
+      }))
+    };
+  }
+
+  const signalMaterials = createSignalMaterials();
+
+  function getOrderedModules(modules = []) {
+    const capabilities = [];
+    const metrics = [];
+    modules.forEach((module) => {
+      if (!module || !module.module_id) return;
+      const type = String(module.type || '').toLowerCase();
+      if (type === 'metrics') {
+        metrics.push(module);
+      } else {
+        capabilities.push(module);
+      }
+    });
+    return [...capabilities, ...metrics];
+  }
+
+  function getZoneModules(zoneId) {
+    const zone = state.zonesData[zoneId];
+    return Array.isArray(zone?.modules) ? zone.modules : [];
+  }
+
+  function clearModulePips(visuals) {
+    if (!visuals) return;
+    if (visuals.moduleRing) {
+      visuals.group.remove(visuals.moduleRing);
+      disposeObject(visuals.moduleRing);
+      visuals.moduleRing = null;
+    }
+    if (visuals.modulePipGroup) {
+      visuals.modulePipEntries.forEach((entry) => {
+        if (entry?.hit) {
+          const index = pipTargets.indexOf(entry.hit);
+          if (index >= 0) pipTargets.splice(index, 1);
+          pipLookup.delete(entry.key);
+        }
+      });
+      visuals.group.remove(visuals.modulePipGroup);
+      disposeObject(visuals.modulePipGroup);
+      visuals.modulePipGroup = null;
+    }
+    visuals.modulePipEntries = [];
+    visuals.modulePipMap.clear();
+    visuals.modulePipConfig = null;
+  }
+
+  function clearMicrodots(visuals) {
+    if (!visuals?.microdotsGroup) return;
+    visuals.group.remove(visuals.microdotsGroup);
+    disposeObject(visuals.microdotsGroup);
+    visuals.microdotsGroup = null;
+  }
+
+  function buildModulePips(zoneId) {
+    const visuals = zoneVisuals.get(zoneId);
+    if (!visuals?.plateSize || !visuals.plateCenter) return;
+    clearModulePips(visuals);
+
+    const modules = getOrderedModules(getZoneModules(zoneId));
+    const minSide = Math.min(visuals.plateSize.x, visuals.plateSize.y);
+    if (!minSide) return;
+    const ringRadius = clamp(minSide * MODULE_SIGNAL.ringFactor, MODULE_SIGNAL.ringMin, MODULE_SIGNAL.ringMax);
+    const pipSize = clamp(minSide * MODULE_SIGNAL.pipFactor, MODULE_SIGNAL.pipMin, MODULE_SIGNAL.pipMax);
+    const pipZ = visuals.plateTop + MODULE_SIGNAL.pipZOffset;
+    visuals.modulePipConfig = { ringRadius, pipSize, pipZ };
+
+    if (!modules.length) {
+      const ring = createRingLine(ringRadius, signalMaterials.ring.clone());
+      ring.position.set(visuals.plateCenter.x, visuals.plateCenter.y, pipZ - 0.03);
+      ring.renderOrder = 6;
+      ring.frustumCulled = false;
+      visuals.group.add(ring);
+      visuals.moduleRing = ring;
+      return;
+    }
+
+    const ringSlots = modules.length > 10 ? 2 : 1;
+    const ringRadii = [ringRadius];
+    if (ringSlots > 1) {
+      const innerRadius = ringRadius - pipSize * MODULE_SIGNAL.ringInset;
+      if (innerRadius > pipSize * 2.1) ringRadii.push(innerRadius);
+    }
+
+    const group = new THREE.Group();
+    group.name = `${zoneId}_module_pips`;
+    group.renderOrder = 6;
+    group.frustumCulled = false;
+    visuals.group.add(group);
+    visuals.modulePipGroup = group;
+
+    const outerCount = ringRadii.length > 1 ? Math.ceil(modules.length / 2) : modules.length;
+    const ringTotals = ringRadii.map(() => 0);
+    const ringAssignments = modules.map((_, index) => (index < outerCount ? 0 : 1));
+    ringAssignments.forEach((ringIndex) => {
+      ringTotals[ringIndex] = (ringTotals[ringIndex] || 0) + 1;
+    });
+    const ringOffsets = ringRadii.map(() => 0);
+
+    modules.forEach((module, index) => {
+      const ringIndex = ringAssignments[index] || 0;
+      const ringCount = ringTotals[ringIndex] || 1;
+      const slot = ringOffsets[ringIndex];
+      ringOffsets[ringIndex] += 1;
+      const angle = (slot / ringCount) * Math.PI * 2 - Math.PI / 2;
+      const radius = ringRadii[ringIndex];
+      const x = visuals.plateCenter.x + Math.cos(angle) * radius;
+      const y = visuals.plateCenter.y + Math.sin(angle) * radius;
+      const available = module.available === true;
+      const type = String(module.type || '').toLowerCase() === 'metrics' ? 'metrics' : 'capabilities';
+      const pip = createModulePipMesh(type, pipSize, available);
+      pip.group.renderOrder = 6;
+      pip.group.frustumCulled = false;
+      pip.line.renderOrder = 6;
+      if (pip.fill) {
+        pip.fill.renderOrder = 6;
+        pip.fill.frustumCulled = false;
+      }
+      pip.group.position.set(x, y, pipZ);
+      group.add(pip.group);
+
+      const key = `${zoneId}:${module.module_id}`;
+      pip.hit.userData.zoneId = zoneId;
+      pip.hit.userData.moduleId = module.module_id;
+      pip.hit.userData.kind = 'module-pip';
+      pipTargets.push(pip.hit);
+      const entry = {
+        key,
+        zoneId,
+        moduleId: module.module_id,
+        available,
+        type,
+        angle,
+        position: new THREE.Vector3(x, y, pipZ),
+        line: pip.line,
+        fill: pip.fill,
+        hit: pip.hit,
+        baseLineOpacity: pip.baseLineOpacity,
+        baseFillOpacity: pip.baseFillOpacity
+      };
+      visuals.modulePipEntries.push(entry);
+      visuals.modulePipMap.set(module.module_id, entry);
+      pipLookup.set(key, entry);
+    });
+  }
+
+  function createModulePipMesh(type, size, available) {
+    const group = new THREE.Group();
+    const outlineGeometry = createPipOutlineGeometry(size);
+    const lineOpacity = available ? 0.78 : 0.34;
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: available ? activePalette.edgeStrong : activePalette.edgeDim,
+      transparent: true,
+      opacity: lineOpacity,
+      depthWrite: false,
+      depthTest: false
+    });
+    const line = new THREE.LineSegments(outlineGeometry, lineMaterial);
+    group.add(line);
+
+    let fill = null;
+    let fillOpacity = 0;
+    if (available) {
+      const fillGeometry = new THREE.PlaneGeometry(size * 1.05, size * 1.05);
+      const fillMaterial = signalMaterials.pipFill.clone();
+      fillMaterial.opacity = 0.2;
+      fillMaterial.depthTest = false;
+      fillOpacity = fillMaterial.opacity;
+      fill = new THREE.Mesh(fillGeometry, fillMaterial);
+      group.add(fill);
+    }
+
+    if (type === 'metrics') {
+      group.rotation.z = Math.PI / 4;
+    }
+
+    const hitGeometry = new THREE.PlaneGeometry(size * 1.9, size * 1.9);
+    const hitMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+    const hit = new THREE.Mesh(hitGeometry, hitMaterial);
+    group.add(hit);
+
+    return {
+      group,
+      line,
+      fill,
+      hit,
+      baseLineOpacity: lineOpacity,
+      baseFillOpacity: fillOpacity
+    };
+  }
+
+  function createPipOutlineGeometry(size) {
+    const half = size * 0.5;
+    const points = [
+      [-half, -half],
+      [half, -half],
+      [half, half],
+      [-half, half]
+    ];
+    const positions = [];
+    for (let i = 0; i < points.length; i += 1) {
+      const [x1, y1] = points[i];
+      const [x2, y2] = points[(i + 1) % points.length];
+      positions.push(x1, y1, 0, x2, y2, 0);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    return geometry;
+  }
+
+  function createRingLine(radius, material) {
+    const segments = 56;
+    const points = [];
+    for (let i = 0; i < segments; i += 1) {
+      const angle = (i / segments) * Math.PI * 2;
+      points.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0));
+    }
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    return new THREE.LineLoop(geometry, material);
+  }
+
+  function updateMicrodotsForSelection() {
+    zoneVisuals.forEach((visuals) => clearMicrodots(visuals));
+    const zoneId = state.selectedZoneId;
+    if (!zoneId) return;
+    buildMicrodots(zoneId);
+  }
+
+  function buildMicrodots(zoneId) {
+    const visuals = zoneVisuals.get(zoneId);
+    if (!visuals?.modulePipConfig) return;
+    const activeModuleId = state.activeModuleByZone?.[zoneId];
+    if (!activeModuleId) return;
+    const modules = getZoneModules(zoneId);
+    const module = modules.find((entry) => entry?.module_id === activeModuleId);
+    if (!module) return;
+    const pipEntry = visuals.modulePipMap.get(activeModuleId);
+    if (!pipEntry) return;
+    const items = Array.isArray(module.items) ? module.items : [];
+    if (!items.length) return;
+
+    const microSize = clamp(
+      visuals.modulePipConfig.pipSize * MODULE_SIGNAL.microFactor,
+      MODULE_SIGNAL.microMin,
+      MODULE_SIGNAL.microMax
+    );
+    const microRadius = microSize * (items.length > 8 ? 2.2 : 1.6);
+    const arc = Math.PI * 1.4;
+    const startAngle = -arc * 0.5;
+    const z = visuals.plateTop + MODULE_SIGNAL.microZOffset;
+
+    const group = new THREE.Group();
+    group.name = `${zoneId}_module_microdots`;
+    group.renderOrder = 5;
+    group.frustumCulled = false;
+    items.forEach((item, index) => {
+      if (!item) return;
+      const t = items.length > 1 ? index / (items.length - 1) : 0.5;
+      const angle = startAngle + arc * t;
+      const x = pipEntry.position.x + Math.cos(angle) * microRadius;
+      const y = pipEntry.position.y + Math.sin(angle) * microRadius;
+      const dotGroup = createMicrodot(item, microSize);
+      dotGroup.renderOrder = 5;
+      dotGroup.frustumCulled = false;
+      dotGroup.position.set(x, y, z);
+      group.add(dotGroup);
+    });
+    visuals.group.add(group);
+    visuals.microdotsGroup = group;
+  }
+
+  function createMicrodot(item, size) {
+    const status = String(item?.status || '').toLowerCase();
+    const group = new THREE.Group();
+    if (status === 'locked') {
+      const ring = createRingLine(size * 0.7, signalMaterials.microLine);
+      group.add(ring);
+      const notchGeometry = new THREE.BufferGeometry();
+      const notchAngle = -Math.PI / 4;
+      const r1 = size * 0.55;
+      const r2 = size * 0.85;
+      const notchPositions = [
+        Math.cos(notchAngle) * r1, Math.sin(notchAngle) * r1, 0,
+        Math.cos(notchAngle) * r2, Math.sin(notchAngle) * r2, 0
+      ];
+      notchGeometry.setAttribute('position', new THREE.Float32BufferAttribute(notchPositions, 3));
+      const notch = new THREE.LineSegments(notchGeometry, signalMaterials.microLine);
+      group.add(notch);
+    } else {
+      const geometry = new THREE.CircleGeometry(size * 0.65, 14);
+      const dot = new THREE.Mesh(geometry, signalMaterials.microSolid);
+      group.add(dot);
+    }
+
+    const qty = item?.qty;
+    if (qty != null && qty > 0) {
+      const ticks = Math.min(2, qty);
+      const tickPositions = [];
+      const tickLength = size * 0.7;
+      for (let i = 0; i < ticks; i += 1) {
+        const offset = (i - (ticks - 1) / 2) * size * 0.6;
+        tickPositions.push(
+          size * 1.15, offset - tickLength * 0.5, 0,
+          size * 1.15, offset + tickLength * 0.5, 0
+        );
+      }
+      const tickGeometry = new THREE.BufferGeometry();
+      tickGeometry.setAttribute('position', new THREE.Float32BufferAttribute(tickPositions, 3));
+      const tickLine = new THREE.LineSegments(tickGeometry, signalMaterials.microTick);
+      group.add(tickLine);
+    }
+    return group;
   }
 
   function addPolygon(lines, radius, sides) {
@@ -763,8 +1164,53 @@ export function createBase3d() {
     zoneVisuals.forEach((visuals, zoneId) => {
       const box = new THREE.Box3().setFromObject(visuals.group);
       const center = box.getCenter(new THREE.Vector3());
+      visuals.center = center;
+      updatePlateMetrics(visuals);
       zoneCenters.set(zoneId, center);
     });
+  }
+
+  function updatePlateMetrics(visuals) {
+    if (!visuals?.plates?.length) return;
+    const plateBox = new THREE.Box3();
+    plateBox.makeEmpty();
+    const corners = [
+      new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(),
+      new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()
+    ];
+    visuals.plates.forEach((mesh) => {
+      const geometry = mesh.geometry;
+      if (!geometry) return;
+      if (!geometry.boundingBox) geometry.computeBoundingBox();
+      const meshBox = geometry.boundingBox;
+      if (!meshBox) return;
+      const { min, max } = meshBox;
+      mesh.updateMatrix();
+      corners[0].set(min.x, min.y, min.z);
+      corners[1].set(min.x, min.y, max.z);
+      corners[2].set(min.x, max.y, min.z);
+      corners[3].set(min.x, max.y, max.z);
+      corners[4].set(max.x, min.y, min.z);
+      corners[5].set(max.x, min.y, max.z);
+      corners[6].set(max.x, max.y, min.z);
+      corners[7].set(max.x, max.y, max.z);
+      corners.forEach((corner) => {
+        corner.applyMatrix4(mesh.matrix);
+        plateBox.expandByPoint(corner);
+      });
+    });
+    if (plateBox.isEmpty()) return;
+    visuals.plateCenter = plateBox.getCenter(new THREE.Vector3());
+    visuals.plateSize = plateBox.getSize(new THREE.Vector3());
+    visuals.plateTop = plateBox.max.z;
+  }
+
+  function updateModuleSignals() {
+    zoneVisuals.forEach((_, zoneId) => {
+      buildModulePips(zoneId);
+    });
+    updateMicrodotsForSelection();
+    requestRender();
   }
 
   function updateCameraLimits() {
@@ -822,6 +1268,28 @@ export function createBase3d() {
     requestRender();
   }
 
+  function setHoveredPip(zoneId, moduleId) {
+    const nextKey = zoneId && moduleId ? `${zoneId}:${moduleId}` : null;
+    if (state.hoveredModuleKey === nextKey) return;
+    const prevKey = state.hoveredModuleKey;
+    state.hoveredModuleKey = nextKey;
+    if (prevKey) applyPipHover(prevKey, false);
+    if (nextKey) applyPipHover(nextKey, true);
+    requestRender();
+  }
+
+  function applyPipHover(key, isHovered) {
+    const entry = pipLookup.get(key);
+    if (!entry) return;
+    const boost = isHovered ? 0.18 : 0;
+    if (entry.line) {
+      entry.line.material.opacity = clamp(entry.baseLineOpacity + boost, 0, 1);
+    }
+    if (entry.fill) {
+      entry.fill.material.opacity = clamp(entry.baseFillOpacity + boost * 0.6, 0, 1);
+    }
+  }
+
   function selectZoneFromEvent(event) {
     return selectZoneFromPoint(event.clientX, event.clientY);
   }
@@ -832,6 +1300,17 @@ export function createBase3d() {
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, activeCamera || camera);
+    const pipHits = raycaster.intersectObjects(pipTargets, false);
+    if (pipHits.length) {
+      const pipHit = pipHits[0]?.object?.userData;
+      if (pipHit?.zoneId && pipHit?.moduleId) {
+        if (onSelectModule) onSelectModule(pipHit.zoneId, pipHit.moduleId);
+        if (pipHit.zoneId !== state.selectedZoneId && onSelect) {
+          onSelect(pipHit.zoneId);
+        }
+        return pipHit.zoneId;
+      }
+    }
     const hits = raycaster.intersectObjects(clickable, false);
     if (!hits.length) return null;
     const hit = hits[0].object;
@@ -847,6 +1326,16 @@ export function createBase3d() {
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, activeCamera || camera);
+    const pipHits = raycaster.intersectObjects(pipTargets, false);
+    if (pipHits.length) {
+      const pipHit = pipHits[0]?.object?.userData;
+      if (pipHit?.zoneId && pipHit?.moduleId) {
+        setHoveredPip(pipHit.zoneId, pipHit.moduleId);
+        setHoverZone(null);
+        return;
+      }
+    }
+    setHoveredPip(null, null);
     const hits = raycaster.intersectObjects(clickable, false);
     if (!hits.length) {
       setHoverZone(null);
@@ -1050,6 +1539,7 @@ export function createBase3d() {
       state.pinch.startRadius = 0;
       activeTouches.clear();
       setHoverZone(null);
+      setHoveredPip(null, null);
     };
 
     const onTouchEnd = (event) => {
@@ -1071,6 +1561,7 @@ export function createBase3d() {
       state.pinch.active = false;
       state.pinch.startDistance = 0;
       state.pinch.startRadius = 0;
+      setHoveredPip(null, null);
       requestRender(true);
     };
 
@@ -1178,12 +1669,26 @@ export function createBase3d() {
     const prevSelected = state.selectedZoneId;
     state.selectedZoneId = zoneId;
     updateMaterials(zoneId);
+    updateMicrodotsForSelection();
     if (zoneId && zoneId !== prevSelected) {
       triggerPulse(zoneId);
       setLiftTarget(zoneId, true);
       if (prevSelected) setLiftTarget(prevSelected, false);
     }
     requestRender(true);
+  }
+
+  function setActiveModule(zoneId, moduleId) {
+    if (!zoneId) return;
+    state.activeModuleByZone = { ...state.activeModuleByZone, [zoneId]: moduleId };
+    updateMicrodotsForSelection();
+    requestRender();
+  }
+
+  function setActiveModules(activeModules = {}) {
+    state.activeModuleByZone = { ...activeModules };
+    updateMicrodotsForSelection();
+    requestRender();
   }
 
   function setZonesData(zonesData = {}) {
@@ -1205,6 +1710,8 @@ export function createBase3d() {
         visuals.led.scale.setScalar(state.ledScaleMultiplier);
       }
     });
+    updateModuleSignals();
+    setHoveredPip(null, null);
     updateMaterials(state.selectedZoneId);
     requestRender();
   }
@@ -1249,11 +1756,29 @@ export function createBase3d() {
         visuals.led.material.color.set(color);
         visuals.led.material.emissive.set(color);
       }
+      if (visuals.moduleRing) {
+        visuals.moduleRing.material.color.set(activePalette.edgeDim);
+      }
+      visuals.modulePipEntries.forEach((entry) => {
+        const lineColor = entry.available ? activePalette.edgeStrong : activePalette.edgeDim;
+        entry.line?.material?.color?.set(lineColor);
+        if (entry.fill) {
+          entry.fill.material.color.set(activePalette.edgeStrong);
+          entry.fill.material.emissive.set(activePalette.edgeStrong);
+        }
+      });
     });
 
     if (state.pulse.mesh) {
       state.pulse.mesh.material.color.set(activePalette.edgeStrong);
     }
+
+    signalMaterials.microSolid.color.set(activePalette.edgeStrong);
+    signalMaterials.microLine.color.set(activePalette.edgeDim);
+    signalMaterials.microTick.color.set(activePalette.edgeDim);
+    signalMaterials.pipFill.color.set(activePalette.edgeStrong);
+    signalMaterials.pipFill.emissive.set(activePalette.edgeStrong);
+    signalMaterials.ring.color.set(activePalette.edgeDim);
 
     if (state.lights.ambient) state.lights.ambient.color.set(activePalette.lightAmbient);
     if (state.lights.key) state.lights.key.color.set(activePalette.lightKey);
@@ -1746,14 +2271,27 @@ export function createBase3d() {
     mcpBridge?.disconnect?.();
     mcpBridge = null;
     disposeSceneResources();
+    disposeSignalMaterials();
     bloomPass?.dispose?.();
     composer?.dispose?.();
     composer = null;
     if (renderer) renderer.dispose();
     composer = null;
     clickable.length = 0;
+    pipTargets.length = 0;
+    pipLookup.clear();
     zoneVisuals.clear();
     zoneCenters.clear();
+  }
+
+  function disposeObject(object) {
+    if (!object) return;
+    object.traverse((child) => {
+      if (child.isMesh || child.isLine || child.isLineSegments || child.isLineLoop) {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) disposeMaterial(child.material);
+      }
+    });
   }
 
   function disposeSceneResources() {
@@ -1773,6 +2311,7 @@ export function createBase3d() {
       material.forEach((item) => item?.dispose?.());
       return;
     }
+    if (material?.userData?.sharedSignal) return;
     material?.dispose?.();
   }
 
@@ -1782,11 +2321,19 @@ export function createBase3d() {
     });
   }
 
+  function disposeSignalMaterials() {
+    Object.values(signalMaterials).forEach((material) => {
+      material?.dispose?.();
+    });
+  }
+
   return {
     init,
     setActive,
     setZonesData,
     setSelection,
+    setActiveModule,
+    setActiveModules,
     setPalette,
     setVisualMode,
     getZoneScreenPosition,

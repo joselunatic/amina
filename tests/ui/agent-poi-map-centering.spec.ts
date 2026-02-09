@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3002';
 const AGENT_USERNAME = process.env.PLAYWRIGHT_AGENT_USER || 'pike';
-const AGENT_PASSWORD = process.env.PLAYWRIGHT_AGENT_PASS || '123456';
+const AGENT_PASSWORD = process.env.PLAYWRIGHT_AGENT_PASS || 'amarok';
 
 async function loginAsAgent(page: any) {
   await page.goto(baseURL);

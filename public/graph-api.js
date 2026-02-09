@@ -448,9 +448,11 @@ export class GraphAPI {
     if (layoutName === 'cose') {
       return {
         name: 'cose',
-        padding: 30,
-        nodeRepulsion: 6000,
-        idealEdgeLength: 160,
+        padding: 50,
+        nodeRepulsion: 9000,
+        idealEdgeLength: 220,
+        edgeElasticity: 0.1,
+        gravity: 0.25,
         animate: false
       };
     }
@@ -687,7 +689,8 @@ export class GraphAPI {
     layoutRunner.run();
     return new Promise((resolve) => {
       layoutRunner.once('layoutstop', () => {
-        this.cy.fit?.(undefined, 20);
+        const fitPadding = typeof options.fitPadding === 'number' ? options.fitPadding : 20;
+        this.cy.fit?.(undefined, fitPadding);
         this.toggleLoader(false);
         const summaryTarget = this.summaryPanel || this.container;
         this.updateSummary(ctx.entity, mode);
