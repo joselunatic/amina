@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "test:e2e": "playwright test",
-    "test:graph-api": "node --no-warnings tests/graph-api.spec.mjs"
+    "test:graph-api": "node --no-warnings tests/graph-api.spec.mjs",
+    "test:api-contracts": "node --no-warnings tests/api/contracts-runner.mjs"
   },
   "keywords": [
     "esoterrorists",

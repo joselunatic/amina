@@ -48,6 +48,10 @@ Visit [http://localhost:3002](http://localhost:3002) to access the AMINA console
 - **Field Operative** (player view)
 - **DM Command Access** (requires the DM clearance code)
 
+## Test troubleshooting
+- If `playwright` or `npm run test:e2e` hangs, use `docs/playwright-troubleshooting.md`.
+- API contract fallback (no browser UI automation): `npm run test:api-contracts`.
+
 ## Usage
 ### Player View
 - Choose **Field Operative** during the boot sequence, select an agent and enter their password to enter the normal view.
