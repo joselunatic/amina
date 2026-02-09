@@ -3,7 +3,9 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const { hashPassword } = require('./auth');
 
-const DB_PATH = path.join(__dirname, 'schuylkill.db');
+const DB_PATH = process.env.SQLITE_DB_PATH
+  ? path.resolve(process.env.SQLITE_DB_PATH)
+  : path.join(__dirname, 'schuylkill.db');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 
 // Tablas principales

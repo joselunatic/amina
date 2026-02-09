@@ -7,7 +7,9 @@
     "start": "node server.js",
     "test:e2e": "playwright test",
     "test:graph-api": "node --no-warnings tests/graph-api.spec.mjs",
-    "test:api-contracts": "node --no-warnings tests/api/contracts-runner.mjs"
+    "test:api-contracts": "node --no-warnings tests/api/run-contracts-isolated.mjs",
+    "test:api-contracts:live": "node --no-warnings tests/api/contracts-runner.mjs",
+    "test:api-contracts:isolated": "node --no-warnings tests/api/run-contracts-isolated.mjs"
   },
   "keywords": [
     "esoterrorists",
