@@ -50,7 +50,8 @@ Visit [http://localhost:3002](http://localhost:3002) to access the AMINA console
 
 ## Test troubleshooting
 - If `playwright` or `npm run test:e2e` hangs, use `docs/playwright-troubleshooting.md`.
-- API contract fallback (no browser UI automation): `npm run test:api-contracts`.
+- Current primary verification (temporary while e2e is unstable in this environment): `npm run test:api-contracts`.
+- UI e2e remains complementary: `npm run test:e2e`.
 
 ## Usage
 ### Player View

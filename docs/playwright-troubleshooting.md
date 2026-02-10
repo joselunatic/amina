@@ -2,6 +2,11 @@
 
 Use this playbook when `playwright` or `npm run test:e2e` appears to hang.
 
+## Current validation policy (temporary)
+
+- Primary automated verification: `npm run test:api-contracts`
+- Secondary/complementary verification: `npm run test:e2e` (best-effort while CLI stability is being improved)
+
 ## 1) Check for hanging processes
 
 ```bash
@@ -41,7 +46,7 @@ Exit code guide:
 
 ## 5) Quick non-UI fallback for API contract verification
 
-If Playwright runner is unstable in the current shell/session:
+If Playwright runner is unstable in the current shell/session, use the primary temporary check:
 
 ```bash
 npm run test:api-contracts

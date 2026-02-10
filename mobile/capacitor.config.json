@@ -1,0 +1,10 @@
+{
+  "appId": "xyz.joselun.amina",
+  "appName": "Amina",
+  "webDir": "www",
+  "server": {
+    "url": "https://amina.joselun.xyz",
+    "cleartext": false,
+    "androidScheme": "https"
+  }
+}

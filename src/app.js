@@ -1,6 +1,7 @@
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
 const {
   isDmSession,
   isAgentSession,
@@ -74,9 +75,14 @@ const {
 const { hashPassword, verifyPassword } = require('../auth');
 
 const app = express();
+// Trust first proxy hop (Traefik) so secure cookies work behind HTTPS termination.
+app.set('trust proxy', 1);
 const DM_SECRET = process.env.DM_SECRET || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || DM_SECRET || 'amina-dev-session-secret';
 const SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 365 * 10;
+const SESSION_DB_PATH = path.resolve(
+  process.env.SESSION_DB_PATH || path.join(__dirname, '..', 'sessions.sqlite')
+);
 const MAPBOX_TOKEN =
   process.env.MAPBOX_PUBLIC_TOKEN ||
   process.env.MAPBOX_ACCESS_TOKEN ||
@@ -175,6 +181,11 @@ app.use(express.json());
 app.use(
   session({
     name: 'amina.sid',
+    store: new SQLiteStore({
+      db: path.basename(SESSION_DB_PATH),
+      dir: path.dirname(SESSION_DB_PATH),
+      table: 'sessions'
+    }),
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,

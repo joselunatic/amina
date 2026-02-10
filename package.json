@@ -9,7 +9,13 @@
     "test:graph-api": "node --no-warnings tests/graph-api.spec.mjs",
     "test:api-contracts": "node --no-warnings tests/api/run-contracts-isolated.mjs",
     "test:api-contracts:live": "node --no-warnings tests/api/contracts-runner.mjs",
-    "test:api-contracts:isolated": "node --no-warnings tests/api/run-contracts-isolated.mjs"
+    "test:api-contracts:isolated": "node --no-warnings tests/api/run-contracts-isolated.mjs",
+    "mobile:install": "npm --prefix mobile install",
+    "mobile:add:android": "npm --prefix mobile run add:android",
+    "mobile:sync": "npm --prefix mobile run sync",
+    "mobile:open": "npm --prefix mobile run open",
+    "mobile:run": "npm --prefix mobile run run:android",
+    "mobile:doctor": "npm --prefix mobile run doctor"
   },
   "keywords": [
     "esoterrorists",
@@ -21,6 +27,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "connect-sqlite3": "^0.9.16",
     "cytoscape-dblclick": "^0.3.1",
     "cytoscape-spread": "^3.0.0",
     "dotenv": "^16.4.5",

@@ -39,6 +39,7 @@ async function waitForServer(url, timeoutMs = 20000) {
 async function main() {
   const serverEnv = {
     ...process.env,
+    NODE_ENV: 'test',
     HOST: host,
     PORT: String(port),
     SQLITE_DB_PATH: dbPath
