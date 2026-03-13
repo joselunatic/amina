@@ -1787,6 +1787,7 @@ async function getEntityForAgent(id) {
 
 function filterAgentEntity(entity) {
   if (!entity) return null;
+  if (entity.visibility === 'dm_only') return null;
   if (entity.visibility === 'locked' && entity.type === 'poi') {
     return {
       id: entity.id,
@@ -2363,12 +2364,37 @@ async function logEntityActivity({
 async function listEntityActivity({ limit = 10, offset = 0, mode = 'dm' } = {}) {
   const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 10;
   const safeOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
-  const where = mode === 'agent' ? "WHERE visibility = 'agent_public'" : '';
+  const where =
+    mode === 'agent'
+      ? `
+      WHERE (
+        (ea.entity_type = 'entity' AND e.visibility = 'agent_public' AND IFNULL(e.archived, 0) = 0) OR
+        (ea.entity_type = 'poi' AND p.visibility = 'agent_public') OR
+        (e.id IS NULL AND p.id IS NULL AND ea.visibility = 'agent_public')
+      )
+    `
+      : '';
   const rows = await all(
-    `SELECT * FROM entity_activity ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+    `
+      SELECT ea.*
+      FROM entity_activity ea
+      LEFT JOIN entities e ON ea.entity_type = 'entity' AND e.id = ea.entity_id
+      LEFT JOIN pois p ON ea.entity_type = 'poi' AND p.id = ea.entity_id
+      ${where}
+      ORDER BY ea.created_at DESC, ea.id DESC
+      LIMIT ? OFFSET ?
+    `,
     [safeLimit, safeOffset]
   );
-  const totalRow = await get(`SELECT COUNT(*) as total FROM entity_activity ${where}`);
+  const totalRow = await get(
+    `
+      SELECT COUNT(*) as total
+      FROM entity_activity ea
+      LEFT JOIN entities e ON ea.entity_type = 'entity' AND e.id = ea.entity_id
+      LEFT JOIN pois p ON ea.entity_type = 'poi' AND p.id = ea.entity_id
+      ${where}
+    `
+  );
   const items = rows.map((row) => ({
     ...row,
     updated_fields: row.updated_fields ? JSON.parse(row.updated_fields) : []

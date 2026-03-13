@@ -30,7 +30,7 @@ function validatePoi(payload, options = {}) {
   const cleaned = {};
   const entityLinks = [];
   const linksProvided = Array.isArray(payload.entity_links);
-  const allowedVisibility = ['agent_public', 'locked'];
+  const allowedVisibility = ['agent_public', 'locked', 'dm_only'];
 
   if (!payload.name || typeof payload.name !== 'string' || !payload.name.trim()) {
     errors.push('Name is required.');

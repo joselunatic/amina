@@ -164,6 +164,39 @@ async function main() {
   const agentList = await agentListRes.json();
   assert.ok(!agentList.find((entity) => entity.id === dmOnly.id));
 
+  const hiddenPoiName = `HiddenPoi-${Date.now()}`;
+  const hiddenPoiRes = await fetch(`${BASE_URL}/api/pois`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: dmCookie },
+    body: JSON.stringify({
+      name: hiddenPoiName,
+      category: 'RUMOR',
+      latitude: 40.65,
+      longitude: -76.21,
+      threat_level: 2,
+      veil_status: 'frayed',
+      public_note: 'Solo para validar visibilidad',
+      dm_note: 'Debe permanecer oculto al agente',
+      visibility: 'dm_only'
+    })
+  });
+  assert.equal(hiddenPoiRes.status, 201);
+  const hiddenPoi = await hiddenPoiRes.json();
+
+  const agentPoisRes = await fetch(`${BASE_URL}/api/pois`, {
+    headers: { Cookie: agentCookie }
+  });
+  assert.equal(agentPoisRes.status, 200);
+  const agentPois = await agentPoisRes.json();
+  assert.ok(!agentPois.find((poi) => poi.id === hiddenPoi.id || poi.name === hiddenPoiName));
+
+  const agentActivityRes = await fetch(`${BASE_URL}/api/activity?limit=50&offset=0`, {
+    headers: { Cookie: agentCookie }
+  });
+  assert.equal(agentActivityRes.status, 200);
+  const agentActivity = await agentActivityRes.json();
+  assert.ok(!agentActivity.items.find((item) => item.entity_type === 'poi' && item.entity_label === hiddenPoiName));
+
   for (const id of [created.id, dmOnly.id]) {
     const delRes = await fetch(`${BASE_URL}/api/dm/entities/${id}`, {
       method: 'DELETE',
@@ -171,6 +204,12 @@ async function main() {
     });
     assert.equal(delRes.status, 204);
   }
+
+  const hiddenPoiDeleteRes = await fetch(`${BASE_URL}/api/pois/${hiddenPoi.id}`, {
+    method: 'DELETE',
+    headers: { Cookie: dmCookie }
+  });
+  assert.equal(hiddenPoiDeleteRes.status, 204);
 
   console.log('Contracts runner OK');
 }
