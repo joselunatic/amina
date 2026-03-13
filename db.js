@@ -2368,8 +2368,8 @@ async function listEntityActivity({ limit = 10, offset = 0, mode = 'dm' } = {}) 
     mode === 'agent'
       ? `
       WHERE (
-        (ea.entity_type = 'entity' AND e.visibility = 'agent_public' AND IFNULL(e.archived, 0) = 0) OR
-        (ea.entity_type = 'poi' AND p.visibility = 'agent_public') OR
+        (ea.entity_type = 'entity' AND ea.visibility = 'agent_public' AND e.visibility = 'agent_public' AND IFNULL(e.archived, 0) = 0) OR
+        (ea.entity_type = 'poi' AND ea.visibility = 'agent_public' AND p.visibility = 'agent_public') OR
         (e.id IS NULL AND p.id IS NULL AND ea.visibility = 'agent_public')
       )
     `
@@ -2400,6 +2400,14 @@ async function listEntityActivity({ limit = 10, offset = 0, mode = 'dm' } = {}) 
     updated_fields: row.updated_fields ? JSON.parse(row.updated_fields) : []
   }));
   return { items, total: totalRow ? totalRow.total : 0 };
+}
+
+async function updateActivityVisibility(id, visibility) {
+  const safeId = Number(id);
+  if (!safeId || Number.isNaN(safeId)) return null;
+  const safeVisibility = visibility === 'dm_only' ? 'dm_only' : 'agent_public';
+  await run('UPDATE entity_activity SET visibility = ? WHERE id = ?', [safeVisibility, safeId]);
+  return get('SELECT * FROM entity_activity WHERE id = ?', [safeId]);
 }
 
 async function listEntropiaZones() {
@@ -2616,6 +2624,7 @@ module.exports = {
   createChatMessage,
   logEntityActivity,
   listEntityActivity,
+  updateActivityVisibility,
   listEntropiaZones,
   replaceEntropiaZones
 };

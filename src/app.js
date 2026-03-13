@@ -69,6 +69,7 @@ const {
   createChatMessage,
   logEntityActivity,
   listEntityActivity,
+  updateActivityVisibility,
   listEntropiaZones,
   replaceEntropiaZones
 } = require('./db');
@@ -342,6 +343,26 @@ app.get('/api/activity', requireAnySession, async (req, res, next) => {
     const mode = isDmSession(req) ? 'dm' : 'agent';
     const activity = await listEntityActivity({ limit, offset, mode });
     res.json({ ...activity, limit, offset });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put('/api/activity/:id', requireDmSession, async (req, res, next) => {
+  try {
+    const rawVisibility = req.body?.visibility;
+    const visibility = rawVisibility === 'dm_only' ? 'dm_only' : rawVisibility === 'agent_public' ? 'agent_public' : null;
+    if (!visibility) {
+      return res.status(400).json({ error: 'Visibility must be agent_public or dm_only.' });
+    }
+    const updated = await updateActivityVisibility(req.params.id, visibility);
+    if (!updated) {
+      return res.status(404).json({ error: 'Activity entry not found.' });
+    }
+    res.json({
+      ...updated,
+      updated_fields: updated.updated_fields ? JSON.parse(updated.updated_fields) : []
+    });
   } catch (err) {
     next(err);
   }

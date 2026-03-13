@@ -197,6 +197,51 @@ async function main() {
   const agentActivity = await agentActivityRes.json();
   assert.ok(!agentActivity.items.find((item) => item.entity_type === 'poi' && item.entity_label === hiddenPoiName));
 
+  const publicPoiName = `PublicPoi-${Date.now()}`;
+  const publicPoiRes = await fetch(`${BASE_URL}/api/pois`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: dmCookie },
+    body: JSON.stringify({
+      name: publicPoiName,
+      category: 'RUMOR',
+      latitude: 40.66,
+      longitude: -76.22,
+      threat_level: 2,
+      veil_status: 'frayed',
+      public_note: 'Visible antes de ocultar actividad',
+      dm_note: 'Se ocultara solo el log',
+      visibility: 'agent_public'
+    })
+  });
+  assert.equal(publicPoiRes.status, 201);
+  const publicPoi = await publicPoiRes.json();
+
+  const dmActivityRes = await fetch(`${BASE_URL}/api/activity?limit=50&offset=0`, {
+    headers: { Cookie: dmCookie }
+  });
+  assert.equal(dmActivityRes.status, 200);
+  const dmActivity = await dmActivityRes.json();
+  const publicPoiCreateEntry = dmActivity.items.find(
+    (item) => item.entity_type === 'poi' && item.entity_label === publicPoiName && item.action === 'create'
+  );
+  assert.ok(publicPoiCreateEntry);
+
+  const hideActivityRes = await fetch(`${BASE_URL}/api/activity/${publicPoiCreateEntry.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Cookie: dmCookie },
+    body: JSON.stringify({ visibility: 'dm_only' })
+  });
+  assert.equal(hideActivityRes.status, 200);
+  const hiddenActivityEntry = await hideActivityRes.json();
+  assert.equal(hiddenActivityEntry.visibility, 'dm_only');
+
+  const agentActivityAfterHideRes = await fetch(`${BASE_URL}/api/activity?limit=50&offset=0`, {
+    headers: { Cookie: agentCookie }
+  });
+  assert.equal(agentActivityAfterHideRes.status, 200);
+  const agentActivityAfterHide = await agentActivityAfterHideRes.json();
+  assert.ok(!agentActivityAfterHide.items.find((item) => item.id === publicPoiCreateEntry.id));
+
   for (const id of [created.id, dmOnly.id]) {
     const delRes = await fetch(`${BASE_URL}/api/dm/entities/${id}`, {
       method: 'DELETE',
@@ -210,6 +255,12 @@ async function main() {
     headers: { Cookie: dmCookie }
   });
   assert.equal(hiddenPoiDeleteRes.status, 204);
+
+  const publicPoiDeleteRes = await fetch(`${BASE_URL}/api/pois/${publicPoi.id}`, {
+    method: 'DELETE',
+    headers: { Cookie: dmCookie }
+  });
+  assert.equal(publicPoiDeleteRes.status, 204);
 
   console.log('Contracts runner OK');
 }

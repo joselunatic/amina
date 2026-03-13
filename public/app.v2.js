@@ -5888,6 +5888,40 @@ function renderActivity(items = [], options = {}) {
       fields.title = `Campos: ${fieldNames.join(', ')}`;
       body.appendChild(fields);
     }
+    if (state.dmMode) {
+      const visibilityWrap = document.createElement('label');
+      visibilityWrap.className = 'activity-item-visibility';
+      const visibilityToggle = document.createElement('input');
+      visibilityToggle.type = 'checkbox';
+      visibilityToggle.checked = item.visibility !== 'dm_only';
+      visibilityToggle.disabled = false;
+      const visibilityLabel = document.createElement('span');
+      visibilityLabel.textContent = visibilityToggle.checked ? 'Visible a agentes' : 'Solo DM';
+      visibilityToggle.addEventListener('change', async () => {
+        const nextVisibility = visibilityToggle.checked ? 'agent_public' : 'dm_only';
+        visibilityToggle.disabled = true;
+        try {
+          const response = await fetch(`/api/activity/${item.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ visibility: nextVisibility })
+          });
+          if (!response.ok) {
+            throw new Error('No se pudo actualizar la visibilidad.');
+          }
+          item.visibility = nextVisibility;
+          visibilityLabel.textContent = nextVisibility === 'agent_public' ? 'Visible a agentes' : 'Solo DM';
+        } catch (err) {
+          visibilityToggle.checked = !visibilityToggle.checked;
+          showMessage(err.message || 'No se pudo actualizar la visibilidad.', true);
+        } finally {
+          visibilityToggle.disabled = false;
+        }
+      });
+      visibilityWrap.appendChild(visibilityToggle);
+      visibilityWrap.appendChild(visibilityLabel);
+      body.appendChild(visibilityWrap);
+    }
     activityList.appendChild(li);
   });
   activityStatus.textContent = 'Últimos cambios sincronizados.';

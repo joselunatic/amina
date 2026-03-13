@@ -565,6 +565,21 @@ body:not([data-workspace-view="map"]) .activity-panel {
   cursor: help;
 }
 
+.activity-item-visibility {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 214, 140, 0.88);
+}
+
+.activity-item-visibility input {
+  accent-color: rgba(255, 214, 140, 0.95);
+}
+
 .activity-empty {
   font-size: 0.82rem;
   color: rgba(180, 255, 222, 0.7);
