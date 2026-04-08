@@ -1,6 +1,6 @@
 const { test, expect, request } = require('@playwright/test');
 
-const BASE_URL = process.env.API_BASE_URL || process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3001';
+const BASE_URL = process.env.API_BASE_URL || process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3410';
 const DM_SECRET = process.env.TEST_DM_SECRET || process.env.DM_SECRET || 'Pill4skiM0nAm0ur';
 const AGENT_USERNAME = process.env.TEST_AGENT_USERNAME || 'pike';
 const AGENT_PASSWORD = process.env.TEST_AGENT_PASSWORD || 'amarok';

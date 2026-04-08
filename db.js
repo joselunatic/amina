@@ -491,8 +491,7 @@ async function seedPoisIfEmpty() {
         poi.dm_note,
         poi.threat_level,
         poi.veil_status,
-        poi.session_tag,
-        'agent_public'
+        poi.session_tag
       ]);
     }
   }
@@ -1153,13 +1152,17 @@ async function ensureEntitiesTables() {
     }
   };
 
+  await ensureColumn('name', 'TEXT', '');
   await ensureColumn('code_name', 'TEXT', '');
   await ensureColumn('real_name', 'TEXT', '');
   await ensureColumn('threat_level', 'INTEGER', '');
+  await ensureColumn('allegiance', 'TEXT', '');
   await ensureColumn('first_session', 'TEXT', '');
   await ensureColumn('last_session', 'TEXT', '');
   await ensureColumn('sessions', 'TEXT', '');
   await ensureColumn('mel', 'TEXT', '');
+  await ensureColumn('public_note', 'TEXT', '');
+  await ensureColumn('dm_note', 'TEXT', '');
   await ensureColumn('public_summary', 'TEXT', '');
   await ensureColumn('dm_notes', 'TEXT', '');
   await ensureColumn('agent_notes', 'TEXT', '');

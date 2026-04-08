@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 const projectRoot = process.cwd();
@@ -9,12 +8,11 @@ const host = process.env.TEST_HOST || '127.0.0.1';
 const baseUrl = `http://${host}:${port}`;
 const tmpDir = path.join(projectRoot, 'tests', 'tmp');
 const dbPath = path.join(tmpDir, `contracts-${Date.now()}.db`);
-const templateDbPath = path.join(projectRoot, 'schuylkill.db');
+const testDmSecret = process.env.TEST_DM_SECRET || 'Pill4skiM0nAm0ur';
+const testAgentPassword = process.env.TEST_AGENT_PASSWORD || 'amarok';
+const testAgentUsername = process.env.TEST_AGENT_USERNAME || 'pike';
 
 fs.mkdirSync(tmpDir, { recursive: true });
-if (fs.existsSync(templateDbPath)) {
-  fs.copyFileSync(templateDbPath, dbPath);
-}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,7 +40,10 @@ async function main() {
     NODE_ENV: 'test',
     HOST: host,
     PORT: String(port),
-    SQLITE_DB_PATH: dbPath
+    SQLITE_DB_PATH: dbPath,
+    DM_SECRET: testDmSecret,
+    DM_DEFAULT_PASSWORD: testDmSecret,
+    AGENT_DEFAULT_PASSWORD: testAgentPassword
   };
 
   const server = spawn(process.execPath, ['server.js'], {
@@ -68,7 +69,10 @@ async function main() {
         cwd: projectRoot,
         env: {
           ...process.env,
-          API_BASE_URL: baseUrl
+          API_BASE_URL: baseUrl,
+          TEST_DM_SECRET: testDmSecret,
+          TEST_AGENT_USERNAME: testAgentUsername,
+          TEST_AGENT_PASSWORD: testAgentPassword
         },
         stdio: 'inherit'
       });

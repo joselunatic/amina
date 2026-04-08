@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test:e2e": "playwright test",
+    "test:e2e": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:3410 API_BASE_URL=http://127.0.0.1:3410 TEST_DM_SECRET=Pill4skiM0nAm0ur TEST_AGENT_USERNAME=pike TEST_AGENT_PASSWORD=amarok PLAYWRIGHT_AGENT_USER=pike PLAYWRIGHT_AGENT_PASS=amarok playwright test",
     "test:graph-api": "node --no-warnings tests/graph-api.spec.mjs",
     "test:api-contracts": "node --no-warnings tests/api/run-contracts-isolated.mjs",
     "test:api-contracts:live": "node --no-warnings tests/api/contracts-runner.mjs",

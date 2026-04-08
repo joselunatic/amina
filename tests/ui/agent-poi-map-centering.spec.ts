@@ -1,19 +1,8 @@
 import { expect, test } from '@playwright/test';
-
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3002';
-const AGENT_USERNAME = process.env.PLAYWRIGHT_AGENT_USER || 'pike';
-const AGENT_PASSWORD = process.env.PLAYWRIGHT_AGENT_PASS || 'amarok';
+import { loginAgentPage } from '../e2e-helpers';
 
 async function loginAsAgent(page: any) {
-  await page.goto(baseURL);
-  await page.click('#boot-player');
-  await page.waitForSelector('#agent-login', { state: 'visible' });
-  await page.selectOption('#agent-select', AGENT_USERNAME);
-  await page.fill('#agent-pass', AGENT_PASSWORD);
-  await Promise.all([
-    page.click('#agent-login-button'),
-    page.waitForSelector('#boot-screen.hidden')
-  ]);
+  await loginAgentPage(page);
   await expect(page.locator('body')).toHaveClass(/mode-agent/);
 }
 

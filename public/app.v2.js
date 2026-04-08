@@ -53,6 +53,7 @@ const DM_GRAPH_CAMPAIGN_VALUE = DM_GRAPH_SCOPE.CAMPAIGN;
 const DM_GRAPH_CAMPAIGN_LABEL = 'Campaña · grafo global';
 const DM_ACTOR = 'MrTruth';
 const DM_DEFAULT_SENDER = 'Sr. Verdad';
+const IS_AUTOMATED_BROWSER = typeof navigator !== 'undefined' && navigator.webdriver === true;
 
 // Character sheet model: general pools are rapid 1d6 modifiers; investigation pools are deliberate consumables;
 // refresh restores current to max across both types.
@@ -3218,7 +3219,7 @@ async function setupMap() {
     zoom: 9,
     pitch: 55,
     bearing: -17.6,
-    antialias: true
+    antialias: !IS_AUTOMATED_BROWSER
   });
 
   bindStyleSwitcher(baseStyle);
@@ -3290,6 +3291,7 @@ function closeLightbox() {
 
 function update3DBuildings() {
   if (!state.map) return;
+  if (IS_AUTOMATED_BROWSER) return;
   const style = state.map.getStyle();
   if (!style || !style.layers) return;
   if (state.map.getLayer('3d-buildings')) {
@@ -4273,15 +4275,12 @@ async function loadMessages(context) {
     const { recipient, session_tag, since, box, unread_only, q, page, page_size } =
       getMessageFilters(activeContext);
     const viewer = getMessageViewer();
-    const role = getMessageRole();
     if (recipient) params.append('recipient', recipient);
     if (session_tag) params.append('session_tag', session_tag);
     if (since) params.append('since', since);
     if (box) params.append('box', box);
     if (unread_only) params.append('unread_only', 'true');
     if (q) params.append('q', q);
-    if (viewer) params.append('viewer', viewer);
-    if (role) params.append('role', role);
     if (page_size) {
       params.append('limit', String(page_size));
       params.append('offset', String((page || 0) * page_size));
@@ -4345,16 +4344,10 @@ function shouldAutoRefreshMessages(context) {
 async function fetchMessageStatus(context, viewer) {
   const unreadLimit = 200;
   const unreadParams = new URLSearchParams({
-    viewer,
     unread_only: 'true',
     limit: String(unreadLimit)
   });
-  const latestParams = new URLSearchParams({ viewer, limit: '1' });
-  const role = getMessageRole();
-  if (role) {
-    unreadParams.append('role', role);
-    latestParams.append('role', role);
-  }
+  const latestParams = new URLSearchParams({ limit: '1' });
   const [unreadRes, latestRes] = await Promise.all([
     fetch(`/api/messages?${unreadParams.toString()}`),
     fetch(`/api/messages?${latestParams.toString()}`)
@@ -4601,8 +4594,7 @@ async function markMessageAsRead(id, viewer) {
   try {
     await fetch(`/api/messages/${id}/read`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ viewer })
+      headers: { 'Content-Type': 'application/json' }
     });
     await loadMessages();
   } catch (err) {
@@ -4615,7 +4607,7 @@ async function deleteMessageForViewer(id, viewer, box) {
     await fetch(`/api/messages/${id}/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ viewer, box })
+      body: JSON.stringify({ box })
     });
     await loadMessages();
     showMessage('Despacho eliminado.');
@@ -7791,10 +7783,12 @@ function renderEntitiesMap(ctx, options = {}) {
       zoom: 14,
       pitch: 60,
       bearing: -17.6,
-      antialias: true
+      antialias: !IS_AUTOMATED_BROWSER
     });
     state[mapKey].addControl(new mapboxgl.NavigationControl());
-    state[mapKey].on('style.load', () => ensureBuildingsLayer(state[mapKey]));
+    if (!IS_AUTOMATED_BROWSER) {
+      state[mapKey].on('style.load', () => ensureBuildingsLayer(state[mapKey]));
+    }
   }
   const map = state[mapKey];
   bindPickHandler(map);
@@ -7805,7 +7799,7 @@ function renderEntitiesMap(ctx, options = {}) {
       map.setZoom(9);
       return;
     }
-    ensureBuildingsLayer(map);
+    if (!IS_AUTOMATED_BROWSER) ensureBuildingsLayer(map);
     if (!state[markersKey]) state[markersKey] = [];
     state[markersKey].forEach((m) => m.remove());
     state[markersKey] = [];

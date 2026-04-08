@@ -1,39 +1,19 @@
-import { devices, expect, test, type Page } from '@playwright/test';
+import { chromium, devices, expect, test, type Page } from '@playwright/test';
+import { baseURL, getAgentStorageState, loginAgentPage, loginDmPage } from '../e2e-helpers';
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
-const AGENT_USERNAME = 'pike';
-const AGENT_PASSWORD = 'amarok';
-const DM_SECRET = process.env.TEST_DM_SECRET || 'Pill4skiM0nAm0ur';
 const iPhone13 = devices['iPhone 13'];
 
 async function loginAsAgent(page: Page) {
-  await page.goto(baseURL);
-  await expect(page.locator('#boot-screen')).toBeVisible();
-  await page.click('#boot-player');
-  await expect(page.locator('#agent-login')).toBeVisible();
-  await page.waitForSelector('#agent-select', { state: 'visible' });
-  await page.waitForSelector(`#agent-select option[value="${AGENT_USERNAME}"]`, { state: 'attached' });
-  await page.selectOption('#agent-select', AGENT_USERNAME);
-  await page.fill('#agent-pass', AGENT_PASSWORD);
-  await Promise.all([
-    page.click('#agent-login-button'),
-    page.waitForSelector('#boot-screen.hidden')
-  ]);
-  await expect(page.locator('nav.workspace-nav.primary-nav')).toBeVisible();
+  await loginAgentPage(page);
+  const nav = page.locator('nav.workspace-nav.primary-nav');
+  await expect(nav).toBeVisible();
   await expect(page.locator('#workspace')).toBeVisible();
 }
 
 async function loginAsDm(page: Page) {
-  await page.goto(baseURL);
-  await expect(page.locator('#boot-screen')).toBeVisible();
-  await page.click('#boot-dm');
-  await expect(page.locator('#boot-dm-form')).toBeVisible();
-  await page.fill('#boot-dm-secret', DM_SECRET);
-  await Promise.all([
-    page.locator('#boot-dm-form button[type="submit"]').click(),
-    page.waitForSelector('#boot-screen', { state: 'hidden' })
-  ]);
-  await expect(page.locator('nav.workspace-nav.primary-nav .workspace-tabs.dm-tabs')).toBeVisible();
+  await loginDmPage(page);
+  const nav = page.locator('nav.workspace-nav.primary-nav .workspace-tabs.dm-tabs');
+  await expect(nav).toBeVisible();
   await expect(page.locator('#workspace')).toBeVisible();
 }
 
@@ -80,6 +60,14 @@ const agentTabConfig: TabConfig[] = [
     }
   },
   {
+    label: 'Ficha',
+    view: 'sheet',
+    scope: 'agent',
+    assert: async (page) => {
+      await expect(page.locator('#character-sheet-card')).toBeVisible();
+    }
+  },
+  {
     label: 'Base de Datos',
     view: 'database',
     scope: 'agent',
@@ -88,11 +76,19 @@ const agentTabConfig: TabConfig[] = [
     }
   },
   {
+    label: 'ENTROPIA',
+    view: 'base',
+    scope: 'agent',
+    assert: async (page) => {
+      await expect(page.locator('#base-focus-card')).toBeVisible();
+    }
+  },
+  {
     label: 'Relaciones',
     view: 'relations',
     scope: 'agent',
     assert: async (page) => {
-      await expect(page.locator('#agent-relations-card-top')).toBeVisible();
+      await expect(page.locator('#agent-relations-card')).toBeVisible();
     }
   }
 ];
@@ -111,7 +107,8 @@ const dmTabConfig: TabConfig[] = [
     view: 'journal',
     scope: 'dm',
     assert: async (page) => {
-      await expect(page.locator('#dm-inbox-card')).toBeVisible();
+      await expect(page.locator('.dm-mobile-console-tab.active')).toHaveText('Mensajería');
+      await expect(page.locator('#dm-chat-card')).toBeVisible();
     }
   },
   {
@@ -120,6 +117,14 @@ const dmTabConfig: TabConfig[] = [
     scope: 'dm',
     assert: async (page) => {
       await expect(page.locator('#dm-entity-detail-card')).toBeVisible();
+    }
+  },
+  {
+    label: 'ENTROPIA',
+    view: 'base',
+    scope: 'dm',
+    assert: async (page) => {
+      await expect(page.locator('#base-focus-card')).toBeVisible();
     }
   },
   {
@@ -135,19 +140,130 @@ const dmTabConfig: TabConfig[] = [
 const agentTabLabels = agentTabConfig.map((tab) => tab.label);
 const dmTabLabels = dmTabConfig.map((tab) => tab.label);
 
-test('desktop_agent_tabs', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await loginAsAgent(page);
-  const nav = page.locator('nav.workspace-nav.primary-nav .workspace-tabs.agent-tabs');
-  await expect(nav).toBeVisible();
-  const tabs = nav.locator('.workspace-tab');
-  await expect(tabs).toHaveCount(agentTabLabels.length);
-  const texts = await tabs.allTextContents();
-  expect(texts.map((text) => text.trim())).toEqual(agentTabLabels);
-  for (const tab of agentTabConfig) {
-    await nav.getByRole('button', { name: tab.label }).click();
-    await expect(page.locator(`.workspace-view[data-view="${tab.view}"].active`)).toBeVisible();
-    await tab.assert(page);
+const mobileAgentTabConfig = [
+  {
+    label: 'Mapa',
+    view: 'map',
+    scope: 'agent',
+    assert: async (page: Page) => {
+      await expect(page.locator('#focal-poi-card')).toBeVisible();
+    }
+  },
+  {
+    label: 'Dossier',
+    view: 'database',
+    scope: 'agent',
+    assert: async (page: Page) => {
+      await expect(page.locator('#dossier-card')).toBeVisible();
+    }
+  },
+  {
+    label: 'Entropia',
+    view: 'base',
+    scope: 'agent',
+    assert: async (page: Page) => {
+      await expect(page.locator('#base-focus-card')).toBeVisible();
+    }
+  },
+  {
+    label: 'Ficha',
+    view: 'sheet',
+    scope: 'agent',
+    assert: async (page: Page) => {
+      await expect(page.locator('#character-sheet-card')).toBeVisible();
+    }
+  },
+  {
+    label: 'Consola',
+    view: 'console',
+    scope: 'agent',
+    assert: async (page: Page) => {
+      await expect(page.locator('#mission-brief-card')).toBeVisible();
+    }
+  }
+];
+
+const mobileDmTabConfig = [
+  {
+    label: 'Mapa',
+    view: 'map',
+    scope: 'dm',
+    assert: async (page: Page) => {
+      await expect(page.locator('#dm-focal-poi-card')).toBeVisible();
+    }
+  },
+  {
+    label: 'Dossier',
+    view: 'entities',
+    scope: 'dm',
+    assert: async (page: Page) => {
+      await expect(page.locator('#dm-entity-detail-card')).toBeVisible();
+    }
+  },
+  {
+    label: 'Entropia',
+    view: 'base',
+    scope: 'dm',
+    assert: async (page: Page) => {
+      await expect(page.locator('#base-focus-card')).toBeVisible();
+    }
+  },
+  {
+    label: 'Consola',
+    view: 'journal',
+    scope: 'dm',
+    assert: async (page: Page) => {
+      await expect(page.locator('#dm-chat-card')).toBeVisible();
+      await expect(page.locator('.dm-mobile-console-tab.active')).toHaveText('Mensajería');
+    }
+  }
+];
+
+test('desktop_agent_tabs', async () => {
+  const browser = await chromium.launch({ headless: true });
+  const storageState = await getAgentStorageState();
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    storageState
+  });
+  const page = await context.newPage();
+  const debugEvents: string[] = [];
+  page.on('pageerror', (error) => debugEvents.push(`pageerror:${error.message}`));
+  page.on('crash', () => debugEvents.push('page:crash'));
+
+  try {
+    await page.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForFunction(
+      (expectedCount) => {
+        const workspace = document.getElementById('workspace');
+        const nav = document.querySelector('nav.workspace-nav.primary-nav .workspace-tabs.agent-tabs');
+        const tabs = nav ? nav.querySelectorAll('.workspace-tab').length : 0;
+        const boot = document.getElementById('boot-screen');
+        return Boolean(workspace && nav && tabs >= expectedCount && boot?.classList.contains('hidden'));
+      },
+      agentTabLabels.length,
+      { timeout: 15000 }
+    );
+
+    const nav = page.locator('nav.workspace-nav.primary-nav .workspace-tabs.agent-tabs');
+    await expect(nav).toBeVisible();
+    const tabs = nav.locator('.workspace-tab');
+    await expect(tabs).toHaveCount(agentTabLabels.length);
+    const texts = await tabs.allTextContents();
+    expect(texts.map((text) => text.trim())).toEqual(agentTabLabels);
+    for (const tab of agentTabConfig) {
+      await nav.getByRole('button', { name: tab.label }).click();
+      await expect(page.locator('body')).toHaveAttribute('data-workspace-view', tab.view);
+      await tab.assert(page);
+    }
+  } catch (error) {
+    if (debugEvents.length) {
+      console.error('desktop_agent_tabs debug:', debugEvents.join(' | '));
+    }
+    throw error;
+  } finally {
+    await context.close();
+    await browser.close();
   }
 });
 
@@ -158,7 +274,7 @@ mobileTest.describe('Mobile agent navigation', () => {
   mobileTest('mobile_agent_tabs', async ({ page }) => {
     await loginAsAgent(page);
     await expect(page.locator('#mobile-nav')).toBeVisible();
-    for (const tab of agentTabConfig) {
+    for (const tab of mobileAgentTabConfig) {
       await clickMobileTab(page, tab.label);
       const viewClass = tab.scope === 'agent' ? 'agent-view' : 'dm-view';
       await expect(page.locator(`.workspace-view.${viewClass}[data-view="${tab.view}"].active`)).toBeVisible();
@@ -171,7 +287,7 @@ mobileTest.describe('Mobile DM navigation', () => {
   mobileTest('mobile_dm_tabs', async ({ page }) => {
     await loginAsDm(page);
     await expect(page.locator('#mobile-nav')).toBeVisible();
-    for (const tab of dmTabConfig) {
+    for (const tab of mobileDmTabConfig) {
       await clickMobileTab(page, tab.label);
       const viewClass = tab.scope === 'agent' ? 'agent-view' : 'dm-view';
       await expect(page.locator(`.workspace-view.${viewClass}[data-view="${tab.view}"].active`)).toBeVisible();

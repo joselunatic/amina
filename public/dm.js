@@ -12,6 +12,7 @@ const agentSelect = document.getElementById('agent-select');
 const poiSelect = document.getElementById('poi-select');
 const aminaMarkerSelector = document.getElementById('amina-marker-selector');
 const dmMapContainer = document.getElementById('dm-map'); // New: Reference to the DM map container
+const mapbox = window.mapboxgl || null;
 
 
 // --- AMINA Marker Types Taxonomy ---
@@ -151,12 +152,18 @@ async function initializeDmMap() {
         console.warn("DM map container not found.");
         return;
     }
+    if (!mapbox) {
+        console.warn("Mapbox GL failed to load; DM map disabled.");
+        dmMapContainer.textContent = 'Mapa no disponible en este entorno.';
+        dmMapContainer.classList.add('map-unavailable');
+        return;
+    }
 
     try {
         const config = await fetch('/api/config').then(res => res.json());
-        mapboxgl.accessToken = config.mapboxToken;
+        mapbox.accessToken = config.mapboxToken;
 
-        state.dmMap = new mapboxgl.Map({
+        state.dmMap = new mapbox.Map({
             container: 'dm-map',
             style: config.mapStyle || 'mapbox://styles/mapbox/dark-v11', // Use a default style or from config
             center: [-76.229, 40.68], // Center on Schuylkill County
@@ -175,7 +182,7 @@ async function initializeDmMap() {
 
 // New: Add POIs to DM Map
 function addPoisToDmMap() {
-    if (!state.dmMap || state.pois.length === 0) return;
+    if (!state.dmMap || !mapbox || state.pois.length === 0) return;
 
     // Clear existing markers
     state.dmMapMarkers.forEach(marker => marker.remove());
@@ -186,9 +193,9 @@ function addPoisToDmMap() {
         el.className = 'dm-poi-marker';
         el.dataset.poiId = poi.id;
 
-        const marker = new mapboxgl.Marker(el)
+        const marker = new mapbox.Marker(el)
             .setLngLat([poi.longitude, poi.latitude])
-            .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(poi.name))
+            .setPopup(new mapbox.Popup({ offset: 25 }).setText(poi.name))
             .addTo(state.dmMap);
         
         el.addEventListener('click', () => {
@@ -399,4 +406,3 @@ async function main() {
 }
 
 main();
-

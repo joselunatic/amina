@@ -29,11 +29,17 @@ function registerMessageRoutes(app, deps) {
     broadcastChatMessage
   } = deps;
 
-  app.get('/api/messages', async (req, res, next) => {
+  function getMessageViewer(req) {
+    if (isDmSession(req)) return 'Sr. Verdad';
+    if (isAgentSession(req)) return req.session.agentDisplay || req.session.agentId || '';
+    return '';
+  }
+
+  app.get('/api/messages', requireAny, async (req, res, next) => {
     try {
       const agentUsers = await listAuthUsersByRole('agent');
       const agentDisplays = agentUsers.map((a) => a.display);
-      const role = isDmSession(req) ? 'dm' : isAgentSession(req) ? 'agent' : req.query.role;
+      const role = isDmSession(req) ? 'dm' : 'agent';
       const filters = {
         recipient: req.query.recipient,
         session_tag: req.query.session_tag,
@@ -43,7 +49,7 @@ function registerMessageRoutes(app, deps) {
         q: req.query.q,
         box: req.query.box,
         unread_only: req.query.unread_only === 'true',
-        viewer: req.query.viewer,
+        viewer: getMessageViewer(req),
         agentDisplays,
         role,
         dmActor: DM_ACTOR
@@ -261,9 +267,9 @@ function registerMessageRoutes(app, deps) {
     }
   });
 
-  app.post('/api/messages/:id/read', async (req, res, next) => {
+  app.post('/api/messages/:id/read', requireAny, async (req, res, next) => {
     try {
-      const viewer = (req.body && req.body.viewer) || req.query.viewer;
+      const viewer = getMessageViewer(req);
       if (!viewer) {
         return res.status(400).json({ error: 'Viewer is required to mark a message as read.' });
       }
@@ -277,9 +283,9 @@ function registerMessageRoutes(app, deps) {
     }
   });
 
-  app.post('/api/messages/:id/delete', async (req, res, next) => {
+  app.post('/api/messages/:id/delete', requireAny, async (req, res, next) => {
     try {
-      const viewer = (req.body && req.body.viewer) || req.query.viewer;
+      const viewer = getMessageViewer(req);
       const box = (req.body && req.body.box) || req.query.box || 'inbox';
       if (!viewer) {
         return res.status(400).json({ error: 'Viewer is required to delete a message.' });
