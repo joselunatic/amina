@@ -179,25 +179,24 @@ function validateEntityPayload(payload) {
 }
 
 app.use(express.json());
-app.use(
-  session({
-    name: 'amina.sid',
-    store: new SQLiteStore({
-      db: path.basename(SESSION_DB_PATH),
-      dir: path.dirname(SESSION_DB_PATH),
-      table: 'sessions'
-    }),
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: SESSION_MAX_AGE_MS
-    }
-  })
-);
+const sessionMiddleware = session({
+  name: 'amina.sid',
+  store: new SQLiteStore({
+    db: path.basename(SESSION_DB_PATH),
+    dir: path.dirname(SESSION_DB_PATH),
+    table: 'sessions'
+  }),
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: SESSION_MAX_AGE_MS
+  }
+});
+app.use(sessionMiddleware);
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 function encodePoiIds(entity) {
@@ -250,7 +249,7 @@ app.get('/api/entropia/zones', requireAnySession, async (req, res, next) => {
   }
 });
 
-app.put('/api/entropia/zones', requireAnySession, async (req, res, next) => {
+app.put('/api/entropia/zones', requireDmSession, async (req, res, next) => {
   try {
     const payload = req.body || {};
     const zones = Array.isArray(payload) ? payload : payload.zones;
@@ -883,6 +882,7 @@ function setRealtimeHooks(nextHooks = {}) {
 
 module.exports = {
   app,
+  sessionMiddleware,
   setRealtimeHooks,
   normalizeUsername,
   DEBUG_MODE

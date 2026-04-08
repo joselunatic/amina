@@ -1,11 +1,11 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, devices } from '@playwright/test';
 import { loginAgentPage, loginDmPage } from './e2e-helpers';
 
-const MOBILE_VIEWPORT = { width: 390, height: 844 };
+const iPhone13 = devices['iPhone 13'];
 type MobileTab = 'map' | 'console' | 'database' | 'base';
 const mobileTabSelector = (tab: MobileTab) => `#mobile-nav button[data-mobile-tab="${tab}"]`;
 
-test.use({ viewport: MOBILE_VIEWPORT });
+test.use({ ...iPhone13 });
 
 test.describe('Vista móvil AMINA', () => {
   test.beforeEach(async ({ page }) => {

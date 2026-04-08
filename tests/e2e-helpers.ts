@@ -35,14 +35,32 @@ async function applyStorageState(page: Page, storageState: Awaited<ReturnType<ty
   await page.context().addCookies(storageState.cookies);
 }
 
+async function waitForAppShell(page: Page, mode: 'agent' | 'dm') {
+  await page.waitForFunction(
+    ({ expectedMode }) => {
+      const workspace = document.getElementById('workspace');
+      const boot = document.getElementById('boot-screen');
+      const body = document.body;
+      if (!workspace || !boot || !body) return false;
+      if (!boot.classList.contains('hidden')) return false;
+      if (expectedMode === 'agent') {
+        return body.classList.contains('mode-agent');
+      }
+      return Boolean(window.state?.dmMode) && body.classList.contains('mode-dm');
+    },
+    { expectedMode: mode },
+    { timeout: 15000 }
+  );
+}
+
 export async function loginAgentPage(page: Page) {
   await applyStorageState(page, await getAgentStorageState());
   await page.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 45000 });
-  await page.waitForFunction(() => document.body.classList.contains('mode-agent'), { timeout: 10000 });
+  await waitForAppShell(page, 'agent');
 }
 
 export async function loginDmPage(page: Page) {
   await applyStorageState(page, await getDmStorageState());
   await page.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 45000 });
-  await page.waitForFunction(() => window.state?.dmMode, { timeout: 10000 });
+  await waitForAppShell(page, 'dm');
 }

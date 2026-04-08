@@ -137,6 +137,8 @@ const CHARACTER_SHEET_INVESTIGATION_MAX_OVERRIDES = {
 
 const state = {
   map: null,
+  mapAvailable: true,
+  mapInitError: null,
   pois: [],
   poiMarkers: new Map(),
   poiPopup: null,
@@ -2088,11 +2090,16 @@ async function init() {
     }
     updateViewportMode();
     updateMobileStateBadge();
-    await setupMap();
-    console.log('DEBUG: setupMap done');
+    const mapReady = await setupMap();
+    console.log('DEBUG: setupMap done', { mapReady });
     await hydrateFromSession();
     await loadPois();
-    showMessage('AMINA en línea. Vigilancia de la membrana nominal.');
+    showMessage(
+      mapReady
+        ? 'AMINA en línea. Vigilancia de la membrana nominal.'
+        : 'AMINA en línea en modo degradado. Mapa no disponible.',
+      !mapReady
+    );
     await loadAgentList();
     console.log('DEBUG: loadAgentList done');
     if (bootScreen && !bootScreen.classList.contains('hidden') && !bootOutput.textContent) {
@@ -3197,80 +3204,103 @@ function setPoiSelected(id) {
   }
 }
 
+function setMapUnavailable(reason) {
+  state.mapAvailable = false;
+  state.mapInitError = reason?.message || String(reason || 'Map unavailable');
+  document.body.classList.add('map-unavailable');
+  const mapEl = document.getElementById('map');
+  if (mapEl) {
+    mapEl.setAttribute('data-map-status', 'unavailable');
+    mapEl.setAttribute('aria-label', 'Mapa no disponible');
+  }
+  logDebug(`Map unavailable: ${state.mapInitError}`);
+}
+
 async function setupMap() {
   console.log('DEBUG: setupMap started');
-  const config = await fetch('/api/config').then((res) => res.json());
-  console.log('DEBUG: config loaded', config);
-  state.mapboxConfig = config;
-  mapboxgl.accessToken = config.mapboxToken;
-  debugMode = config.debug;
-  if (debugMode && debugPanel) {
-    debugPanel.classList.remove('hidden');
-    logDebug('Modo depuración activo');
-  }
-  const baseStyle = config.mapStyle || 'mapbox://styles/mapbox/dark-v11';
-  const styleUrl = DECIMAL_STYLE;
-  state.currentMapStyle = styleUrl;
-  const mapPanelEl = document.getElementById('map-panel');
-  state.map = new mapboxgl.Map({
-    container: 'map',
-    style: styleUrl,
-    center: mapCenter,
-    zoom: 9,
-    pitch: 55,
-    bearing: -17.6,
-    antialias: !IS_AUTOMATED_BROWSER
-  });
-
-  bindStyleSwitcher(baseStyle);
-
-  state.map.addControl(new mapboxgl.NavigationControl());
-  state.map.addControl(new mapboxgl.FullscreenControl({ container: mapPanelEl || undefined }));
-  if (typeof MapboxGeocoder !== 'undefined') {
-    const geocoder = new MapboxGeocoder({
-      accessToken: mapboxgl.accessToken,
-      mapboxgl,
-      marker: false,
-      placeholder: 'Buscar PdI...',
-      localGeocoder: buildPoiGeocoderResults,
-      limit: 8,
-      filter: (feature) => Boolean(feature?.properties?.id)
-    });
-    state.mapGeocoder = geocoder;
-    geocoder.on('result', (event) => {
-      const id = event?.result?.properties?.id;
-      if (!id) return;
-      const poi = state.pois.find((item) => Number(item.id) === Number(id));
-      if (poi) setFocalPoi(poi);
-    });
-    if (mapFilters) {
-      state.map.addControl(geocoder, 'top-left');
-      const geocoderEl = geocoder.container || geocoder.onAdd(state.map);
-      geocoderEl.classList.add('map-geocoder');
-      mapFilters.appendChild(geocoderEl);
-    } else {
-      state.map.addControl(geocoder, 'top-left');
+  try {
+    document.body.classList.remove('map-unavailable');
+    const config = await fetch('/api/config').then((res) => res.json());
+    console.log('DEBUG: config loaded', config);
+    state.mapboxConfig = config;
+    state.mapAvailable = true;
+    state.mapInitError = null;
+    mapboxgl.accessToken = config.mapboxToken;
+    debugMode = config.debug;
+    if (debugMode && debugPanel) {
+      debugPanel.classList.remove('hidden');
+      logDebug('Modo depuración activo');
     }
-  }
-  // Remove hillshade layer if the style references a missing source layer to avoid console spam
-  state.map.on('styledata', () => {
-    try {
-      if (state.map.getLayer('hillshade')) {
-        state.map.removeLayer('hillshade');
+    const baseStyle = config.mapStyle || 'mapbox://styles/mapbox/dark-v11';
+    const styleUrl = DECIMAL_STYLE;
+    state.currentMapStyle = styleUrl;
+    const mapPanelEl = document.getElementById('map-panel');
+    state.map = new mapboxgl.Map({
+      container: 'map',
+      style: styleUrl,
+      center: mapCenter,
+      zoom: 9,
+      pitch: 55,
+      bearing: -17.6,
+      antialias: !IS_AUTOMATED_BROWSER
+    });
+
+    bindStyleSwitcher(baseStyle);
+
+    state.map.addControl(new mapboxgl.NavigationControl());
+    state.map.addControl(new mapboxgl.FullscreenControl({ container: mapPanelEl || undefined }));
+    if (typeof MapboxGeocoder !== 'undefined') {
+      const geocoder = new MapboxGeocoder({
+        accessToken: mapboxgl.accessToken,
+        mapboxgl,
+        marker: false,
+        placeholder: 'Buscar PdI...',
+        localGeocoder: buildPoiGeocoderResults,
+        limit: 8,
+        filter: (feature) => Boolean(feature?.properties?.id)
+      });
+      state.mapGeocoder = geocoder;
+      geocoder.on('result', (event) => {
+        const id = event?.result?.properties?.id;
+        if (!id) return;
+        const poi = state.pois.find((item) => Number(item.id) === Number(id));
+        if (poi) setFocalPoi(poi);
+      });
+      if (mapFilters) {
+        state.map.addControl(geocoder, 'top-left');
+        const geocoderEl = geocoder.container || geocoder.onAdd(state.map);
+        geocoderEl.classList.add('map-geocoder');
+        mapFilters.appendChild(geocoderEl);
+      } else {
+        state.map.addControl(geocoder, 'top-left');
       }
-      if (state.map.getSource('hillshade')) {
-        state.map.removeSource('hillshade');
-      }
-    } catch (err) {
-      // ignore cleanup errors
     }
-  });
-  bindPickHandler(state.map);
-  state.map.on('style.load', () => {
-    update3DBuildings();
-    renderMarkers();
-  });
-  updateMapInteractionMode();
+    // Remove hillshade layer if the style references a missing source layer to avoid console spam
+    state.map.on('styledata', () => {
+      try {
+        if (state.map.getLayer('hillshade')) {
+          state.map.removeLayer('hillshade');
+        }
+        if (state.map.getSource('hillshade')) {
+          state.map.removeSource('hillshade');
+        }
+      } catch (err) {
+        // ignore cleanup errors
+      }
+    });
+    bindPickHandler(state.map);
+    state.map.on('style.load', () => {
+      update3DBuildings();
+      renderMarkers();
+    });
+    updateMapInteractionMode();
+    return true;
+  } catch (err) {
+    console.error('DEBUG: setupMap failed', err);
+    state.map = null;
+    setMapUnavailable(err);
+    return false;
+  }
 }
 
 function openLightbox(src, alt = 'Imagen') {
@@ -5621,12 +5651,12 @@ function hideAgentPasswordPanel() {
 }
 
 async function handleAgentPasswordSave() {
-  const username = agentSelect?.value;
+  const sessionAgent = state.agent?.username || null;
   const currentPassword = agentPassCurrent.value.trim();
   const newPassword = agentPassNew.value.trim();
   const confirm = agentPassConfirm.value.trim();
-  if (!username) {
-    agentPassStatus.textContent = 'Selecciona un agente.';
+  if (!sessionAgent) {
+    agentPassStatus.textContent = 'Inicia sesión como agente para cambiar tu contraseña.';
     return;
   }
   if (!newPassword || newPassword.length < 6) {
@@ -5637,7 +5667,7 @@ async function handleAgentPasswordSave() {
     agentPassStatus.textContent = 'Las contraseñas no coinciden.';
     return;
   }
-  const payload = { username, newPassword };
+  const payload = { newPassword };
   if (currentPassword) payload.currentPassword = currentPassword;
   try {
     const response = await fetch('/api/auth/agent/password', {

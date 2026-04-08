@@ -127,9 +127,13 @@ function registerAuthRoutes(app, deps) {
   app.post('/api/auth/agent/password', async (req, res, next) => {
     try {
       const { username, currentPassword, newPassword } = req.body || {};
-      const normalized = normalizeUsername(username);
-      if (!normalized) {
-        return res.status(400).json({ error: 'Username is required.' });
+      if (!isAgentSession(req) || !req.session.agentId) {
+        return res.status(401).json({ error: 'Agent session is required.' });
+      }
+      const normalized = normalizeUsername(req.session.agentId);
+      const requestedUsername = normalizeUsername(username);
+      if (requestedUsername && requestedUsername !== normalized) {
+        return res.status(403).json({ error: 'Password changes are limited to the active agent session.' });
       }
       validateNewPassword(newPassword);
       const user = await getAuthUser('agent', normalized);
