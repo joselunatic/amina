@@ -3279,6 +3279,13 @@ function bindPoiLayerInteractions(map) {
       map.easeTo({ center: feature.geometry.coordinates, zoom });
     });
   });
+
+  map.on('click', (event) => {
+    const interactiveLayers = [POI_LAYER_IDS.hit, POI_LAYER_IDS.clusters];
+    const features = map.queryRenderedFeatures(event.point, { layers: interactiveLayers });
+    if (features.length) return;
+    closePoiPresentation();
+  });
 }
 
 function ensurePoiPopup() {
@@ -3367,6 +3374,11 @@ function showPoiThreatTooltip(poi, lngLat) {
 
 function hidePoiThreatTooltip() {
   state.poiHoverPopup?.remove();
+}
+
+function closePoiPresentation() {
+  state.poiPopup?.remove();
+  setFocalPoi(null);
 }
 
 function setPoiSelected(id) {
