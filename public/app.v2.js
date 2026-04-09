@@ -284,6 +284,10 @@ const state = {
   agentJournalSeason: 2,
   agentJournalSession: 0,
   agentJournalExpanded: false,
+  agentJournalCatalog: { 1: [], 2: [] },
+  agentJournalCatalogLoaded: false,
+  agentJournalCatalogPromise: null,
+  agentJournalSessionSheetOpen: false,
   activeDmBlade: 'journal',
   poiFocal: null,
   activeMessage: null,
@@ -526,6 +530,13 @@ const agentJournalPublicInput = document.getElementById('agent-journal-public');
 const agentJournalSummary = document.getElementById('agent-journal-summary');
 const agentJournalToggleBtn = document.getElementById('agent-journal-toggle');
 const agentJournalDetail = document.getElementById('agent-journal-detail');
+const agentJournalCurrentState = document.getElementById('agent-journal-current-state');
+const agentJournalSeasonChips = document.querySelectorAll('[data-agent-journal-season-chip]');
+const agentJournalSessionPicker = document.getElementById('agent-journal-session-picker');
+const agentJournalSessionSheet = document.getElementById('agent-journal-session-sheet');
+const agentJournalSessionSheetSubtitle = document.getElementById('agent-journal-sheet-subtitle');
+const agentJournalSessionOptions = document.getElementById('agent-journal-session-options');
+const agentJournalSheetCloseButtons = document.querySelectorAll('[data-agent-journal-sheet-close]');
 const characterSheetCard = document.getElementById('character-sheet-card');
 const characterNameLabel = document.getElementById('sheet-character-name');
 const characterRoleLabel = document.getElementById('sheet-character-role');
@@ -622,6 +633,135 @@ function setAgentJournalText(text) {
   agentJournalPublicInput.textContent = text || DEFAULT_MISSION_BRIEF;
 }
 
+function normalizeAgentJournalCatalog(entries = []) {
+  const catalog = { 1: [], 2: [] };
+  entries.forEach((entry) => {
+    const season = Number(entry?.season);
+    const session = Number(entry?.session);
+    if (![1, 2].includes(season) || !Number.isFinite(session)) return;
+    catalog[season].push(session);
+  });
+  Object.keys(catalog).forEach((key) => {
+    const season = Number(key);
+    catalog[season] = Array.from(new Set(catalog[season])).sort((a, b) => a - b);
+  });
+  return catalog;
+}
+
+function getAgentJournalSessionsForSeason(season = state.agentJournalSeason) {
+  const normalized = [1, 2].includes(Number(season)) ? Number(season) : 2;
+  return Array.isArray(state.agentJournalCatalog?.[normalized]) ? state.agentJournalCatalog[normalized] : [];
+}
+
+function syncAgentJournalSelectionControls() {
+  const season = Number(state.agentJournalSeason) || 2;
+  const session = Number(state.agentJournalSession) || 0;
+  const sessions = getAgentJournalSessionsForSeason(season);
+  if (agentJournalSeasonInput) agentJournalSeasonInput.value = String(season);
+  if (agentJournalSessionInput) agentJournalSessionInput.value = String(session);
+  if (agentJournalCurrentState) {
+    agentJournalCurrentState.textContent = `T${season} · Sesión ${session}`;
+  }
+  if (agentJournalSessionSheetSubtitle) {
+    agentJournalSessionSheetSubtitle.textContent = `Temporada ${season}`;
+  }
+  agentJournalSeasonChips.forEach((chip) => {
+    const chipSeason = Number(chip.getAttribute('data-agent-journal-season-chip')) || 0;
+    const active = chipSeason === season;
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-selected', String(active));
+  });
+  if (agentJournalSessionPicker) {
+    agentJournalSessionPicker.textContent = sessions.includes(session)
+      ? `Sesión ${session}`
+      : sessions.length
+        ? 'Seleccionar episodio'
+        : 'Sin episodios';
+    agentJournalSessionPicker.disabled = sessions.length === 0;
+  }
+}
+
+function renderAgentJournalSessionOptions() {
+  if (!agentJournalSessionOptions) return;
+  const season = Number(state.agentJournalSeason) || 2;
+  const activeSession = Number(state.agentJournalSession) || 0;
+  const sessions = getAgentJournalSessionsForSeason(season);
+  agentJournalSessionOptions.innerHTML = '';
+  if (!sessions.length) {
+    const empty = document.createElement('div');
+    empty.className = 'archive-session-option-empty';
+    empty.textContent = 'No hay episodios registrados para esta temporada.';
+    agentJournalSessionOptions.appendChild(empty);
+    return;
+  }
+  sessions.forEach((session) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `archive-session-option ${session === activeSession ? 'active' : ''}`;
+    button.textContent = `Sesión ${session}`;
+    button.addEventListener('click', async () => {
+      closeAgentJournalSessionSheet();
+      await setAgentJournalSelection(season, session);
+    });
+    agentJournalSessionOptions.appendChild(button);
+  });
+}
+
+function openAgentJournalSessionSheet() {
+  if (!agentJournalSessionSheet) return;
+  renderAgentJournalSessionOptions();
+  agentJournalSessionSheet.classList.remove('hidden');
+  agentJournalSessionSheet.setAttribute('aria-hidden', 'false');
+  state.agentJournalSessionSheetOpen = true;
+}
+
+function closeAgentJournalSessionSheet() {
+  if (!agentJournalSessionSheet) return;
+  agentJournalSessionSheet.classList.add('hidden');
+  agentJournalSessionSheet.setAttribute('aria-hidden', 'true');
+  state.agentJournalSessionSheetOpen = false;
+}
+
+async function ensureAgentJournalCatalog(force = false) {
+  if (!state.agent) return state.agentJournalCatalog;
+  if (state.agentJournalCatalogLoaded && !force) return state.agentJournalCatalog;
+  if (state.agentJournalCatalogPromise && !force) return state.agentJournalCatalogPromise;
+  state.agentJournalCatalogPromise = (async () => {
+    try {
+      const response = await fetch('/api/agent/journal?list=1');
+      if (!response.ok) throw new Error('No se pudo cargar el índice del archivo.');
+      const payload = await response.json();
+      state.agentJournalCatalog = normalizeAgentJournalCatalog(Array.isArray(payload) ? payload : []);
+      state.agentJournalCatalogLoaded = true;
+      syncAgentJournalSelectionControls();
+      renderAgentJournalSessionOptions();
+      return state.agentJournalCatalog;
+    } catch (err) {
+      logDebug(`Archivo agente catalog error: ${err.message}`);
+      return state.agentJournalCatalog;
+    } finally {
+      state.agentJournalCatalogPromise = null;
+    }
+  })();
+  return state.agentJournalCatalogPromise;
+}
+
+async function setAgentJournalSelection(season, session, options = {}) {
+  const normalizedSeason = [1, 2].includes(Number(season)) ? Number(season) : 2;
+  await ensureAgentJournalCatalog();
+  const availableSessions = getAgentJournalSessionsForSeason(normalizedSeason);
+  const nextSession = availableSessions.includes(Number(session))
+    ? Number(session)
+    : availableSessions[0] ?? 0;
+  state.agentJournalSeason = normalizedSeason;
+  state.agentJournalSession = nextSession;
+  syncAgentJournalSelectionControls();
+  updateAgentJournalSummary();
+  if (options.load !== false) {
+    await loadAgentJournal();
+  }
+}
+
 function setAgentJournalEditing(isEditing) {
   if (!agentJournalPublicInput || !agentJournalSaveBtn) return;
   agentJournalPublicInput.contentEditable = isEditing ? 'true' : 'false';
@@ -639,23 +779,28 @@ function setAgentJournalEditing(isEditing) {
 
 function updateAgentJournalSummary() {
   if (!agentJournalSummary) return;
-  const season = Number(agentJournalSeasonInput?.value) || state.agentJournalSeason || 2;
-  const session = Number(agentJournalSessionInput?.value) || state.agentJournalSession || 0;
+  const season = Number(state.agentJournalSeason) || Number(agentJournalSeasonInput?.value) || 2;
+  const session = Number(state.agentJournalSession) || Number(agentJournalSessionInput?.value) || 0;
   const sourceText = agentJournalPublicInput?.isContentEditable
     ? getAgentJournalText()
     : state.missionNotes || agentJournalPublicInput?.textContent || DEFAULT_MISSION_BRIEF;
   const compact = (sourceText || DEFAULT_MISSION_BRIEF).replace(/\s+/g, ' ').trim();
   const excerpt = compact.length > 90 ? `${compact.slice(0, 87)}...` : compact;
   agentJournalSummary.textContent = `Temporada ${season} · Sesión ${session} · ${excerpt || DEFAULT_MISSION_BRIEF}`;
+  if (agentJournalCurrentState) {
+    agentJournalCurrentState.textContent = `T${season} · Sesión ${session}`;
+  }
 }
 
 function syncAgentJournalPanelState() {
   if (!agentJournalDetail || !agentJournalToggleBtn || !missionBriefCard) return;
-  const expanded = !isMobileView() || state.agentJournalExpanded || agentJournalPublicInput?.isContentEditable;
+  const forcedExpanded = isMobileView() && state.mobileTab === 'archive';
+  const expanded = forcedExpanded || state.agentJournalExpanded || agentJournalPublicInput?.isContentEditable;
   missionBriefCard.classList.toggle('is-collapsed', !expanded);
   agentJournalDetail.classList.toggle('hidden', !expanded);
   agentJournalToggleBtn.setAttribute('aria-expanded', String(expanded));
   agentJournalToggleBtn.textContent = expanded ? 'Ocultar' : 'Abrir';
+  agentJournalToggleBtn.classList.toggle('hidden', forcedExpanded);
   updateAgentJournalSummary();
 }
 
@@ -2398,22 +2543,18 @@ function bindEvents() {
     state.agentJournalExpanded = !state.agentJournalExpanded;
     syncAgentJournalPanelState();
   });
-  const autoLoadAgentJournal = debounce(loadAgentJournal, 250);
-  agentJournalSeasonInput?.addEventListener('change', () => {
-    updateAgentJournalSummary();
-    loadAgentJournal();
+  agentJournalSeasonChips.forEach((chip) => {
+    chip.addEventListener('click', async () => {
+      const season = Number(chip.getAttribute('data-agent-journal-season-chip')) || 2;
+      await setAgentJournalSelection(season, state.agentJournalSession);
+    });
   });
-  agentJournalSessionInput?.addEventListener('change', () => {
-    updateAgentJournalSummary();
-    loadAgentJournal();
+  agentJournalSessionPicker?.addEventListener('click', () => {
+    if (agentJournalSessionPicker.disabled) return;
+    openAgentJournalSessionSheet();
   });
-  agentJournalSeasonInput?.addEventListener('input', () => {
-    updateAgentJournalSummary();
-    autoLoadAgentJournal();
-  });
-  agentJournalSessionInput?.addEventListener('input', () => {
-    updateAgentJournalSummary();
-    autoLoadAgentJournal();
+  agentJournalSheetCloseButtons.forEach((button) => {
+    button.addEventListener('click', () => closeAgentJournalSessionSheet());
   });
   agentJournalPublicInput?.addEventListener('input', updateAgentJournalSummary);
   document.addEventListener('visibilitychange', () => {
@@ -3340,7 +3481,7 @@ function ensurePoiHoverPopup() {
 
 function openPoiPopup(poi, lngLatOverride) {
   if (!state.map || !poi) return;
-  if (shouldUseFullscreenMobileSheet()) {
+  if (shouldUseFullscreenMobileSheet() || shouldUseCompactMobileMapCard()) {
     state.poiPopup?.remove();
     return;
   }
@@ -3351,6 +3492,10 @@ function openPoiPopup(poi, lngLatOverride) {
 }
 
 function queuePoiPopupViewportSync() {
+  if (shouldUseCompactMobileMapCard()) {
+    state.poiPopup?.remove();
+    return;
+  }
   if (state.poiPopupViewportFrame) {
     cancelAnimationFrame(state.poiPopupViewportFrame);
   }
@@ -3361,6 +3506,10 @@ function queuePoiPopupViewportSync() {
 }
 
 function keepPoiPopupInView() {
+  if (shouldUseCompactMobileMapCard()) {
+    state.poiPopup?.remove();
+    return;
+  }
   if (!state.map || !state.poiPopup?.isOpen()) return;
   const popupEl = state.poiPopup.getElement();
   const mapEl = state.map.getContainer();
@@ -3704,6 +3853,10 @@ function shouldUseFullscreenMobileSheet() {
   return isMobileView() && isMapPanelFullscreen();
 }
 
+function shouldUseCompactMobileMapCard() {
+  return isMobileView() && state.mobileTab === 'map' && !shouldUseFullscreenMobileSheet() && !state.mapSheetExpanded;
+}
+
 function isElementVisible(el) {
   if (!el) return false;
   const style = window.getComputedStyle(el);
@@ -3758,11 +3911,12 @@ function getMapViewportPadding(options = {}) {
 
 function focusMapOnPoi(poi, options = {}) {
   if (!state.map || !poi) return;
+  const compactMobile = shouldUseCompactMobileMapCard();
   const zoom = options.zoom ?? (isMobileView() ? 11.8 : 12.4);
   state.map.easeTo({
     center: [Number(poi.longitude), Number(poi.latitude)],
     zoom,
-    padding: getMapViewportPadding({ includePopup: options.includePopup !== false }),
+    padding: getMapViewportPadding({ includePopup: compactMobile ? false : options.includePopup !== false }),
     duration: options.duration ?? 900,
     essential: true
   });
@@ -6773,6 +6927,7 @@ function renderAgentDossiers() {
       state.activeEntityAgent = entity;
       setCookie('agent_active_entity', entity.id);
       renderAgentDossiers();
+      scrollMobileDossierDetailIntoView('agent');
       if (entity.visibility !== 'locked') {
         loadAgentContext(entity.id);
       } else {
@@ -8898,6 +9053,11 @@ function scheduleMapResize() {
 function toggleMapSheetExpanded(forceExpanded) {
   const next = typeof forceExpanded === 'boolean' ? forceExpanded : !state.mapSheetExpanded;
   state.mapSheetExpanded = next;
+  if (!next) {
+    state.poiPopup?.remove();
+  } else if (state.poiFocal) {
+    openPoiPopup(state.poiFocal);
+  }
   renderFocalPoiCard();
 }
 
@@ -9228,16 +9388,19 @@ function renderMissionCards() {
     journalPublicInput.value = state.missionNotes;
   }
   setAgentJournalText(state.missionNotes || DEFAULT_MISSION_BRIEF);
+  syncAgentJournalSelectionControls();
   updateAgentJournalSummary();
   syncAgentJournalPanelState();
 }
 
 async function loadAgentJournal() {
   if (!state.agent) return;
-  const season = Number(agentJournalSeasonInput?.value) || state.agentJournalSeason || 2;
-  const session = Number(agentJournalSessionInput?.value) || state.agentJournalSession || 0;
+  await ensureAgentJournalCatalog();
+  const season = Number(state.agentJournalSeason) || Number(agentJournalSeasonInput?.value) || 2;
+  const session = Number(state.agentJournalSession) || Number(agentJournalSessionInput?.value) || 0;
   state.agentJournalSeason = season;
   state.agentJournalSession = session;
+  syncAgentJournalSelectionControls();
   if (agentJournalPublicInput?.isContentEditable) {
     setAgentJournalEditing(false);
   }
@@ -9250,6 +9413,7 @@ async function loadAgentJournal() {
       missionBriefText.textContent = state.missionNotes || DEFAULT_MISSION_BRIEF;
     }
     setAgentJournalText(state.missionNotes || DEFAULT_MISSION_BRIEF);
+    updateAgentJournalSummary();
   } catch (err) {
     logDebug(`Journal agente load error: ${err.message}`);
     showMessage('No se pudo cargar el journal.', true);
@@ -9262,8 +9426,8 @@ async function handleAgentJournalSave() {
   const draft = getAgentJournalText();
   const noteText = draft === DEFAULT_MISSION_BRIEF ? '' : draft;
   const payload = {
-    season: Number(agentJournalSeasonInput?.value) || state.agentJournalSeason || 2,
-    session: Number(agentJournalSessionInput?.value) || state.agentJournalSession || 0,
+    season: Number(state.agentJournalSeason) || Number(agentJournalSeasonInput?.value) || 2,
+    session: Number(state.agentJournalSession) || Number(agentJournalSessionInput?.value) || 0,
     public_note: noteText
   };
   try {
@@ -9278,9 +9442,15 @@ async function handleAgentJournalSave() {
     }
     state.agentJournalSeason = payload.season;
     state.agentJournalSession = payload.session;
+    if (!state.agentJournalCatalog[payload.season]?.includes(payload.session)) {
+      state.agentJournalCatalog[payload.season] = [...(state.agentJournalCatalog[payload.season] || []), payload.session].sort((a, b) => a - b);
+    }
     state.missionNotes = payload.public_note;
     if (missionBriefText) missionBriefText.textContent = state.missionNotes || DEFAULT_MISSION_BRIEF;
     setAgentJournalText(state.missionNotes || DEFAULT_MISSION_BRIEF);
+    syncAgentJournalSelectionControls();
+    renderAgentJournalSessionOptions();
+    updateAgentJournalSummary();
     showMessage('Journal de agente guardado.');
     return true;
   } catch (err) {
@@ -9423,6 +9593,22 @@ function syncMobileMoreOptions() {
   }
 }
 
+function scrollMobileDossierDetailIntoView(role = 'agent') {
+  if (!isMobileView()) return;
+  const onAgentDossier = !isDmViewer() && state.mobileTab === 'database';
+  const onDmDossier = isDmViewer() && state.mobileTab === 'database';
+  if ((role === 'agent' && !onAgentDossier) || (role === 'dm' && !onDmDossier)) {
+    return;
+  }
+  const target = role === 'dm'
+    ? document.getElementById('dm-entity-detail-card')
+    : document.getElementById('agent-entity-detail-card');
+  if (!target) return;
+  requestAnimationFrame(() => {
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
 function setMobileMoreView(view) {
   const normalized = view === 'base' ? 'base' : 'sheet';
   if (normalized === 'sheet' && isDmViewer()) {
@@ -9438,6 +9624,9 @@ function setMobileMoreView(view) {
 function setMobileTab(tab) {
   updateViewportMode();
   state.mobileTab = tab;
+  if (tab !== 'archive') {
+    closeAgentJournalSessionSheet();
+  }
   if (tab !== 'pois') {
     state.showOlderMobilePois = false;
   }
@@ -10094,6 +10283,7 @@ async function selectAdminEntity(entity) {
   } else {
     renderAdminDossiers();
   }
+  scrollMobileDossierDetailIntoView('dm');
   if (entity.kind === 'entity') {
     await loadDmContext(entity.id);
   } else {
@@ -10329,6 +10519,7 @@ function setActiveEntityAgentById(id) {
   setCookie('agent_active_entity', entity.id);
   setAgentBlade('dossiers');
   renderAgentDossiers();
+  scrollMobileDossierDetailIntoView('agent');
   loadAgentContext(entity.id);
   renderAgentEntityDetailCard(entity);
 }

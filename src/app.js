@@ -777,6 +777,16 @@ app.post('/api/agent/entities/:id/unlock', requireAgentSession, async (req, res,
 // --- Journal ---
 app.get('/api/agent/journal', requireAgentSession, async (req, res, next) => {
   try {
+    if (req.query.list) {
+      const list = await listJournalEntries();
+      return res.json(
+        list.map((entry) => ({
+          season: Number(entry.season) || 1,
+          session: Number(entry.session) || 0,
+          public_note: entry.public_note || ''
+        }))
+      );
+    }
     const season = req.query.season || 2;
     const session = req.query.session || 0;
     const entry = await getJournalEntry({ season, session });

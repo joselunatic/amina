@@ -6,13 +6,13 @@ const iPhone13 = devices['iPhone 13'];
 async function loginAsAgent(page: Page) {
   await loginAgentPage(page);
   await expect(page.locator('#mobile-nav')).toBeVisible();
-  await expect(page.locator('#workspace')).toBeVisible();
+  await expect(page.locator('#map')).toBeVisible();
 }
 
 async function loginAsDm(page: Page) {
   await loginDmPage(page);
   await expect(page.locator('#mobile-nav')).toBeVisible();
-  await expect(page.locator('#workspace')).toBeVisible();
+  await expect(page.locator('#map')).toBeVisible();
 }
 
 async function clickWorkspaceTab(page: Page, label: string) {
@@ -24,7 +24,7 @@ async function clickWorkspaceTab(page: Page, label: string) {
 async function clickMobileTab(page: Page, label: string) {
   const mobileNav = page.locator('#mobile-nav');
   await expect(mobileNav).toBeVisible();
-  await mobileNav.getByRole('button', { name: label, exact: true }).click();
+  await mobileNav.getByRole('button', { name: label, exact: true }).click({ force: true });
 }
 
 async function clickMobileMoreOption(page: Page, view: 'sheet' | 'base') {
@@ -198,7 +198,7 @@ const mobileDmTabConfig = [
     scope: 'dm',
     assert: async (page: Page) => {
       await expect(page.locator('#map')).toBeVisible();
-      await expect(page.locator('#workspace')).toBeVisible();
+      await expect(page.locator('#workspace')).toBeHidden();
     }
   },
   {

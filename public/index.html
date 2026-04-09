@@ -358,23 +358,23 @@
                       <div class="session-archive-header">
                         <div class="session-archive-copy">
                           <div class="session-archive-title">Registro de campaña</div>
+                          <div class="session-archive-current" id="agent-journal-current-state">T2 · Sesión 0</div>
                           <div class="session-archive-summary" id="agent-journal-summary">Temporada 2 · Sesión 0 · Esperando directivas.</div>
                         </div>
                         <button type="button" id="agent-journal-toggle" class="ghost small" aria-expanded="false">Abrir</button>
                       </div>
                       <div class="session-archive-detail hidden" id="agent-journal-detail">
-                      <div class="inline-fields">
-                        <div class="flex-row gap-sm">
-                          <div class="flex-col equal">
-                            <label for="agent-journal-season">Temporada</label>
-                            <input type="number" id="agent-journal-season" min="1" max="20" value="2" />
+                        <div class="session-archive-toolbar">
+                          <div class="season-chip-group" id="agent-journal-season-chips" role="tablist" aria-label="Temporada de archivo">
+                            <button type="button" class="season-chip" data-agent-journal-season-chip="1" role="tab" aria-selected="false">T1</button>
+                            <button type="button" class="season-chip" data-agent-journal-season-chip="2" role="tab" aria-selected="true">T2</button>
                           </div>
-                          <div class="flex-col equal">
-                            <label for="agent-journal-session">Sesión</label>
-                            <input type="number" id="agent-journal-session" min="0" max="99" value="0" />
-                          </div>
+                          <button type="button" id="agent-journal-session-picker" class="ghost session-picker-btn">
+                            Seleccionar episodio
+                          </button>
                         </div>
-                      </div>
+                        <input type="hidden" id="agent-journal-season" value="2" />
+                        <input type="hidden" id="agent-journal-session" value="0" />
                       <div class="field-label" id="agent-journal-public-label">Notas de misión (agente)</div>
                       <div
                         id="agent-journal-public"
@@ -388,6 +388,20 @@
                       <div class="form-actions">
                         <button type="button" id="agent-journal-save" class="ghost">Editar</button>
                       </div>
+                      </div>
+                      <div class="archive-session-sheet hidden" id="agent-journal-session-sheet" aria-hidden="true">
+                        <button type="button" class="archive-session-sheet-backdrop" data-agent-journal-sheet-close aria-label="Cerrar selector de episodio"></button>
+                        <div class="archive-session-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="agent-journal-sheet-title">
+                          <div class="archive-session-sheet-header">
+                            <div>
+                              <div class="archive-session-sheet-eyebrow">Archivo</div>
+                              <div class="archive-session-sheet-title" id="agent-journal-sheet-title">Seleccionar episodio</div>
+                            </div>
+                            <button type="button" class="ghost small" data-agent-journal-sheet-close>Cerrar</button>
+                          </div>
+                          <div class="archive-session-sheet-subtitle" id="agent-journal-sheet-subtitle">Temporada 2</div>
+                          <div class="archive-session-option-list" id="agent-journal-session-options"></div>
+                        </div>
                       </div>
                     </div>
                   </div>
