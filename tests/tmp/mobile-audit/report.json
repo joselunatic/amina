@@ -1,0 +1,394 @@
+{
+  "results": [
+    {
+      "tab": "map",
+      "bodyClasses": "crt mobile-mode is-mobile mode-agent map-view map-unavailable",
+      "workspaceView": "map",
+      "mapVisible": true,
+      "mapRect": {
+        "x": 13.796875,
+        "y": 2.1875,
+        "width": 362.390625,
+        "height": 183.90625,
+        "top": 2.1875,
+        "bottom": 186.09375
+      },
+      "mobileNavRect": {
+        "x": 8,
+        "y": 591.375,
+        "width": 374,
+        "height": 69.75,
+        "top": 591.375,
+        "bottom": 661.125
+      },
+      "workspaceRect": {
+        "x": 12.796875,
+        "y": 405.78125,
+        "width": 364.390625,
+        "height": 156.734375,
+        "top": 405.78125,
+        "bottom": 562.515625
+      },
+      "focalRect": {
+        "x": 12.796875,
+        "y": 195.09375,
+        "width": 364.390625,
+        "height": 198.6875,
+        "top": 195.09375,
+        "bottom": 393.78125
+      },
+      "chatRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "dossierRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "baseFocusRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "scrollHeight": 770,
+      "viewportHeight": 682,
+      "overflowX": false
+    },
+    {
+      "tab": "database",
+      "bodyClasses": "crt mobile-mode is-mobile mode-agent map-unavailable",
+      "workspaceView": "database",
+      "mapVisible": false,
+      "mapRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "mobileNavRect": {
+        "x": 8,
+        "y": 1368.65625,
+        "width": 374,
+        "height": 69.75,
+        "top": 1368.65625,
+        "bottom": 1438.40625
+      },
+      "workspaceRect": {
+        "x": 12.796875,
+        "y": 581.796875,
+        "width": 364.390625,
+        "height": 758,
+        "top": 581.796875,
+        "bottom": 1339.796875
+      },
+      "focalRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "chatRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "dossierRect": {
+        "x": 25.796875,
+        "y": 594.796875,
+        "width": 338.390625,
+        "height": 480,
+        "top": 594.796875,
+        "bottom": 1074.796875
+      },
+      "baseFocusRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "scrollHeight": 1567,
+      "viewportHeight": 682,
+      "overflowX": false
+    },
+    {
+      "tab": "base",
+      "bodyClasses": "crt mobile-mode is-mobile mode-agent map-unavailable",
+      "workspaceView": "base",
+      "mapVisible": false,
+      "mapRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "mobileNavRect": {
+        "x": 8,
+        "y": 573.078125,
+        "width": 374,
+        "height": 69.75,
+        "top": 573.078125,
+        "bottom": 642.828125
+      },
+      "workspaceRect": {
+        "x": 12.796875,
+        "y": -341.625,
+        "width": 364.390625,
+        "height": 885.84375,
+        "top": -341.625,
+        "bottom": 544.21875
+      },
+      "focalRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "chatRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "dossierRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "baseFocusRect": {
+        "x": 85.984375,
+        "y": -590.234375,
+        "width": 220,
+        "height": 110.359375,
+        "top": -590.234375,
+        "bottom": -479.875
+      },
+      "scrollHeight": 1490,
+      "viewportHeight": 682,
+      "overflowX": false
+    },
+    {
+      "tab": "console",
+      "bodyClasses": "crt mobile-mode is-mobile mode-agent map-unavailable",
+      "workspaceView": "console",
+      "mapVisible": false,
+      "mapRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "mobileNavRect": {
+        "x": 8,
+        "y": 600.671875,
+        "width": 374,
+        "height": 69.75,
+        "top": 600.671875,
+        "bottom": 670.421875
+      },
+      "workspaceRect": {
+        "x": 12.796875,
+        "y": -186.1875,
+        "width": 364.390625,
+        "height": 758,
+        "top": -186.1875,
+        "bottom": 571.8125
+      },
+      "focalRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "chatRect": {
+        "x": 12.796875,
+        "y": -717.8125,
+        "width": 364.390625,
+        "height": 519.625,
+        "top": -717.8125,
+        "bottom": -198.1875
+      },
+      "dossierRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "baseFocusRect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "scrollHeight": 1517,
+      "viewportHeight": 682,
+      "overflowX": false
+    }
+  ],
+  "perf": {
+    "domContentLoaded": 3358.5999999046326,
+    "loadEventEnd": 3639.899999856949,
+    "transferSize": 67618,
+    "encodedBodySize": 67318,
+    "decodedBodySize": 67318
+  },
+  "events": {
+    "console": [
+      {
+        "type": "log",
+        "text": "AMINA app.v2 loaded (mel toggles debug)"
+      },
+      {
+        "type": "log",
+        "text": "DEBUG: init started"
+      },
+      {
+        "type": "log",
+        "text": "MEL chips binding ready {hasEntry: true, hasAdd: true}"
+      },
+      {
+        "type": "log",
+        "text": "MEL set tokens []"
+      },
+      {
+        "type": "log",
+        "text": "MEL render chips []"
+      },
+      {
+        "type": "log",
+        "text": "DEBUG: setupMap started"
+      },
+      {
+        "type": "log",
+        "text": "DEBUG: config loaded {mapboxToken: YOUR_MAPBOX_ACCESS_TOKEN_HERE, mapStyle: mapbox://styles/joselun/cmi3ezivh00gi01s98tef234h, debug: false}"
+      },
+      {
+        "type": "error",
+        "text": "DEBUG: setupMap failed Error: Invalid token\n    at i (https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js:2:8551)\n    at i (https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js:1:31470)\n    at new i (https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js:1:29552)\n    at r (https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js:1:29586)\n    at r.onAdd (https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js:1:7477)\n    at Map.addControl (https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js:36:453709)\n    at setupMap (http://127.0.0.1:3410/app.v2.js?v=20250201h:3323:19)\n    at async init (http://127.0.0.1:3410/app.v2.js?v=20250201h:2146:22)"
+      },
+      {
+        "type": "log",
+        "text": "DEBUG: setupMap done {mapReady: false}"
+      },
+      {
+        "type": "error",
+        "text": "Access to fetch at 'https://api.mapbox.com/styles/v1/mapbox-map-design/ck4014y110wt61ctt07egsel6?access_token=YOUR_MAPBOX_ACCESS_TOKEN_HERE' from origin 'http://127.0.0.1:3410' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: net::ERR_FAILED"
+      },
+      {
+        "type": "error",
+        "text": "Error: Failed to fetch https://api.mapbox.com/styles/v1/mapbox-map-design/ck4014y110wt61ctt07egsel6?access_token=YOUR_MAPBOX_ACCESS_TOKEN_HERE\n    at https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js:31:9498"
+      },
+      {
+        "type": "warning",
+        "text": "[.WebGL-0x461c0243e900]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      },
+      {
+        "type": "log",
+        "text": "DEBUG: loadAgentList done"
+      },
+      {
+        "type": "info",
+        "text": "Layout on 2 nodes took 44 ms"
+      },
+      {
+        "type": "info",
+        "text": "Layout on 2 nodes took 16 ms"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      },
+      {
+        "type": "info",
+        "text": "Layout on 2 nodes took 568 ms"
+      },
+      {
+        "type": "warning",
+        "text": "[.WebGL-0x461c0243e900]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+      },
+      {
+        "type": "log",
+        "text": "[MCPBridge] 🔌 Auto-connecting to MCP server..."
+      },
+      {
+        "type": "warning",
+        "text": "[.WebGL-0x461c00739b00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+      },
+      {
+        "type": "warning",
+        "text": "[.WebGL-0x461c00739b00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+      },
+      {
+        "type": "log",
+        "text": "Boot sequence finished"
+      },
+      {
+        "type": "error",
+        "text": "WebSocket connection to 'ws://127.0.0.1:8083/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "type": "error",
+        "text": "[MCPBridge] WebSocket error: Event"
+      },
+      {
+        "type": "warning",
+        "text": "[MCPBridge] Disconnected (Code: 1006)"
+      }
+    ],
+    "pageErrors": [],
+    "requests": [
+      {
+        "url": "http://127.0.0.1:3410/noimage.png",
+        "status": 404
+      },
+      {
+        "url": "http://127.0.0.1:3410/noimage.png",
+        "status": 404
+      }
+    ]
+  }
+}

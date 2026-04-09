@@ -334,9 +334,12 @@
           <section class="workspace" id="workspace">
             <section class="activity-panel activity-panel--workspace" id="activity-panel" aria-live="polite">
               <div class="activity-header">
-                <div class="activity-title">Registro de actividad</div>
-                <div class="activity-subtitle" id="activity-status">Esperando sesión...</div>
-                <div class="activity-connection" id="activity-connection">Ultima conexion con mainframe: —</div>
+                <div class="activity-header-copy">
+                  <div class="activity-title">Registro de actividad</div>
+                  <div class="activity-subtitle" id="activity-status">Esperando sesión...</div>
+                  <div class="activity-connection" id="activity-connection">Ultima conexion con mainframe: —</div>
+                </div>
+                <button type="button" id="activity-toggle" class="ghost small activity-toggle" aria-expanded="false">Mostrar</button>
               </div>
               <ul class="activity-list" id="activity-list"></ul>
               <div class="activity-footer">
@@ -349,8 +352,16 @@
               <div class="workspace-view agent-view" data-view="console">
                 <div class="console-stack">
                   <div class="console-card mission-card" id="mission-brief-card">
-                    <div class="card-title">INFORME DE MISIÓN</div>
+                    <div class="card-title">ARCHIVO DE SESIONES</div>
                     <div class="console-card-body">
+                      <div class="session-archive-header">
+                        <div class="session-archive-copy">
+                          <div class="session-archive-title">Registro de campaña</div>
+                          <div class="session-archive-summary" id="agent-journal-summary">Temporada 2 · Sesión 0 · Esperando directivas.</div>
+                        </div>
+                        <button type="button" id="agent-journal-toggle" class="ghost small" aria-expanded="false">Abrir</button>
+                      </div>
+                      <div class="session-archive-detail hidden" id="agent-journal-detail">
                       <div class="inline-fields">
                         <div class="flex-row gap-sm">
                           <div class="flex-col equal">
@@ -375,6 +386,7 @@
                       >Esperando directivas.</div>
                       <div class="form-actions">
                         <button type="button" id="agent-journal-save" class="ghost">Editar</button>
+                      </div>
                       </div>
                     </div>
                   </div>
@@ -461,6 +473,7 @@
                     </div>
                     <input type="search" id="dossier-search" placeholder="Buscar nombre o callsign" />
                   </div>
+                  <div class="dossier-active-strip" id="dossier-active-strip">Selecciona una entidad para ver su dossier activo.</div>
                   <div class="dossier-layout">
                     <div class="dossier-list" id="dossier-list"></div>
                   </div>

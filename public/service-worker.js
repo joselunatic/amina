@@ -1,4 +1,4 @@
-const CACHE_NAME = 'amina-pwa-v13';
+const CACHE_NAME = 'amina-pwa-v14';
 const API_CACHE_NAME = 'amina-api-v1';
 const PRECACHE_URLS = [
   '/',
@@ -6,29 +6,10 @@ const PRECACHE_URLS = [
   '/styles.css',
   '/app.v2.js',
   '/graph-api.js',
-  '/AMINA.png',
+  '/manifest.json',
   '/icon-192.png',
-  '/icon-512.png',
   '/favicon.ico',
-  '/locked.png',
-  '/creature.png',
-  '/entropia.svg',
-  '/data/base_zones.json',
-  '/modules/base3d.js',
-  '/vendor/three/three.module.js',
-  '/vendor/three/SVGLoader.js',
-  '/vendor/three/three.core.js',
-  '/vendor/three/examples/jsm/postprocessing/EffectComposer.js',
-  '/vendor/three/examples/jsm/postprocessing/RenderPass.js',
-  '/vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js',
-  '/vendor/three/examples/jsm/postprocessing/ShaderPass.js',
-  '/vendor/three/examples/jsm/postprocessing/OutputPass.js',
-  '/vendor/three/examples/jsm/shaders/CopyShader.js',
-  '/vendor/three/examples/jsm/postprocessing/Pass.js',
-  '/vendor/three/examples/jsm/postprocessing/MaskPass.js',
-  '/vendor/three/examples/jsm/shaders/LuminosityHighPassShader.js',
-  '/vendor/three/examples/jsm/shaders/OutputShader.js',
-  '/vendor/threlte-mcp/MCPBridge.js'
+  '/entropia.svg'
 ];
 
 self.addEventListener('install', (event) => {

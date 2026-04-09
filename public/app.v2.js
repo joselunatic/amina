@@ -1,5 +1,41 @@
 import { GraphAPI } from './graph-api.js';
-import { createBase3d } from './modules/base3d.js';
+
+function createBase3dFacade() {
+  let impl = null;
+  let loadPromise = null;
+
+  return new Proxy(
+    {
+      async load() {
+        if (impl) return impl;
+        if (!loadPromise) {
+          loadPromise = import('./modules/base3d.js').then(({ createBase3d }) => {
+            impl = createBase3d();
+            return impl;
+          });
+        }
+        return loadPromise;
+      },
+      isLoaded() {
+        return Boolean(impl);
+      }
+    },
+    {
+      get(target, prop) {
+        if (prop in target) {
+          return target[prop];
+        }
+
+        if (!impl) {
+          return () => undefined;
+        }
+
+        const value = impl[prop];
+        return typeof value === 'function' ? value.bind(impl) : value;
+      }
+    }
+  );
+}
 
 const categoryIcons = {
   OV_BASE: '🛰️',
@@ -237,6 +273,7 @@ const state = {
     loading: false,
     loadedIds: null
   },
+  mobileMapActivityExpanded: false,
   showOlderMobilePois: false,
   missionNotes: '',
   journalDm: '',
@@ -244,6 +281,7 @@ const state = {
   journalSession: 0,
   agentJournalSeason: 2,
   agentJournalSession: 0,
+  agentJournalExpanded: false,
   activeDmBlade: 'journal',
   poiFocal: null,
   activeMessage: null,
@@ -357,6 +395,7 @@ const activityList = document.getElementById('activity-list');
 const activityStatus = document.getElementById('activity-status');
 const activityConnection = document.getElementById('activity-connection');
 const activityMoreBtn = document.getElementById('activity-more');
+const activityToggleBtn = document.getElementById('activity-toggle');
 const bootMenu = document.getElementById('boot-menu');
 const agentLoginDiv = document.getElementById('agent-login');
 const agentLoginForm = document.getElementById('agent-login-form');
@@ -445,6 +484,7 @@ const dmJournalStatus = document.getElementById('dm-journal-status');
 const dmMobileConsoleTabs = document.querySelectorAll('.dm-mobile-console-tab');
 const unreadBadgeAgent = document.getElementById('msg-unread-badge-agent');
 const unreadBadgeDm = document.getElementById('msg-unread-badge-dm');
+const missionBriefCard = document.getElementById('mission-brief-card');
 const missionBriefText = document.getElementById('mission-brief-text');
 const journalPublicInput = document.getElementById('journal-public');
 const journalDmInput = document.getElementById('journal-dm');
@@ -477,6 +517,9 @@ const agentJournalSessionInput = document.getElementById('agent-journal-session'
 const agentJournalLoadBtn = document.getElementById('agent-journal-load');
 const agentJournalSaveBtn = document.getElementById('agent-journal-save');
 const agentJournalPublicInput = document.getElementById('agent-journal-public');
+const agentJournalSummary = document.getElementById('agent-journal-summary');
+const agentJournalToggleBtn = document.getElementById('agent-journal-toggle');
+const agentJournalDetail = document.getElementById('agent-journal-detail');
 const characterSheetCard = document.getElementById('character-sheet-card');
 const characterNameLabel = document.getElementById('sheet-character-name');
 const characterRoleLabel = document.getElementById('sheet-character-role');
@@ -586,6 +629,28 @@ function setAgentJournalEditing(isEditing) {
   } else if (!state.missionNotes) {
     agentJournalPublicInput.textContent = DEFAULT_MISSION_BRIEF;
   }
+}
+
+function updateAgentJournalSummary() {
+  if (!agentJournalSummary) return;
+  const season = Number(agentJournalSeasonInput?.value) || state.agentJournalSeason || 2;
+  const session = Number(agentJournalSessionInput?.value) || state.agentJournalSession || 0;
+  const sourceText = agentJournalPublicInput?.isContentEditable
+    ? getAgentJournalText()
+    : state.missionNotes || agentJournalPublicInput?.textContent || DEFAULT_MISSION_BRIEF;
+  const compact = (sourceText || DEFAULT_MISSION_BRIEF).replace(/\s+/g, ' ').trim();
+  const excerpt = compact.length > 90 ? `${compact.slice(0, 87)}...` : compact;
+  agentJournalSummary.textContent = `Temporada ${season} · Sesión ${session} · ${excerpt || DEFAULT_MISSION_BRIEF}`;
+}
+
+function syncAgentJournalPanelState() {
+  if (!agentJournalDetail || !agentJournalToggleBtn || !missionBriefCard) return;
+  const expanded = !isMobileView() || state.agentJournalExpanded || agentJournalPublicInput?.isContentEditable;
+  missionBriefCard.classList.toggle('is-collapsed', !expanded);
+  agentJournalDetail.classList.toggle('hidden', !expanded);
+  agentJournalToggleBtn.setAttribute('aria-expanded', String(expanded));
+  agentJournalToggleBtn.textContent = expanded ? 'Ocultar' : 'Abrir';
+  updateAgentJournalSummary();
 }
 
 function slugifySkillName(name) {
@@ -1042,6 +1107,7 @@ function refreshCharacterSheetPools() {
 const dossierList = document.getElementById('dossier-list');
 const dossierDetail = document.getElementById('dossier-detail');
 const dossierSearch = document.getElementById('dossier-search');
+const dossierActiveStrip = document.getElementById('dossier-active-strip');
 const dossierListAdmin = document.getElementById('dossier-list-admin');
 const dossierDetailAdmin = document.getElementById('dossier-detail-admin');
 const dossierSearchAdmin = document.getElementById('dossier-search-admin');
@@ -1323,68 +1389,86 @@ const baseState = {
   openModuleByZone: {},
   activeModuleByZone: {},
   visualDefaultsApplied: false,
-  baseViewActivated: false
+  baseViewActivated: false,
+  moduleInitialized: false,
+  moduleInitPromise: null
 };
 
-const base3d = createBase3d();
+const base3d = createBase3dFacade();
 
 async function initBaseModule() {
-  if (!baseZoneName || !baseZoneStatus || !baseDetailTitle) return;
-  ensureBaseVisualDefaults();
-  initBaseFullscreenToggle();
-  initBaseResetCamera();
-  if (baseVisualModeSelect) {
-    baseVisualModeSelect.addEventListener('change', applyBaseVisualSettings);
+  if (baseState.moduleInitialized) return;
+  if (baseState.moduleInitPromise) {
+    await baseState.moduleInitPromise;
+    return;
   }
-  if (baseVisualPaletteSelect) {
-    baseVisualPaletteSelect.addEventListener('change', applyBaseVisualSettings);
-  }
-  if (baseEditorToggle) {
-    baseEditorToggle.addEventListener('click', () => {
-      if (baseState.editorOpen) {
-        closeBaseEditor({ preserveText: false });
-      } else {
-        openBaseEditor(baseState.selectedZoneId);
-      }
-    });
-  }
-  if (baseEditorCancel) {
-    baseEditorCancel.addEventListener('click', () => closeBaseEditor({ preserveText: false }));
-  }
-  if (baseEditorText) {
-    baseEditorText.addEventListener('input', () => {
-      baseState.editorDirty = true;
-    });
-  }
-  if (baseEditorSave) {
-    baseEditorSave.addEventListener('click', async () => {
-      await saveBaseEditor();
-    });
-  }
-  baseState.zonesData = await loadBaseZoneData();
-  baseState.activeModuleByZone = syncActiveModules(baseState.zonesData, {});
-  if (base3dCanvas) {
-  base3d.init({
-    canvas: base3dCanvas,
-    root: base3dRoot,
-    zonesData: baseState.zonesData,
-    activeModules: baseState.activeModuleByZone,
-    onSelect: (zoneId) => selectBaseZone(zoneId, { source: 'three', force: true }),
-    onSelectModule: (zoneId, moduleId) => setBaseActiveModule(zoneId, moduleId),
-    onToggleFullscreen: () => toggleBaseFullscreen(),
-    onFlyOff: () => {
-      baseState.isOverview = true;
-      baseState.focusLinkPos = null;
-      baseState.focusCardPos = null;
-      baseFocusCard?.classList.add('is-hidden');
-      baseFocusLink?.classList.add('hidden');
-      baseFocusLinkLine?.setAttribute('points', '0,0 0,0 0,0');
+
+  baseState.moduleInitPromise = (async () => {
+    if (!baseZoneName || !baseZoneStatus || !baseDetailTitle) return;
+    ensureBaseVisualDefaults();
+    initBaseFullscreenToggle();
+    initBaseResetCamera();
+    if (baseVisualModeSelect) {
+      baseVisualModeSelect.addEventListener('change', applyBaseVisualSettings);
     }
-  });
+    if (baseVisualPaletteSelect) {
+      baseVisualPaletteSelect.addEventListener('change', applyBaseVisualSettings);
+    }
+    if (baseEditorToggle) {
+      baseEditorToggle.addEventListener('click', () => {
+        if (baseState.editorOpen) {
+          closeBaseEditor({ preserveText: false });
+        } else {
+          openBaseEditor(baseState.selectedZoneId);
+        }
+      });
+    }
+    if (baseEditorCancel) {
+      baseEditorCancel.addEventListener('click', () => closeBaseEditor({ preserveText: false }));
+    }
+    if (baseEditorText) {
+      baseEditorText.addEventListener('input', () => {
+        baseState.editorDirty = true;
+      });
+    }
+    if (baseEditorSave) {
+      baseEditorSave.addEventListener('click', async () => {
+        await saveBaseEditor();
+      });
+    }
+    await base3d.load();
+    baseState.zonesData = await loadBaseZoneData();
+    baseState.activeModuleByZone = syncActiveModules(baseState.zonesData, {});
+    if (base3dCanvas) {
+      base3d.init({
+        canvas: base3dCanvas,
+        root: base3dRoot,
+        zonesData: baseState.zonesData,
+        activeModules: baseState.activeModuleByZone,
+        onSelect: (zoneId) => selectBaseZone(zoneId, { source: 'three', force: true }),
+        onSelectModule: (zoneId, moduleId) => setBaseActiveModule(zoneId, moduleId),
+        onToggleFullscreen: () => toggleBaseFullscreen(),
+        onFlyOff: () => {
+          baseState.isOverview = true;
+          baseState.focusLinkPos = null;
+          baseState.focusCardPos = null;
+          baseFocusCard?.classList.add('is-hidden');
+          baseFocusLink?.classList.add('hidden');
+          baseFocusLinkLine?.setAttribute('points', '0,0 0,0 0,0');
+        }
+      });
+    }
+    applyBaseVisualSettings();
+    startBaseFocusLinkLoop();
+    selectBaseZone(baseState.selectedZoneId, { immediateFocus: true });
+    baseState.moduleInitialized = true;
+  })();
+
+  try {
+    await baseState.moduleInitPromise;
+  } finally {
+    baseState.moduleInitPromise = null;
   }
-  applyBaseVisualSettings();
-  startBaseFocusLinkLoop();
-  selectBaseZone(baseState.selectedZoneId, { immediateFocus: true });
 }
 
 async function loadBaseZoneData() {
@@ -1998,6 +2082,7 @@ function openBaseEditor(zoneId) {
   baseState.editorOpen = true;
   baseState.editorZoneId = zoneId;
   baseEditorBody.classList.remove('hidden');
+  document.getElementById('base-editor')?.classList.add('is-open');
   if (baseEditorToggle) baseEditorToggle.textContent = 'Cerrar editor';
 }
 
@@ -2007,6 +2092,7 @@ function closeBaseEditor({ preserveText } = {}) {
   baseState.editorDirty = false;
   baseState.editorZoneId = null;
   baseEditorBody.classList.add('hidden');
+  document.getElementById('base-editor')?.classList.remove('is-open');
   if (!preserveText && baseEditorText) baseEditorText.value = '';
   if (baseEditorToggle) baseEditorToggle.textContent = 'Editar zona';
 }
@@ -2073,7 +2159,6 @@ async function init() {
     console.log('DEBUG: init started');
     populateCategoryOptions();
     bindEvents();
-    await initBaseModule();
     enterNewEntityMode();
     renderFocalPoiCard();
     updateRoleLayoutClasses();
@@ -2167,6 +2252,10 @@ function bindEvents() {
   activityMoreBtn?.addEventListener('click', () => {
     if (!state.activityPagination || state.activityPagination.loading) return;
     loadActivity({ page: state.activityPagination.page + 1, append: true });
+  });
+  activityToggleBtn?.addEventListener('click', () => {
+    state.mobileMapActivityExpanded = !state.mobileMapActivityExpanded;
+    syncActivityPanelState();
   });
   agentSelect?.addEventListener('change', () => {
     agentLoginStatus.textContent = '';
@@ -2271,19 +2360,39 @@ function bindEvents() {
   agentJournalSaveBtn?.addEventListener('click', async () => {
     if (!agentJournalPublicInput || !agentJournalSaveBtn) return;
     if (!agentJournalPublicInput.isContentEditable) {
+      state.agentJournalExpanded = true;
+      syncAgentJournalPanelState();
       setAgentJournalEditing(true);
       return;
     }
     const ok = await handleAgentJournalSave();
     if (ok) {
       setAgentJournalEditing(false);
+      syncAgentJournalPanelState();
     }
   });
+  agentJournalToggleBtn?.addEventListener('click', () => {
+    state.agentJournalExpanded = !state.agentJournalExpanded;
+    syncAgentJournalPanelState();
+  });
   const autoLoadAgentJournal = debounce(loadAgentJournal, 250);
-  agentJournalSeasonInput?.addEventListener('change', loadAgentJournal);
-  agentJournalSessionInput?.addEventListener('change', loadAgentJournal);
-  agentJournalSeasonInput?.addEventListener('input', autoLoadAgentJournal);
-  agentJournalSessionInput?.addEventListener('input', autoLoadAgentJournal);
+  agentJournalSeasonInput?.addEventListener('change', () => {
+    updateAgentJournalSummary();
+    loadAgentJournal();
+  });
+  agentJournalSessionInput?.addEventListener('change', () => {
+    updateAgentJournalSummary();
+    loadAgentJournal();
+  });
+  agentJournalSeasonInput?.addEventListener('input', () => {
+    updateAgentJournalSummary();
+    autoLoadAgentJournal();
+  });
+  agentJournalSessionInput?.addEventListener('input', () => {
+    updateAgentJournalSummary();
+    autoLoadAgentJournal();
+  });
+  agentJournalPublicInput?.addEventListener('input', updateAgentJournalSummary);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && (state.dmMode || state.agent)) {
       connectChatSocket();
@@ -5803,6 +5912,18 @@ function updateActivityPaginationControls() {
   activityMoreBtn.disabled = !!state.activityPagination.loading;
 }
 
+function syncActivityPanelState() {
+  if (!activityPanel || !activityToggleBtn) return;
+  const mobileMap =
+    (typeof isMobileView === 'function' ? isMobileView() : document.body.classList.contains('is-mobile')) &&
+    state.workspaceView === 'map';
+  const expanded = !mobileMap || state.mobileMapActivityExpanded;
+  activityPanel.classList.toggle('is-collapsed', !expanded);
+  activityToggleBtn.classList.toggle('hidden', !mobileMap);
+  activityToggleBtn.setAttribute('aria-expanded', String(expanded));
+  activityToggleBtn.textContent = expanded ? 'Ocultar' : 'Mostrar';
+}
+
 function renderActivity(items = [], options = {}) {
   const { append = false } = options;
   if (!activityList || !activityStatus) return;
@@ -6367,6 +6488,11 @@ function renderAgentDossiers() {
     listTarget.style.display = '';
   }
   if (!entities.length) {
+    if (dossierActiveStrip) {
+      dossierActiveStrip.textContent = isMobileDatabase
+        ? 'Busca una entidad o PdI para fijar un dossier activo.'
+        : 'Selecciona una entidad para ver su dossier activo.';
+    }
     const empty = document.createElement('div');
     empty.className = 'dossier-empty';
     empty.textContent = isMobileDatabase
@@ -6395,6 +6521,28 @@ function renderAgentDossiers() {
   }
 
   const compactList = isMobileView() && state.mobileTab === 'database';
+  if (dossierActiveStrip) {
+    const active = state.activeEntityAgent;
+    if (active) {
+      const title = active.code_name || active.name || 'Dossier activo';
+      const typeLabel = getEntityTypeLabel(active.type || active.kind);
+      const summary = active.public_summary || active.public_note || '';
+      const excerpt = summary ? shortenText(summary, 90) : 'Consulta rápida lista. Toca otro elemento para cambiar el foco.';
+      const visual = getDossierVisualMeta(active);
+      dossierActiveStrip.innerHTML = `
+        <span class="eyebrow">Activo</span>
+        <div class="dossier-active-strip-main">
+          <span class="dossier-active-icon dossier-active-icon--${sanitize(visual.tone)}" aria-hidden="true">${sanitize(visual.icon)}</span>
+          <span class="dossier-active-copy">
+            <strong>${sanitize(title)}</strong>
+            <span>${sanitize(typeLabel)} · ${sanitize(excerpt)}</span>
+          </span>
+        </div>
+      `;
+    } else {
+      dossierActiveStrip.textContent = 'Selecciona una entidad para ver su dossier activo.';
+    }
+  }
   entities.forEach((entity) => {
     const card = buildDossierCard(
       entity,
@@ -6470,27 +6618,40 @@ function buildDossierCard(entity, dmView = false, active = false, compact = fals
   const card = document.createElement('div');
   const locked = entity.visibility === 'locked' && !dmView;
   card.className = `dossier-card-row ${active ? 'active' : ''} ${locked ? 'locked' : ''}`;
-  const badge = `<span class="badge">${getEntityTypeLabel(entity.type)}</span>`;
   const role = entity.type === 'poi' ? categoryLabels[entity.category] || entity.role : entity.role;
   const nameParts = splitEntityName(entity.code_name || entity.name || 'Entidad');
+  const visual = getDossierVisualMeta(entity);
+  const roleLine = sanitize(role || 'Sin rol');
+  const excerpt = sanitize(
+    shortenText(
+      entity.public_summary || entity.public_note || entity.summary || entity.note || (locked ? 'Requiere clave de acceso' : 'Sin notas públicas'),
+      compact ? 68 : 96
+    )
+  );
+  const badges = [
+    `<span class="badge">${sanitize(getEntityTypeLabel(entity.type))}</span>`,
+    entity.threat_level ? `<span class="badge-soft">Amenaza ${sanitize(String(entity.threat_level))}</span>` : '',
+    locked ? '<span class="badge-soft">Locked</span>' : ''
+  ]
+    .filter(Boolean)
+    .join('');
   const titleHtml = `
       <span class="dossier-row-title">
         <span class="dossier-title-primary">${sanitize(nameParts.primary)}</span>
-        <span class="dossier-title-secondary">${sanitize(nameParts.secondary)}</span>
+        ${nameParts.secondary ? `<span class="dossier-title-secondary">${sanitize(nameParts.secondary)}</span>` : ''}
       </span>
     `;
-  if (locked) {
-    card.innerHTML = `
-      <div class="dossier-row-header">${badge} ${titleHtml}</div>
-      <div class="dossier-row-note">LOCKED — requiere clave</div>
-    `;
-  } else {
-    const roleLine = sanitize(role || 'Sin rol');
-    card.innerHTML = `
-      <div class="dossier-row-header">${badge} ${titleHtml}</div>
-      <div class="dossier-row-meta">${roleLine}</div>
-    `;
-  }
+  card.innerHTML = `
+    <div class="dossier-row-header">
+      <span class="dossier-row-visual dossier-row-visual--${sanitize(visual.tone)}" aria-hidden="true">${sanitize(visual.icon)}</span>
+      <div class="dossier-row-main">
+        <div class="dossier-row-topline">${badges}</div>
+        ${titleHtml}
+        <div class="dossier-row-meta">${roleLine}</div>
+        <div class="dossier-row-note">${excerpt}</div>
+      </div>
+    </div>
+  `;
   if (dmView && entity.archived) {
     const pill = document.createElement('span');
     pill.className = 'badge-soft';
@@ -6512,9 +6673,85 @@ function splitEntityName(name) {
     if (primary) return { primary, secondary };
   }
   const words = raw.split(/\s+/);
-  const primary = words.shift() || raw;
-  const secondary = words.join(' ').trim();
+  if (words.length <= 2 || raw.length <= 22) {
+    return { primary: raw, secondary: '' };
+  }
+  const primary = words.slice(0, 2).join(' ').trim() || raw;
+  const secondary = words.slice(2).join(' ').trim();
   return { primary, secondary };
+}
+
+function getDossierVisualMeta(entity) {
+  if (!entity) return { icon: '◉', tone: 'unknown' };
+  if (entity.type === 'poi') {
+    const category = entity.category || '';
+    const tone =
+      {
+        OV_BASE: 'base',
+        CRIME_SCENE: 'threat',
+        ESOTERROR_CELL: 'threat',
+        MUNDANE_TOWN: 'neutral',
+        INDUSTRIAL_SITE: 'system',
+        NATURAL_SITE: 'field',
+        NPC: 'entity',
+        RUMOR: 'intel'
+      }[category] || 'poi';
+    return {
+      icon: categoryIcons[category] || '◉',
+      tone
+    };
+  }
+  const normalized = normalizeEntityType(entity);
+  if (normalized === 'criatura') return { icon: '✦', tone: 'threat' };
+  if (normalized === 'organizacion' || normalized === 'organization') return { icon: '⌘', tone: 'system' };
+  if (normalized === 'agente' || normalized === 'agent') return { icon: '▲', tone: 'field' };
+  return { icon: '◌', tone: 'entity' };
+}
+
+function buildAgentDetailHeader(entity, options = {}) {
+  if (!entity) return '';
+  const isPoi = !!options.isPoi;
+  const visual = getDossierVisualMeta(entity);
+  const nameParts = splitEntityName(entity.code_name || entity.name || 'Entidad');
+  const title = sanitize(nameParts.primary || entity.code_name || entity.name || 'Entidad');
+  const subtitleSource = isPoi
+    ? categoryLabels[entity.category] || entity.role || entity.category || 'PdI'
+    : entity.role || getEntityTypeLabel(entity.type || entity.kind);
+  const subtitleTail = nameParts.secondary ? ` · ${sanitize(nameParts.secondary)}` : '';
+  const subtitle = `${sanitize(subtitleSource)}${subtitleTail}`;
+  const summary = sanitize(
+    shortenText(entity.public_summary || entity.public_note || 'Sin notas públicas', isMobileView() ? 148 : 220)
+  );
+  const badges = [];
+  badges.push(`<span class="badge">${sanitize(getEntityTypeLabel(entity.type || entity.kind))}</span>`);
+  if (isPoi) {
+    if (entity.threat_level) badges.push(`<span class="badge-soft">Amenaza ${sanitize(String(entity.threat_level))}</span>`);
+    const veil = formatVeilLabel(entity.veil_status || entity.alignment || '');
+    if (veil) badges.push(`<span class="badge-soft">Velo ${sanitize(veil)}</span>`);
+  } else {
+    if (entity.status) badges.push(`<span class="badge-soft">${sanitize(String(entity.status))}</span>`);
+    if (entity.alignment) badges.push(`<span class="badge-soft">${sanitize(String(entity.alignment))}</span>`);
+    if (entity.threat_level || entity.threat) {
+      badges.push(`<span class="badge-soft">Amenaza ${sanitize(String(entity.threat_level || entity.threat))}</span>`);
+    }
+  }
+  if (entity.session_tag || entity.sessions) {
+    badges.push(`<span class="badge-soft">${sanitize(String(entity.session_tag || entity.sessions))}</span>`);
+  }
+  return `
+    <div class="agent-detail-header agent-detail-header--${sanitize(visual.tone)}">
+      <div class="agent-detail-header-main">
+        <span class="agent-detail-icon agent-detail-icon--${sanitize(visual.tone)}" aria-hidden="true">${sanitize(visual.icon)}</span>
+        <div class="agent-detail-copy">
+          <span class="agent-detail-eyebrow">${isPoi ? 'Punto de interes' : 'Dossier activo'}</span>
+          <h3 class="agent-detail-title">${title}</h3>
+          <div class="agent-detail-subtitle">${subtitle}</div>
+        </div>
+      </div>
+      <div class="agent-detail-badges">${badges.join('')}</div>
+      <p class="agent-detail-summary">${summary}</p>
+    </div>
+  `;
 }
 
 function renderDossierDetailView(target, entity, options = {}) {
@@ -7676,16 +7913,36 @@ function setWorkspaceView(view) {
   } else {
     document.body?.classList.remove('map-view');
   }
+  syncActivityPanelState();
+  syncAgentJournalPanelState();
   if (view === 'map' && isMobileView()) {
     scheduleMapResize();
   }
   if (view === 'base') {
     ensureBaseVisualDefaults();
-    applyBaseVisualSettings();
-    base3d.resize();
-    if (!baseState.baseViewActivated) {
-      base3d.resetCamera?.({ immediate: true });
-      baseState.baseViewActivated = true;
+    if (baseState.moduleInitialized) {
+      applyBaseVisualSettings();
+      base3d.resize();
+      if (!baseState.baseViewActivated) {
+        base3d.resetCamera?.({ immediate: true });
+        baseState.baseViewActivated = true;
+      }
+    } else {
+      void initBaseModule()
+        .then(() => {
+          if (state.workspaceView !== 'base') return;
+          applyBaseVisualSettings();
+          base3d.resize();
+          if (!baseState.baseViewActivated) {
+            base3d.resetCamera?.({ immediate: true });
+            baseState.baseViewActivated = true;
+          }
+          base3d.setActive?.(true);
+        })
+        .catch((error) => {
+          console.error('DEBUG: base module init failed', error);
+          showMessage('No se pudo cargar la vista Entropia.', true);
+        });
     }
   }
   base3d.setActive?.(view === 'base');
@@ -8473,11 +8730,11 @@ function renderFocalPoiCard() {
       <div class="mobile-focal-meta">
         <div class="mobile-focal-line"><span class="label">Amenaza</span><span>${poi.threat_level}</span></div>
         <div class="mobile-focal-line"><span class="label">Velo</span><span>${sanitize(formatVeilLabel(poi.veil_status))}</span></div>
-        <div class="mobile-focal-line"><span class="label">Notas</span><span>${sanitize(poi.public_note || 'Sin notas públicas')}</span></div>
+        <div class="mobile-focal-line"><span class="label">Resumen</span><span>${sanitize(shortenText(poi.public_note || 'Sin notas públicas', 72))}</span></div>
       </div>
-      ${safeImage
-        ? `<div class="mobile-focal-image"><img src="${safeImage}" alt="${sanitize(poi.name)}"/></div>`
-        : `<div class="mobile-focal-image"><span class="muted">No image available</span></div>`}
+      <div class="mobile-focal-actions">
+        <button type="button" class="ghost small" data-focal-poi-jump="${poi.id}">Abrir dossier</button>
+      </div>
       ${relatedBlock ? `<div class="mobile-focal-related">${relatedBlock}</div>` : ''}
     </div>
   `;
@@ -8715,6 +8972,8 @@ function renderMissionCards() {
     journalPublicInput.value = state.missionNotes;
   }
   setAgentJournalText(state.missionNotes || DEFAULT_MISSION_BRIEF);
+  updateAgentJournalSummary();
+  syncAgentJournalPanelState();
 }
 
 async function loadAgentJournal() {
@@ -8901,6 +9160,9 @@ function setMobileTab(tab) {
     btn.classList.toggle('active', btn.dataset.mobileTab === tab);
   });
   updateMobileStateBadge();
+  if (tab !== 'map') {
+    state.mobileMapActivityExpanded = false;
+  }
   if (tab === 'map') {
     setWorkspaceView('map');
     scheduleMapResize();
@@ -8935,6 +9197,11 @@ function setMobileTab(tab) {
   }
   syncMobileDmEditMode(tab !== 'database');
   syncMobileDmConsoleTab();
+  syncActivityPanelState();
+  syncAgentJournalPanelState();
+  if (isMobileView()) {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }
 }
 
 function updateViewportMode() {
@@ -10094,6 +10361,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
         bindAgentDossierTabs(detail);
         return;
       }
+      const poiDetailHeader = buildAgentDetailHeader(entity, { isPoi: true });
       detail.innerHTML = `
         <div class="card-title">PdI</div>
         <div class="agent-dossier-tabs">
@@ -10102,6 +10370,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
         </div>
         <div class="agent-dossier-panels">
           <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
+            ${poiDetailHeader}
             <div class="dm-detail-grid">
               <div class="dm-detail-box wide">
                 <div class="dm-detail-label">Callsign</div>
@@ -10196,6 +10465,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
         bindAgentDossierTabs(detail);
         return;
       }
+      const entityDetailHeader = buildAgentDetailHeader(entity, { isPoi: false });
       detail.innerHTML = `
         <div class="card-title">Dossier</div>
         <div class="agent-dossier-tabs">
@@ -10204,6 +10474,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
         </div>
         <div class="agent-dossier-panels">
           <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
+            ${entityDetailHeader}
             <div class="dm-detail-grid">
               <div class="dm-detail-box wide">
                 <div class="dm-detail-label">Callsign</div>
