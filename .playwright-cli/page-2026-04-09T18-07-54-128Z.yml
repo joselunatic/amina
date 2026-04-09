@@ -1,0 +1,21 @@
+- generic [ref=e3]:
+  - generic [ref=e6]: "AMINA BIOS // NÚCLEO DE MEMBRANA v5.2 Iniciando sensores de red de campo... Verificando nodos de Schuylkill... Integridad de la señal: ESTABLE Índice de desgarro de membrana: MODERADO Canales de autorización disponibles: >> Esperando selección de autorización..."
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: AMINA // ANÁLISIS DE MISIONES E INVESTIGACIÓN DE NUEVAS AMENAZAS
+      - generic [ref=e10]: DIV. DE OPERACIONES DE MEMBRANA
+    - generic [ref=e11]:
+      - generic [ref=e17]:
+        - generic [ref=e18]: Agente
+        - combobox "Agente" [active] [ref=e19]:
+          - option "Arnold Guerrero-Hart" [selected]
+          - option "Dwight Clutter"
+          - option "Howard Pike"
+          - option "Karen Redwood"
+          - option "Victoria Allen"
+        - generic [ref=e20]: Contraseña de Agente
+        - textbox "Contraseña de Agente" [ref=e21]
+        - button "Autorizar" [ref=e22] [cursor=pointer]
+        - button "Configurar contraseña" [ref=e23] [cursor=pointer]
+        - paragraph [ref=e24]
+      - button "Configurar contraseña" [ref=e15] [cursor=pointer]

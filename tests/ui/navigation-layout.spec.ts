@@ -5,15 +5,13 @@ const iPhone13 = devices['iPhone 13'];
 
 async function loginAsAgent(page: Page) {
   await loginAgentPage(page);
-  const nav = page.locator('nav.workspace-nav.primary-nav');
-  await expect(nav).toBeVisible();
+  await expect(page.locator('#mobile-nav')).toBeVisible();
   await expect(page.locator('#workspace')).toBeVisible();
 }
 
 async function loginAsDm(page: Page) {
   await loginDmPage(page);
-  const nav = page.locator('nav.workspace-nav.primary-nav .workspace-tabs.dm-tabs');
-  await expect(nav).toBeVisible();
+  await expect(page.locator('#mobile-nav')).toBeVisible();
   await expect(page.locator('#workspace')).toBeVisible();
 }
 
@@ -27,6 +25,11 @@ async function clickMobileTab(page: Page, label: string) {
   const mobileNav = page.locator('#mobile-nav');
   await expect(mobileNav).toBeVisible();
   await mobileNav.getByRole('button', { name: label, exact: true }).click();
+}
+
+async function clickMobileMoreOption(page: Page, view: 'sheet' | 'base') {
+  await expect(page.locator('#mobile-more-switch')).toBeVisible();
+  await page.locator(`#mobile-more-switch [data-mobile-more-view="${view}"]`).click({ force: true });
 }
 
 async function expectNavAboveFooter(page: Page) {
@@ -158,27 +161,32 @@ const mobileAgentTabConfig = [
     }
   },
   {
-    label: 'Entropia',
-    view: 'base',
-    scope: 'agent',
-    assert: async (page: Page) => {
-      await expect(page.locator('#base-focus-card')).toBeVisible();
-    }
-  },
-  {
-    label: 'Ficha',
-    view: 'sheet',
-    scope: 'agent',
-    assert: async (page: Page) => {
-      await expect(page.locator('#character-sheet-card')).toBeVisible();
-    }
-  },
-  {
     label: 'Consola',
     view: 'console',
     scope: 'agent',
     assert: async (page: Page) => {
+      await expect(page.locator('#agent-chat-card')).toBeVisible();
+      await expect(page.locator('#mission-brief-card')).toBeHidden();
+    }
+  },
+  {
+    label: 'Archivo',
+    view: 'console',
+    scope: 'agent',
+    assert: async (page: Page) => {
       await expect(page.locator('#mission-brief-card')).toBeVisible();
+      await expect(page.locator('#agent-chat-card')).toBeHidden();
+    }
+  },
+  {
+    label: 'Más',
+    view: 'sheet',
+    scope: 'agent',
+    assert: async (page: Page) => {
+      await clickMobileMoreOption(page, 'sheet');
+      await expect(page.locator('#character-sheet-card')).toBeVisible();
+      await clickMobileMoreOption(page, 'base');
+      await expect(page.locator('#base-focus-card')).toBeVisible();
     }
   }
 ];
@@ -189,7 +197,8 @@ const mobileDmTabConfig = [
     view: 'map',
     scope: 'dm',
     assert: async (page: Page) => {
-      await expect(page.locator('#dm-focal-poi-card')).toBeVisible();
+      await expect(page.locator('#map')).toBeVisible();
+      await expect(page.locator('#workspace')).toBeVisible();
     }
   },
   {
@@ -201,20 +210,32 @@ const mobileDmTabConfig = [
     }
   },
   {
-    label: 'Entropia',
-    view: 'base',
-    scope: 'dm',
-    assert: async (page: Page) => {
-      await expect(page.locator('#base-focus-card')).toBeVisible();
-    }
-  },
-  {
     label: 'Consola',
     view: 'journal',
     scope: 'dm',
     assert: async (page: Page) => {
       await expect(page.locator('#dm-chat-card')).toBeVisible();
       await expect(page.locator('.dm-mobile-console-tab.active')).toHaveText('Mensajería');
+    }
+  },
+  {
+    label: 'Archivo',
+    view: 'journal',
+    scope: 'dm',
+    assert: async (page: Page) => {
+      await expect(page.locator('.dm-mobile-console-tab.active')).toHaveText('Journal');
+      await expect(page.locator('#journal-public')).toBeVisible();
+    }
+  },
+  {
+    label: 'Más',
+    view: 'base',
+    scope: 'dm',
+    assert: async (page: Page) => {
+      await expect(page.locator('#mobile-more-switch')).toBeVisible();
+      await expect(page.locator('#mobile-more-switch [data-mobile-more-view="sheet"]')).toHaveClass(/hidden/);
+      await clickMobileMoreOption(page, 'base');
+      await expect(page.locator('#base-focus-card')).toBeVisible();
     }
   }
 ];
@@ -276,8 +297,7 @@ mobileTest.describe('Mobile agent navigation', () => {
     await expect(page.locator('#mobile-nav')).toBeVisible();
     for (const tab of mobileAgentTabConfig) {
       await clickMobileTab(page, tab.label);
-      const viewClass = tab.scope === 'agent' ? 'agent-view' : 'dm-view';
-      await expect(page.locator(`.workspace-view.${viewClass}[data-view="${tab.view}"].active`)).toBeVisible();
+      await expect(page.locator('body')).toHaveAttribute('data-workspace-view', tab.view);
       await tab.assert(page);
     }
   });
@@ -289,8 +309,7 @@ mobileTest.describe('Mobile DM navigation', () => {
     await expect(page.locator('#mobile-nav')).toBeVisible();
     for (const tab of mobileDmTabConfig) {
       await clickMobileTab(page, tab.label);
-      const viewClass = tab.scope === 'agent' ? 'agent-view' : 'dm-view';
-      await expect(page.locator(`.workspace-view.${viewClass}[data-view="${tab.view}"].active`)).toBeVisible();
+      await expect(page.locator('body')).toHaveAttribute('data-workspace-view', tab.view);
       await tab.assert(page);
     }
   });

@@ -1029,28 +1029,17 @@
         </span>
         <span class="mobile-tab-label">Dossier</span>
       </button>
-      <button type="button" class="mobile-tab" data-mobile-tab="base">
+      <button type="button" class="mobile-tab" data-mobile-tab="console">
         <span class="mobile-tab-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
-            <path
-              d="M12 3l7 4v6c0 4-3.3 7-7 8-3.7-1-7-4-7-8V7l7-4Z"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linejoin="round"
-            />
-            <path
-              d="M12 8l3 2-3 2-3-2 3-2Z"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linejoin="round"
-            />
+            <path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="2" />
+            <path d="M7 10l3 2-3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M12 14h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
         </span>
-        <span class="mobile-tab-label">Entropia</span>
+        <span class="mobile-tab-label">Consola</span>
       </button>
-      <button type="button" class="mobile-tab" data-mobile-tab="sheet">
+      <button type="button" class="mobile-tab" data-mobile-tab="archive">
         <span class="mobile-tab-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
             <path
@@ -1070,19 +1059,23 @@
             <path d="M9 12h8M9 16h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
         </span>
-        <span class="mobile-tab-label">Ficha</span>
+        <span class="mobile-tab-label">Archivo</span>
       </button>
-      <button type="button" class="mobile-tab" data-mobile-tab="console">
+      <button type="button" class="mobile-tab" data-mobile-tab="more">
         <span class="mobile-tab-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="2" />
-            <path d="M7 10l3 2-3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M12 14h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+            <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+            <circle cx="19" cy="12" r="1.8" fill="currentColor" />
           </svg>
         </span>
-        <span class="mobile-tab-label">Consola</span>
+        <span class="mobile-tab-label">Más</span>
       </button>
       </nav>
+      <section class="mobile-more-switch hidden" id="mobile-more-switch" aria-label="Herramientas secundarias">
+        <button type="button" class="mobile-more-option" data-mobile-more-view="sheet">Ficha</button>
+        <button type="button" class="mobile-more-option" data-mobile-more-view="base">Entropía</button>
+      </section>
     </main>
     <div id="mobile-state-badge" class="mobile-state-badge">tab:?<br>view:?<br>mode:?</div>
     <footer class="app-footer">

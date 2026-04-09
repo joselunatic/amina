@@ -298,6 +298,7 @@ const state = {
   agentBlade: 'focal',
   mobileDmEditMode: false,
   mobileDmConsoleTab: 'messages',
+  mobileMoreView: 'sheet',
   journalStatus: 'clean'
   , entitiesMap: null,
   entityDetailMap: null,
@@ -444,6 +445,8 @@ const commandInboxBtn = document.getElementById('command-inbox');
 const tickerTrack = document.getElementById('ticker-track');
 const logoutButton = document.getElementById('logout-button');
 const mobileNav = document.getElementById('mobile-nav');
+const mobileMoreSwitch = document.getElementById('mobile-more-switch');
+const mobileMoreOptions = document.querySelectorAll('[data-mobile-more-view]');
 const footerMembraneStatus = document.getElementById('footer-membrane-status');
 const footerTime = document.getElementById('footer-time');
 const sidebarPanel = document.querySelector('.control-panel');
@@ -1573,7 +1576,14 @@ function updateBaseFocusLink() {
   const zoneX = baseState.focusLinkPos.x - rootRect.left;
   const zoneY = baseState.focusLinkPos.y - rootRect.top;
   const isMobileBase =
-    isMobileView() && document.body?.dataset.mobileTab === 'base';
+    isMobileView() &&
+    (
+      document.body?.dataset.mobileTab === 'base' ||
+      (
+        document.body?.dataset.mobileTab === 'more' &&
+        document.body?.dataset.mobileMoreView === 'base'
+      )
+    );
   let targetX;
   let targetY;
   if (isMobileBase) {
@@ -2433,6 +2443,16 @@ function bindEvents() {
       if (tab) setMobileTab(tab);
     });
   }
+  mobileMoreOptions.forEach((btn) => {
+    const view = btn.getAttribute('data-mobile-more-view');
+    if (!view) return;
+    btn.addEventListener('click', () => {
+      if (state.mobileTab !== 'more') {
+        setMobileTab('more');
+      }
+      setMobileMoreView(view);
+    });
+  });
   dmMobileEditExit?.addEventListener('click', () => {
     setMobileDmEditMode(false);
   });
@@ -9339,7 +9359,7 @@ function syncMobileDmConsoleTab(forceTab) {
   if (!document.body) return;
   const mobile = isMobileView();
   const dm = isDmViewer();
-  const onConsole = state.mobileTab === 'console';
+  const onConsole = state.mobileTab === 'console' || state.mobileTab === 'archive';
   if (!mobile || !dm || !onConsole) {
     document.body.removeAttribute('data-dm-console-tab');
     if (journalPublicInput) journalPublicInput.readOnly = false;
@@ -9374,12 +9394,45 @@ function updateMobileStateBadge() {
   if (!mobileStateBadge) return;
   const mobileTab = document.body.dataset.mobileTab || 'none';
   const workspaceView = document.body.dataset.workspaceView || 'none';
+  const mobileMoreView = document.body.dataset.mobileMoreView || 'none';
   const isMobile = isMobileView() ? 'mobile' : 'desktop';
   const hasMobileClass = document.body.classList.contains('is-mobile') ? 'yes' : 'no';
   mobileStateBadge.textContent =
     `tab:${mobileTab}\n` +
     `view:${workspaceView}\n` +
+    `more:${mobileMoreView}\n` +
     `mode:${isMobile} is-mobile:${hasMobileClass}`;
+}
+
+function syncMobileMoreOptions() {
+  if (!document.body) return;
+  const onMore = state.mobileTab === 'more' && isMobileView();
+  document.body.toggleAttribute('data-mobile-more-active', onMore);
+  document.body.setAttribute('data-mobile-more-view', state.mobileMoreView || 'sheet');
+  mobileMoreOptions.forEach((btn) => {
+    const view = btn.getAttribute('data-mobile-more-view');
+    btn.classList.toggle('active', onMore && view === state.mobileMoreView);
+    if (view === 'sheet') {
+      btn.classList.toggle('hidden', isDmViewer());
+    } else {
+      btn.classList.remove('hidden');
+    }
+  });
+  if (mobileMoreSwitch) {
+    mobileMoreSwitch.classList.toggle('hidden', !onMore);
+  }
+}
+
+function setMobileMoreView(view) {
+  const normalized = view === 'base' ? 'base' : 'sheet';
+  if (normalized === 'sheet' && isDmViewer()) {
+    state.mobileMoreView = 'base';
+    setWorkspaceView('base');
+  } else {
+    state.mobileMoreView = normalized;
+    setWorkspaceView(state.mobileMoreView);
+  }
+  syncMobileMoreOptions();
 }
 
 function setMobileTab(tab) {
@@ -9393,7 +9446,9 @@ function setMobileTab(tab) {
     document.body.classList.toggle('is-mobile', isMobileView());
   }
   document.querySelectorAll('.mobile-tab').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.mobileTab === tab);
+    const btnTab = btn.dataset.mobileTab;
+    const isActive = btnTab === tab;
+    btn.classList.toggle('active', isActive);
   });
   updateMobileStateBadge();
   if (tab !== 'map') {
@@ -9409,6 +9464,13 @@ function setMobileTab(tab) {
     } else {
       setWorkspaceView('console');
     }
+  } else if (tab === 'archive') {
+    if (isDmViewer()) {
+      setWorkspaceView('journal');
+      setMobileDmConsoleTab('journal');
+    } else {
+      setWorkspaceView('console');
+    }
   } else if (tab === 'base') {
     setWorkspaceView('base');
   } else if (tab === 'database') {
@@ -9419,6 +9481,11 @@ function setMobileTab(tab) {
     }
   } else if (tab === 'sheet') {
     setWorkspaceView('sheet');
+  } else if (tab === 'more') {
+    if (isDmViewer() && state.mobileMoreView === 'sheet') {
+      state.mobileMoreView = 'base';
+    }
+    setWorkspaceView(state.mobileMoreView);
   } else if (tab === 'pois') {
     // Reuse el focal PdI sin mapa en móvil
     setWorkspaceView('map');
@@ -9433,6 +9500,7 @@ function setMobileTab(tab) {
   }
   syncMobileDmEditMode(tab !== 'database');
   syncMobileDmConsoleTab();
+  syncMobileMoreOptions();
   syncActivityPanelState();
   syncAgentJournalPanelState();
   if (isMobileView()) {
@@ -9449,6 +9517,7 @@ function updateViewportMode() {
   updateMapInteractionMode();
   syncMobileDmEditMode();
   syncMobileDmConsoleTab();
+  syncMobileMoreOptions();
   updateMobileStateBadge();
   renderFocalPoiCard();
 }
