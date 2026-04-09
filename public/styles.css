@@ -5303,6 +5303,47 @@ body.mobile-mode .brand-watermark {
   display: none !important;
 }
 
+body.map-mobile-fullscreen #map-panel {
+  background: #010604;
+}
+
+body.map-mobile-fullscreen #map-panel::before {
+  opacity: 0.08;
+}
+
+body.map-mobile-fullscreen #map-panel .mapboxgl-ctrl-top-left,
+body.map-mobile-fullscreen #map-panel .mapboxgl-ctrl-top-right {
+  top: 0.5rem;
+}
+
+body.map-mobile-fullscreen #map-panel .mapboxgl-ctrl-bottom-left,
+body.map-mobile-fullscreen #map-panel .mapboxgl-ctrl-bottom-right {
+  bottom: calc(1rem + min(38vh, 300px));
+}
+
+body.map-mobile-fullscreen #map-panel .brand-watermark,
+body.map-mobile-fullscreen #map-panel .map-style-switch,
+body.map-mobile-fullscreen #map-panel #map-filters {
+  display: none !important;
+}
+
+body.map-mobile-fullscreen #map-panel .map-mobile-sheet {
+  display: block;
+}
+
+body.map-mobile-fullscreen #map-panel .map-mobile-sheet .mobile-focal-card {
+  max-height: min(38vh, 300px);
+  overflow-y: auto;
+  gap: 0.5rem;
+  padding: 0.85rem 0.9rem 0.95rem;
+}
+
+body.map-mobile-fullscreen #map-panel .map-mobile-sheet .mobile-focal-related {
+  max-height: 22vh;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
 @media (max-width: 1200px) {
   .dispatch-layout {
     flex-direction: column;
@@ -5853,6 +5894,30 @@ body.mobile-mode .brand-watermark {
   opacity: 0.18;
 }
 
+.map-mobile-sheet {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 240;
+  pointer-events: auto;
+}
+
+.map-mobile-sheet.hidden {
+  display: none !important;
+}
+
+.map-mobile-sheet .mobile-focal-card {
+  background:
+    linear-gradient(180deg, rgba(5, 20, 14, 0.94), rgba(2, 10, 7, 0.98)),
+    radial-gradient(circle at top, rgba(0, 255, 136, 0.08), transparent 55%);
+  border: 1px solid rgba(0, 255, 136, 0.28);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 255, 136, 0.08);
+  backdrop-filter: blur(10px);
+}
+
 .brand-watermark {
   position: absolute;
   right: 1.5rem;
@@ -6394,6 +6459,37 @@ textarea {
 .mapboxgl-popup-content h3 {
   margin-top: 0;
   color: var(--accent-amber);
+}
+
+.poi-map-popup {
+  max-width: min(320px, calc(100vw - 32px));
+}
+
+.poi-map-popup .mapboxgl-popup-content {
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 0.85rem 0.95rem;
+}
+
+.poi-popup-card {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.poi-popup-card h3 {
+  margin-bottom: 0.1rem;
+}
+
+.popup-poi-link {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  color: var(--accent-amber);
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+.popup-poi-link:hover {
+  color: #ffe1b6;
 }
 
 .poi-threat-tooltip {

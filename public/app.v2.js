@@ -178,6 +178,7 @@ const state = {
   pois: [],
   poiMarkers: new Map(),
   poiPopup: null,
+  poiPopupViewportFrame: null,
   poiHoverPopup: null,
   poiHoverId: null,
   poiSelectedId: null,
@@ -453,6 +454,7 @@ const inboxMessages = document.getElementById('inbox-messages');
 const inboxCloseBtn = document.getElementById('inbox-close');
 const focalPoiContent = document.getElementById('focal-poi-content');
 const focalPoiContentDm = document.getElementById('dm-focal-poi-content');
+const mapMobileSheet = document.getElementById('map-mobile-sheet');
 const messageList = document.getElementById('message-list');
 const messageReader = document.getElementById('message-reader');
 const messageListDm = document.getElementById('message-list-dm');
@@ -2202,6 +2204,16 @@ async function init() {
         scheduleMapResize();
       }
     });
+  document.addEventListener('fullscreenchange', () => {
+    if (!state.map) return;
+    updateViewportMode();
+    scheduleMapResize();
+    if (shouldUseFullscreenMobileSheet()) {
+      state.poiPopup?.remove();
+    } else {
+      queuePoiPopupViewportSync();
+    }
+  });
   } catch (e) {
     console.error('DEBUG: init failed', e);
   }
@@ -2554,6 +2566,8 @@ function bindEvents() {
   document.addEventListener('click', (event) => {
     const target = event.target.closest('[data-focal-poi-jump]');
     if (!target) return;
+    event.preventDefault();
+    event.stopPropagation();
     const id = target.getAttribute('data-focal-poi-jump');
     if (!id) return;
     const poiEntity = findPoiEntityById(id);
@@ -3269,7 +3283,13 @@ function bindPoiLayerInteractions(map) {
 
 function ensurePoiPopup() {
   if (!state.map || state.poiPopup) return;
-  state.poiPopup = new mapboxgl.Popup({ offset: 24 });
+  state.poiPopup = new mapboxgl.Popup({
+    offset: 24,
+    closeButton: false,
+    closeOnClick: false,
+    className: 'poi-map-popup',
+    maxWidth: 'min(320px, calc(100vw - 32px))'
+  });
 }
 
 function ensurePoiHoverPopup() {
@@ -3284,9 +3304,56 @@ function ensurePoiHoverPopup() {
 
 function openPoiPopup(poi, lngLatOverride) {
   if (!state.map || !poi) return;
+  if (shouldUseFullscreenMobileSheet()) {
+    state.poiPopup?.remove();
+    return;
+  }
   ensurePoiPopup();
   const lngLat = lngLatOverride || [poi.longitude, poi.latitude];
   state.poiPopup.setLngLat(lngLat).setHTML(buildPopupHtml(poi)).addTo(state.map);
+  queuePoiPopupViewportSync();
+}
+
+function queuePoiPopupViewportSync() {
+  if (state.poiPopupViewportFrame) {
+    cancelAnimationFrame(state.poiPopupViewportFrame);
+  }
+  state.poiPopupViewportFrame = requestAnimationFrame(() => {
+    state.poiPopupViewportFrame = null;
+    keepPoiPopupInView();
+  });
+}
+
+function keepPoiPopupInView() {
+  if (!state.map || !state.poiPopup?.isOpen()) return;
+  const popupEl = state.poiPopup.getElement();
+  const mapEl = state.map.getContainer();
+  if (!popupEl || !mapEl) return;
+  const popupRect = popupEl.getBoundingClientRect();
+  const mapRect = mapEl.getBoundingClientRect();
+  const padding = isMobileView() ? 12 : 18;
+  const leftBound = mapRect.left + padding;
+  const rightBound = mapRect.right - padding;
+  const topBound = mapRect.top + padding;
+  const bottomBound = mapRect.bottom - padding;
+  let dx = 0;
+  let dy = 0;
+
+  if (popupRect.left < leftBound) {
+    dx = popupRect.left - leftBound;
+  } else if (popupRect.right > rightBound) {
+    dx = popupRect.right - rightBound;
+  }
+
+  if (popupRect.top < topBound) {
+    dy = popupRect.top - topBound;
+  } else if (popupRect.bottom > bottomBound) {
+    dy = popupRect.bottom - bottomBound;
+  }
+
+  if (dx || dy) {
+    state.map.panBy([dx, dy], { duration: 220, easing: (t) => t });
+  }
 }
 
 function showPoiThreatTooltip(poi, lngLat) {
@@ -3355,6 +3422,12 @@ async function setupMap() {
     });
 
     bindStyleSwitcher(baseStyle);
+    state.map.on('moveend', () => {
+      queuePoiPopupViewportSync();
+    });
+    state.map.on('resize', () => {
+      queuePoiPopupViewportSync();
+    });
 
     state.map.addControl(new mapboxgl.NavigationControl());
     state.map.addControl(new mapboxgl.FullscreenControl({ container: mapPanelEl || undefined }));
@@ -3373,7 +3446,10 @@ async function setupMap() {
         const id = event?.result?.properties?.id;
         if (!id) return;
         const poi = state.pois.find((item) => Number(item.id) === Number(id));
-        if (poi) setFocalPoi(poi);
+        if (poi) {
+          setFocalPoi(poi);
+          focusMapOnPoi(poi, { includePopup: false, duration: 700 });
+        }
       });
       if (mapFilters) {
         state.map.addControl(geocoder, 'top-left');
@@ -3577,6 +3653,79 @@ function renderMarkers() {
   }
 }
 
+function isMapPanelFullscreen() {
+  const mapPanel = document.getElementById('map-panel');
+  return Boolean(mapPanel && getFullscreenElement() === mapPanel);
+}
+
+function shouldUseFullscreenMobileSheet() {
+  return isMobileView() && isMapPanelFullscreen();
+}
+
+function isElementVisible(el) {
+  if (!el) return false;
+  const style = window.getComputedStyle(el);
+  return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function getMapViewportPadding(options = {}) {
+  const mobile = isMobileView();
+  const fullscreen = isMapPanelFullscreen();
+  const includePopup = options.includePopup !== false;
+  const styleSwitch = document.querySelector('.map-style-switch');
+  const padding = {
+    top: mobile ? 16 : 28,
+    right: mobile ? 16 : 28,
+    bottom: mobile ? 16 : 28,
+    left: mobile ? 16 : 28
+  };
+
+  const navControlWidth = 54;
+  if (mobile) {
+    padding.right += navControlWidth;
+    if (fullscreen) {
+      padding.top += includePopup ? 124 : 76;
+      padding.bottom += 28;
+      padding.left += 4;
+    } else {
+      padding.top += 12;
+      padding.bottom += 12;
+    }
+  } else {
+    padding.right += navControlWidth;
+    if (isElementVisible(styleSwitch)) {
+      padding.top += 40;
+      padding.left += 6;
+    }
+    if (isElementVisible(mapFilters)) {
+      padding.top += 68;
+      padding.left += 10;
+    }
+    if (fullscreen) {
+      padding.top += 12;
+      padding.bottom += 12;
+    }
+    if (includePopup) {
+      padding.top += 56;
+      padding.left += 12;
+    }
+  }
+
+  return padding;
+}
+
+function focusMapOnPoi(poi, options = {}) {
+  if (!state.map || !poi) return;
+  const zoom = options.zoom ?? (isMobileView() ? 11.8 : 12.4);
+  state.map.easeTo({
+    center: [Number(poi.longitude), Number(poi.latitude)],
+    zoom,
+    padding: getMapViewportPadding({ includePopup: options.includePopup !== false }),
+    duration: options.duration ?? 900,
+    essential: true
+  });
+}
+
 function focusMapOnPois() {
   if (!state.map || !state.pois.length) return;
   const valid = state.pois
@@ -3585,7 +3734,13 @@ function focusMapOnPois() {
   if (!valid.length) return;
   if (valid.length === 1) {
     const { lng, lat } = valid[0];
-    state.map.flyTo({ center: [lng, lat], zoom: 13 });
+    state.map.easeTo({
+      center: [lng, lat],
+      zoom: isMobileView() ? 12.1 : 13,
+      padding: getMapViewportPadding({ includePopup: false }),
+      duration: 900,
+      essential: true
+    });
     return;
   }
 
@@ -3593,7 +3748,25 @@ function focusMapOnPois() {
     return acc.extend([entry.lng, entry.lat]);
   }, new mapboxgl.LngLatBounds([valid[0].lng, valid[0].lat], [valid[0].lng, valid[0].lat]));
 
-  state.map.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 1200 });
+  const padding = getMapViewportPadding({ includePopup: false });
+  const camera = state.map.cameraForBounds(bounds, {
+    padding,
+    maxZoom: isMobileView() ? 12.4 : 13
+  });
+  if (camera) {
+    state.map.easeTo({
+      ...camera,
+      padding,
+      duration: 1200,
+      essential: true
+    });
+    return;
+  }
+  state.map.fitBounds(bounds, {
+    padding,
+    maxZoom: isMobileView() ? 12.4 : 13,
+    duration: 1200
+  });
 }
 function buildPopupHtml(poi) {
   const dmNoteHtml = state.dmMode
@@ -3601,8 +3774,12 @@ function buildPopupHtml(poi) {
     : '';
 
   return `
-    <div>
-      <h3>${sanitize(poi.name)}</h3>
+    <div class="poi-popup-card">
+      <h3>
+        <button type="button" class="popup-poi-link focal-link" data-focal-poi-jump="${sanitize(poi.id)}">
+          ${sanitize(poi.name)}
+        </button>
+      </h3>
       <div>${categoryLabels[poi.category] || poi.category} ${categoryIcons[poi.category] || ''}</div>
       <div>Amenaza: ${poi.threat_level}/5</div>
       <div>Membrana: ${sanitize(formatVeilLabel(poi.veil_status))}</div>
@@ -3984,7 +4161,7 @@ function focusOnPoi(id) {
   if (!state.map) return;
   const poi = state.pois.find((item) => Number(item.id) === Number(id));
   if (!poi) return;
-  state.map.flyTo({ center: [poi.longitude, poi.latitude], zoom: 12 });
+  focusMapOnPoi(poi);
   openPoiPopup(poi);
 }
 
@@ -8693,6 +8870,10 @@ function renderFocalPoiCard() {
     if (focalPoiContentDm) {
       focalPoiContentDm.textContent = 'Ningún PdI seleccionado. Elige uno del mapa o de la lista.';
     }
+    if (mapMobileSheet) {
+      mapMobileSheet.innerHTML = '';
+      mapMobileSheet.classList.add('hidden');
+    }
     return;
   }
   const safeImage = sanitizeUrlValue(poi.image_url);
@@ -8747,6 +8928,10 @@ function renderFocalPoiCard() {
   focalPoiContent.innerHTML = mobile ? mobileHtml : desktopHtml;
   if (focalPoiContentDm) {
     focalPoiContentDm.innerHTML = mobile ? mobileHtml : desktopHtml;
+  }
+  if (mapMobileSheet) {
+    mapMobileSheet.innerHTML = mobile ? mobileHtml : '';
+    mapMobileSheet.classList.toggle('hidden', !(mobile && shouldUseFullscreenMobileSheet()));
   }
 }
 
@@ -9203,10 +9388,12 @@ function updateViewportMode() {
   if (!document.body) return;
   document.body.classList.toggle('mobile-mode', mobile);
   document.body.classList.toggle('is-mobile', mobile);
+  document.body.classList.toggle('map-mobile-fullscreen', shouldUseFullscreenMobileSheet());
   updateMapInteractionMode();
   syncMobileDmEditMode();
   syncMobileDmConsoleTab();
   updateMobileStateBadge();
+  renderFocalPoiCard();
 }
 
 async function attemptUnlock(id, code) {
