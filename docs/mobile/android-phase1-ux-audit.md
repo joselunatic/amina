@@ -362,3 +362,64 @@ Stitch puede ser util en fases posteriores para:
 - construir una propuesta de design system mas mobile-first
 
 No es la herramienta adecuada para resolver el problema tecnico principal de rendimiento inicial. Su valor esta en la exploracion de layouts y pantallas, no en la optimizacion del runtime actual.
+
+## Iteracion adicional: mapa movil Android
+
+En la segunda fase del mapa, el diagnostico quedo mas claro:
+
+- el `Registro de actividad` no compensa el coste vertical en movil
+- la superficie principal debe seguir siendo el mapa
+- el PdI seleccionado debe vivir en una `sheet` compacta, no en una tarjeta pesada mas un bloque de actividad debajo
+- el estado expandido debe ser opcional y explicito
+
+### Direccion de producto
+
+- `Mapa` movil se reduce a:
+  - superficie cartografica dominante
+  - sheet de PdI compacta
+  - CTA primario `Abrir dossier`
+  - navegacion inferior
+- `Actividad` deja de ocupar un bloque persistente en la vista principal del mapa movil
+- el contexto adicional pasa a vivir solo en el estado expandido de la sheet
+
+### Exploracion con Stitch
+
+La direccion validada con Stitch fue:
+
+- mapa fullscreen dominante
+- `bottom sheet` compacta por defecto
+- estado expandido mas claro
+- esquinas medias, menos agresivas
+- mejor equilibrio entre atmosfera CRT y legibilidad Android
+
+La lectura final fue:
+
+- la mejor base es una composicion tipo "mapa + una sola sheet"
+- no conviene volver a una pantalla con varias cajas apiladas
+- el resultado debe sentirse mas producto y menos concept shot
+
+### Implementacion aplicada
+
+- se elimina el `Registro de actividad` de la vista principal de `Mapa` en movil
+- la ficha focal pasa a una sheet compacta con:
+  - handle visual
+  - nombre enlazado a `Dossier`
+  - subtitulo de categoria
+  - amenaza con barra visual
+  - velo
+  - resumen corto
+  - CTA `Abrir dossier`
+- se añade un estado expandido explicitamente accionable:
+  - imagen
+  - contexto completo
+  - entidades relacionadas
+- la sheet se colapsa automaticamente al cambiar de PdI o al cerrar la seleccion
+
+### Objetivo UX
+
+- dar mas aire al mapa
+- mejorar uso con una mano en Android
+- mantener la identidad AMINA sin sobrecargar la pantalla
+- separar claramente:
+  - contexto minimo para actuar
+  - contexto ampliado bajo demanda

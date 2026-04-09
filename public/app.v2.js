@@ -182,6 +182,7 @@ const state = {
   poiHoverPopup: null,
   poiHoverId: null,
   poiSelectedId: null,
+  mapSheetExpanded: false,
   poiLayerBound: false,
   dmMode: false,
   agent: null,
@@ -2588,6 +2589,14 @@ function bindEvents() {
   });
 
   document.addEventListener('click', (event) => {
+    const toggle = event.target.closest('[data-map-sheet-toggle]');
+    if (!toggle) return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggleMapSheetExpanded();
+  });
+
+  document.addEventListener('click', (event) => {
     const unlockBtn = event.target.closest('[data-unlock-target]');
     if (!unlockBtn) return;
     const id = unlockBtn.getAttribute('data-unlock-target');
@@ -3378,6 +3387,7 @@ function hidePoiThreatTooltip() {
 
 function closePoiPresentation() {
   state.poiPopup?.remove();
+  state.mapSheetExpanded = false;
   setFocalPoi(null);
 }
 
@@ -8865,6 +8875,12 @@ function scheduleMapResize() {
   }, 400);
 }
 
+function toggleMapSheetExpanded(forceExpanded) {
+  const next = typeof forceExpanded === 'boolean' ? forceExpanded : !state.mapSheetExpanded;
+  state.mapSheetExpanded = next;
+  renderFocalPoiCard();
+}
+
 function updateRoleLayoutClasses() {
   if (!document.body) return;
   updateViewportMode();
@@ -8890,6 +8906,8 @@ function renderFocalPoiCard() {
   }
   const safeImage = sanitizeUrlValue(poi.image_url);
   const icon = categoryIcons[poi.category] || '◉';
+  const categoryLabel = categoryLabels[poi.category] || poi.category;
+  const expanded = isMobileView() && state.mapSheetExpanded;
   const relatedEntities = getEntitiesForPoi(poi.id);
   const relatedBlock = relatedEntities.length
     ? `<div class="poi-related">
@@ -8904,25 +8922,49 @@ function renderFocalPoiCard() {
     : '';
   const focalLink = `<button type="button" class="focal-link" data-focal-poi-jump="${poi.id}">${sanitize(poi.name)}</button>`;
   const mobile = isMobileView();
+  const imageBlock = safeImage
+    ? `<div class="mobile-focal-image"><img src="${safeImage}" alt="${sanitize(poi.name)}" data-lightbox-img="${safeImage}" /></div>`
+    : '';
+  const expandedBlock = `
+    <div class="mobile-focal-expanded${expanded ? ' is-expanded' : ''}">
+      ${imageBlock}
+      <div class="mobile-focal-summary-full">
+        <span class="label">Contexto</span>
+        <span>${sanitize(poi.public_note || 'Sin notas públicas')}</span>
+      </div>
+      ${relatedBlock ? `<div class="mobile-focal-related">${relatedBlock}</div>` : ''}
+    </div>
+  `;
   const mobileHtml = `
-    <div class="mobile-focal-card">
+    <div class="mobile-focal-card${expanded ? ' is-expanded' : ' is-compact'}">
+      <div class="mobile-focal-handle" aria-hidden="true"></div>
       <div class="mobile-focal-eyebrow">
         <span>PDI FOCAL</span>
         <span class="mobile-focal-session">Sesión ${sanitize(poi.session_tag || '—')}</span>
       </div>
-      <div class="mobile-focal-title">
-        <span class="focal-icon">${icon}</span>
-        ${focalLink}
+      <div class="mobile-focal-header">
+        <div class="mobile-focal-title">
+          <span class="focal-icon">${icon}</span>
+          ${focalLink}
+        </div>
+        <button type="button" class="ghost small mobile-focal-expand" data-map-sheet-toggle="${poi.id}" aria-expanded="${expanded ? 'true' : 'false'}">
+          ${expanded ? 'Ocultar' : 'Más'}
+        </button>
+      </div>
+      <div class="mobile-focal-subtitle">${sanitize(categoryLabel)}</div>
+      <div class="mobile-focal-threat-pill">
+        <span class="label">Amenaza</span>
+        <span>${poi.threat_level}/5</span>
+        <span class="mobile-focal-threat-bar" aria-hidden="true"><span style="width:${Math.max(18, Math.min(100, Number(poi.threat_level || 1) * 20))}%"></span></span>
       </div>
       <div class="mobile-focal-meta">
-        <div class="mobile-focal-line"><span class="label">Amenaza</span><span>${poi.threat_level}</span></div>
         <div class="mobile-focal-line"><span class="label">Velo</span><span>${sanitize(formatVeilLabel(poi.veil_status))}</span></div>
         <div class="mobile-focal-line"><span class="label">Resumen</span><span>${sanitize(shortenText(poi.public_note || 'Sin notas públicas', 72))}</span></div>
       </div>
       <div class="mobile-focal-actions">
-        <button type="button" class="ghost small" data-focal-poi-jump="${poi.id}">Abrir dossier</button>
+        <button type="button" class="mobile-focal-primary" data-focal-poi-jump="${poi.id}">Abrir dossier</button>
       </div>
-      ${relatedBlock ? `<div class="mobile-focal-related">${relatedBlock}</div>` : ''}
+      ${expandedBlock}
     </div>
   `;
 
@@ -9016,6 +9058,9 @@ function setFocalPoi(poi) {
     renderFocalPoiCard();
     highlightPoiInList(null);
     return;
+  }
+  if (!state.poiFocal || Number(state.poiFocal.id) !== Number(poi.id)) {
+    state.mapSheetExpanded = false;
   }
   state.poiFocal = poi;
   setPoiSelected(poi?.id);
