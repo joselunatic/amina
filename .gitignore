@@ -5,6 +5,8 @@
 # Data
 #*.db
 #*.sql
+schuylkill.db
+sessions.sqlite
 
 # Logs
 *.log
@@ -14,6 +16,7 @@ yarn-error.log*
 
 # Test results
 /test-results/
+/tests/tmp/
 
 # Screenshots
 #*.png

@@ -6712,16 +6712,11 @@ function buildAgentDetailHeader(entity, options = {}) {
   if (!entity) return '';
   const isPoi = !!options.isPoi;
   const visual = getDossierVisualMeta(entity);
-  const nameParts = splitEntityName(entity.code_name || entity.name || 'Entidad');
-  const title = sanitize(nameParts.primary || entity.code_name || entity.name || 'Entidad');
+  const title = sanitize(entity.code_name || entity.name || 'Entidad');
   const subtitleSource = isPoi
     ? categoryLabels[entity.category] || entity.role || entity.category || 'PdI'
     : entity.role || getEntityTypeLabel(entity.type || entity.kind);
-  const subtitleTail = nameParts.secondary ? ` · ${sanitize(nameParts.secondary)}` : '';
-  const subtitle = `${sanitize(subtitleSource)}${subtitleTail}`;
-  const summary = sanitize(
-    shortenText(entity.public_summary || entity.public_note || 'Sin notas públicas', isMobileView() ? 148 : 220)
-  );
+  const subtitle = sanitize(subtitleSource);
   const badges = [];
   badges.push(`<span class="badge">${sanitize(getEntityTypeLabel(entity.type || entity.kind))}</span>`);
   if (isPoi) {
@@ -6749,7 +6744,6 @@ function buildAgentDetailHeader(entity, options = {}) {
         </div>
       </div>
       <div class="agent-detail-badges">${badges.join('')}</div>
-      <p class="agent-detail-summary">${summary}</p>
     </div>
   `;
 }
@@ -10372,13 +10366,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
           <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
             ${poiDetailHeader}
             <div class="dm-detail-grid">
-              <div class="dm-detail-box wide">
-                <div class="dm-detail-label">Callsign</div>
-                <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
-                <div class="dm-detail-label">Categoría</div>
-                <div class="dm-detail-value">${categoryLabel}</div>
-              </div>
-              <div class="dm-detail-box medium">
+              <div class="dm-detail-box full">
                 <div class="dm-detail-label">Amenaza</div>
                 <div class="dm-detail-value">${threat}</div>
                 <div class="dm-detail-label">Velo</div>
@@ -10476,13 +10464,7 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
           <div class="agent-dossier-panel active" data-agent-dossier-panel="dossier">
             ${entityDetailHeader}
             <div class="dm-detail-grid">
-              <div class="dm-detail-box wide">
-                <div class="dm-detail-label">Callsign</div>
-                <div class="dm-detail-value">${callsign || 'Sin callsign'}</div>
-                <div class="dm-detail-label">Rol / función</div>
-                <div class="dm-detail-value">${role}</div>
-              </div>
-              <div class="dm-detail-box medium">
+              <div class="dm-detail-box full">
                 <div class="dm-detail-label">Estado</div>
                 <div class="dm-detail-value">${status}</div>
                 <div class="dm-detail-label">Alineación</div>

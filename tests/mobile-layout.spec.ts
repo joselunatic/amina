@@ -16,7 +16,7 @@ test.describe('Vista móvil AMINA', () => {
   test('MAPA mantiene el mapa operativo en móvil', async ({ page }) => {
     await page.locator(mobileTabSelector('map')).click();
     await expect(page.locator('#map')).toBeVisible();
-    await expect(page.locator('#focal-poi-card .mobile-focal-title')).toBeVisible();
+    await expect(page.locator('#focal-poi-card .mobile-focal-card')).toBeVisible();
     await expect(page.locator('#workspace')).toBeVisible();
   });
 
