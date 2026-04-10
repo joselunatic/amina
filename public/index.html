@@ -122,6 +122,17 @@
     <div class="crt-scanline" aria-hidden="true"></div>
     <header class="amina-topbar">
       <div class="top-ticker">
+        <div class="top-agent-chip" id="top-agent-chip">
+          <div class="top-agent-portrait-frame" id="top-agent-portrait-frame">
+            <img id="top-agent-portrait" alt="Retrato del agente activo" />
+            <div class="top-agent-portrait-fallback" id="top-agent-portrait-fallback" aria-hidden="true">OV</div>
+          </div>
+          <div class="top-agent-copy">
+            <span class="top-agent-clearance" id="clearance-status">Agente de Campo</span>
+            <strong class="top-agent-callsign" id="top-agent-callsign">—</strong>
+            <span class="top-agent-name" id="agent-status">Ningún agente seleccionado</span>
+          </div>
+        </div>
         <span class="top-ticker-label">FEED GLOBAL OV</span>
         <div class="top-ticker-track">
           <div id="ticker-track">
@@ -181,9 +192,18 @@
                   <div class="card-title">TERMINAL DE MENSAJERIA <span id="chat-unread-badge-agent" class="badge-unread-count hidden" aria-live="polite"></span></div>
                   <div class="chat-terminal" data-variant="agent">
                     <div class="chat-terminal-header">
+                      <div class="chat-terminal-agent-profile" id="chat-agent-profile">
+                        <div class="chat-agent-portrait-frame" id="chat-agent-portrait-frame">
+                          <img id="chat-agent-portrait" alt="Retrato del agente activo en consola" />
+                          <div class="chat-agent-portrait-fallback" id="chat-agent-portrait-fallback" aria-hidden="true">OV</div>
+                        </div>
+                        <div class="chat-agent-profile-copy">
+                          <span class="chat-agent-callsign" id="chat-agent-callsign">—</span>
+                          <span id="chat-agent-label">Agente: --</span>
+                          <span id="chat-identity-label">Identidad: --</span>
+                        </div>
+                      </div>
                       <div class="chat-terminal-status">
-                        <span id="chat-agent-label">Agente: --</span>
-                        <span id="chat-identity-label">Identidad: --</span>
                       </div>
                       <button type="button" class="ghost small" id="chat-sync">Sincronizar</button>
                     </div>
@@ -411,63 +431,88 @@
               <div class="console-stack character-sheet-stack">
                 <div class="console-card character-sheet-card" id="character-sheet-card">
                   <div class="card-title">FICHA DE PERSONAJE</div>
-                  <div class="console-card-body character-sheet-body">
+                    <div class="console-card-body character-sheet-body">
                     <div class="sheet-header">
-                      <div class="sheet-header-main">
-                        <div class="sheet-name" id="sheet-character-name">—</div>
-                        <div class="sheet-role" id="sheet-character-role"></div>
+                      <div class="sheet-header-identity">
+                          <div class="sheet-portrait-frame" id="sheet-portrait-frame">
+                            <img id="sheet-character-portrait" alt="Retrato del agente" />
+                            <div class="sheet-portrait-fallback" id="sheet-portrait-fallback" aria-hidden="true">OV</div>
+                          </div>
+                          <div class="sheet-header-main">
+                            <div class="sheet-callsign" id="sheet-character-callsign">—</div>
+                            <div class="sheet-name" id="sheet-character-name">—</div>
+                            <div class="sheet-role" id="sheet-character-role"></div>
+                          </div>
                       </div>
                       <div class="sheet-status-pill" id="sheet-save-state" data-state="idle">sin cambios</div>
                     </div>
-                    <div class="sheet-overview">
-                      <div class="sheet-metrics">
-                        <div class="sheet-metric">
-                          <div class="metric-label">Salud</div>
-                          <div class="metric-controls">
-                            <button type="button" class="metric-btn" data-sheet-adjust="health" data-delta="-1" aria-label="Restar salud">-</button>
-                            <span class="metric-current" id="sheet-health-current">0</span>
-                            <span class="metric-max">/ <span id="sheet-health-max">0</span></span>
-                            <button type="button" class="metric-btn" data-sheet-adjust="health" data-delta="1" aria-label="Sumar salud">+</button>
+                    <div class="sheet-layout">
+                      <div class="sheet-rail">
+                        <div class="sheet-metrics">
+                          <div class="sheet-metric">
+                            <div class="metric-label">Salud</div>
+                            <div class="metric-controls">
+                              <button type="button" class="metric-btn" data-sheet-adjust="health" data-delta="-1" aria-label="Restar salud">-</button>
+                              <span class="metric-current" id="sheet-health-current">0</span>
+                              <span class="metric-max">/ <span id="sheet-health-max">0</span></span>
+                              <button type="button" class="metric-btn" data-sheet-adjust="health" data-delta="1" aria-label="Sumar salud">+</button>
+                            </div>
+                          </div>
+                          <div class="sheet-metric">
+                            <div class="metric-label">Estabilidad</div>
+                            <div class="metric-controls">
+                              <button type="button" class="metric-btn" data-sheet-adjust="stability" data-delta="-1" aria-label="Restar estabilidad">-</button>
+                              <span class="metric-current" id="sheet-stability-current">0</span>
+                              <span class="metric-max">/ <span id="sheet-stability-max">0</span></span>
+                              <button type="button" class="metric-btn" data-sheet-adjust="stability" data-delta="1" aria-label="Sumar estabilidad">+</button>
+                            </div>
+                          </div>
+                          <div class="sheet-metric sheet-metric--threshold">
+                            <div class="metric-label">Umbral de golpe</div>
+                            <div class="metric-controls">
+                              <button type="button" class="metric-btn" data-sheet-adjust="hit_threshold" data-delta="-1" aria-label="Restar umbral de golpe">-</button>
+                              <span class="metric-current" id="sheet-hit-threshold-current">3</span>
+                              <button type="button" class="metric-btn" data-sheet-adjust="hit_threshold" data-delta="1" aria-label="Sumar umbral de golpe">+</button>
+                            </div>
                           </div>
                         </div>
-                        <div class="sheet-metric">
-                          <div class="metric-label">Estabilidad</div>
-                          <div class="metric-controls">
-                            <button type="button" class="metric-btn" data-sheet-adjust="stability" data-delta="-1" aria-label="Restar estabilidad">-</button>
-                            <span class="metric-current" id="sheet-stability-current">0</span>
-                            <span class="metric-max">/ <span id="sheet-stability-max">0</span></span>
-                            <button type="button" class="metric-btn" data-sheet-adjust="stability" data-delta="1" aria-label="Sumar estabilidad">+</button>
+                        <div class="sheet-summary">
+                          <div class="summary-row">
+                            <span>Generales</span>
+                            <strong id="sheet-general-total">0 / 0</strong>
+                          </div>
+                          <div class="summary-row">
+                            <span>Investigación</span>
+                            <strong id="sheet-investigation-total">0 / 0</strong>
                           </div>
                         </div>
-                      </div>
-                      <div class="sheet-summary">
-                        <div class="summary-row">
-                          <span>Generales disponibles</span>
-                          <strong id="sheet-general-total">0</strong>
+                        <div class="sheet-refresh">
+                          <button type="button" class="ghost" id="sheet-refresh">Restaurar reservas</button>
+                          <span class="sheet-refresh-note">Devuelve cada reserva actual a su valor original.</span>
                         </div>
-                        <div class="summary-row">
-                          <span>Investigación disponible</span>
-                          <strong id="sheet-investigation-total">0</strong>
+                        <div class="sheet-section sheet-section--weapons">
+                          <div class="sheet-section-title">Armas</div>
+                          <div class="sheet-section-hint">Equipo ofensivo preparado para la operación.</div>
+                          <div class="sheet-weapons-list" id="sheet-weapons-list"></div>
+                          <button type="button" class="ghost small" id="sheet-add-weapon">Añadir arma</button>
                         </div>
                       </div>
-                    </div>
-                    <div class="sheet-refresh">
-                      <button type="button" class="ghost" id="sheet-refresh">Refrescar reservas</button>
-                      <span class="sheet-refresh-note">Restaura las reservas al máximo permitido.</span>
-                    </div>
-                    <div class="sheet-section">
-                      <div class="sheet-section-title">Habilidades Generales</div>
-                      <div class="sheet-section-hint">Gasto táctico inmediato para modificar 1d6.</div>
-                      <div class="sheet-skill-list" id="sheet-general-list"></div>
-                      <details class="sheet-collapse" id="sheet-general-collapse">
-                        <summary>Más habilidades</summary>
-                        <div class="sheet-skill-list" id="sheet-general-extra"></div>
-                      </details>
-                    </div>
-                    <div class="sheet-section">
-                      <div class="sheet-section-title">Habilidades de Investigación</div>
-                      <div class="sheet-section-hint">Consumibles de conocimiento para efectos automáticos.</div>
-                      <div class="sheet-investigation" id="sheet-investigation-list"></div>
+                      <div class="sheet-content">
+                        <div class="sheet-section">
+                          <div class="sheet-section-title">Habilidades Generales</div>
+                          <div class="sheet-section-hint">Reserva actual frente al valor total asignado.</div>
+                          <div class="sheet-skill-list" id="sheet-general-list"></div>
+                          <details class="sheet-collapse" id="sheet-general-collapse">
+                            <summary>Más habilidades</summary>
+                            <div class="sheet-skill-list" id="sheet-general-extra"></div>
+                          </details>
+                        </div>
+                        <div class="sheet-section">
+                          <div class="sheet-section-title">Habilidades de Investigación</div>
+                          <div class="sheet-section-hint">Separadas por áreas académicas, interpersonales y técnicas.</div>
+                          <div class="sheet-investigation" id="sheet-investigation-list"></div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

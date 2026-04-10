@@ -118,6 +118,7 @@ function buildDefaultSkillEntry(name, max, group) {
   return {
     id: slugifySkillName(name),
     name: String(name),
+    rating: maxValue,
     max: maxValue,
     current: maxValue,
     group: group ? String(group) : ''
@@ -148,6 +149,8 @@ function buildDefaultCharacterSheet(agentUsername, agentDisplay) {
     health_max: 10,
     stability_current: 8,
     stability_max: 8,
+    hit_threshold: 3,
+    weapons: [],
     general_skills: buildDefaultGeneralSkills(),
     investigation_skills: buildDefaultInvestigationSkills()
   };
@@ -996,11 +999,20 @@ async function ensureCharacterSheetTable() {
       health_max INTEGER DEFAULT 0,
       stability_current INTEGER DEFAULT 0,
       stability_max INTEGER DEFAULT 0,
+      hit_threshold INTEGER DEFAULT 3,
+      weapons TEXT,
       general_skills TEXT,
       investigation_skills TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  const columns = await all(`PRAGMA table_info(agent_character_sheets)`);
+  if (!columns.some((col) => col.name === 'hit_threshold')) {
+    await run(`ALTER TABLE agent_character_sheets ADD COLUMN hit_threshold INTEGER DEFAULT 3`);
+  }
+  if (!columns.some((col) => col.name === 'weapons')) {
+    await run(`ALTER TABLE agent_character_sheets ADD COLUMN weapons TEXT`);
+  }
 }
 
 async function getAuthUser(role, username) {
@@ -1082,10 +1094,12 @@ async function seedCharacterSheetsIfMissing() {
         health_max,
         stability_current,
         stability_max,
+        hit_threshold,
+        weapons,
         general_skills,
         investigation_skills,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `,
       [
         defaults.agent_username,
@@ -1095,6 +1109,8 @@ async function seedCharacterSheetsIfMissing() {
         defaults.health_max,
         defaults.stability_current,
         defaults.stability_max,
+        defaults.hit_threshold,
+        JSON.stringify(defaults.weapons),
         JSON.stringify(defaults.general_skills),
         JSON.stringify(defaults.investigation_skills)
       ]
@@ -1332,16 +1348,35 @@ function parseSkillList(value) {
   }
 }
 
+function parseWeaponsList(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function buildWeaponId(seed) {
+  const base = String(seed || 'weapon')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'weapon';
+  return `${base}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function normalizeSkillEntry(entry) {
   if (!entry) return null;
   const name = String(entry.name || '').trim() || 'Habilidad';
   const id = entry.id ? String(entry.id) : slugifySkillName(name);
-  const max = Math.max(0, Number(entry.max) || 0);
-  const current = clampNumber(Number(entry.current) || 0, 0, max);
+  const rating = Math.max(0, Number(entry.rating ?? entry.max ?? entry.base) || 0);
+  const current = clampNumber(Number(entry.current) || 0, 0, rating);
   return {
     id,
     name,
-    max,
+    rating,
+    max: rating,
     current,
     group: entry.group ? String(entry.group) : ''
   };
@@ -1353,29 +1388,51 @@ function normalizeSkillList(list) {
     .filter((entry) => entry);
 }
 
+function normalizeWeaponEntry(entry) {
+  if (!entry) return null;
+  const name = String(entry.name || '').trim();
+  const modifier = String(entry.modifier || entry.bonus || '').trim();
+  const notes = String(entry.notes || '').trim();
+  if (!name && !modifier && !notes) return null;
+  return {
+    id: entry.id ? String(entry.id) : buildWeaponId(name || modifier || notes),
+    name,
+    modifier,
+    notes
+  };
+}
+
+function normalizeWeaponList(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((entry) => normalizeWeaponEntry(entry))
+    .filter((entry) => entry);
+}
+
 function normalizeCharacterSheetRow(row, fallback) {
   if (!row && !fallback) return null;
   const source = row || fallback;
   const generalRaw = row ? row.general_skills : source.general_skills;
   const investigationRaw = row ? row.investigation_skills : source.investigation_skills;
+  const weaponsRaw = row ? row.weapons : source.weapons;
   const generalSkills = normalizeSkillList(
     typeof generalRaw === 'string' ? parseSkillList(generalRaw) : generalRaw
   );
   const investigationSkills = normalizeSkillList(
     typeof investigationRaw === 'string' ? parseSkillList(investigationRaw) : investigationRaw
   );
+  const weapons = normalizeWeaponList(typeof weaponsRaw === 'string' ? parseWeaponsList(weaponsRaw) : weaponsRaw);
+  const healthMax = Math.max(0, Number(source.health_max) || 0);
+  const stabilityMax = Math.max(0, Number(source.stability_max) || 0);
   return {
     agent_username: source.agent_username,
     character_name: source.character_name || '',
     character_role: source.character_role || '',
-    health_max: Math.max(0, Number(source.health_max) || 0),
-    stability_max: Math.max(0, Number(source.stability_max) || 0),
-    health_current: clampNumber(Number(source.health_current) || 0, 0, Math.max(0, Number(source.health_max) || 0)),
-    stability_current: clampNumber(
-      Number(source.stability_current) || 0,
-      0,
-      Math.max(0, Number(source.stability_max) || 0)
-    ),
+    health_max: healthMax,
+    stability_max: stabilityMax,
+    health_current: Math.min(Number(source.health_current) || 0, healthMax),
+    stability_current: Math.min(Number(source.stability_current) || 0, stabilityMax),
+    hit_threshold: Math.max(0, Number(source.hit_threshold) || 3),
+    weapons,
     general_skills: generalSkills,
     investigation_skills: investigationSkills,
     updated_at: source.updated_at || null
@@ -1397,10 +1454,12 @@ async function getAgentCharacterSheet(agentUsername, agentDisplay) {
       health_max,
       stability_current,
       stability_max,
+      hit_threshold,
+      weapons,
       general_skills,
       investigation_skills,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
   `,
     [
       defaults.agent_username,
@@ -1410,6 +1469,8 @@ async function getAgentCharacterSheet(agentUsername, agentDisplay) {
       defaults.health_max,
       defaults.stability_current,
       defaults.stability_max,
+      defaults.hit_threshold,
+      JSON.stringify(defaults.weapons),
       JSON.stringify(defaults.general_skills),
       JSON.stringify(defaults.investigation_skills)
     ]
@@ -1431,10 +1492,12 @@ async function updateAgentCharacterSheet(agentUsername, payload) {
       health_max,
       stability_current,
       stability_max,
+      hit_threshold,
+      weapons,
       general_skills,
       investigation_skills,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
   `,
     [
       agentUsername,
@@ -1444,6 +1507,8 @@ async function updateAgentCharacterSheet(agentUsername, payload) {
       normalized.health_max,
       normalized.stability_current,
       normalized.stability_max,
+      normalized.hit_threshold,
+      JSON.stringify(normalized.weapons),
       JSON.stringify(normalized.general_skills),
       JSON.stringify(normalized.investigation_skills)
     ]

@@ -197,6 +197,7 @@ const sessionMiddleware = session({
   }
 });
 app.use(sessionMiddleware);
+app.use('/agents', express.static(path.join(__dirname, '..', 'agents')));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 function encodePoiIds(entity) {

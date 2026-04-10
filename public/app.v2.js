@@ -91,8 +91,8 @@ const DM_ACTOR = 'MrTruth';
 const DM_DEFAULT_SENDER = 'Sr. Verdad';
 const IS_AUTOMATED_BROWSER = typeof navigator !== 'undefined' && navigator.webdriver === true;
 
-// Character sheet model: general pools are rapid 1d6 modifiers; investigation pools are deliberate consumables;
-// refresh restores current to max across both types.
+// Character sheet model: each skill keeps its assigned value (`rating`) and its current reserve (`current`).
+// Restoring reserves returns `current` to `rating`.
 const CHARACTER_SHEET_DEFAULTS = {
   healthMax: 10,
   stabilityMax: 8,
@@ -367,6 +367,10 @@ const dmSecretInput = document.getElementById('dm-secret');
 const dmWarning = document.getElementById('dm-warning');
 const clearanceStatus = document.getElementById('clearance-status');
 const agentStatus = document.getElementById('agent-status');
+const topAgentCallsign = document.getElementById('top-agent-callsign');
+const topAgentPortrait = document.getElementById('top-agent-portrait');
+const topAgentPortraitFrame = document.getElementById('top-agent-portrait-frame');
+const topAgentPortraitFallback = document.getElementById('top-agent-portrait-fallback');
 const categoryFilter = document.getElementById('category-filter');
 const sessionFilter = document.getElementById('session-filter');
 const poiList = document.getElementById('poi-list');
@@ -476,6 +480,10 @@ const chatInput = document.getElementById('chat-input');
 const chatSyncBtn = document.getElementById('chat-sync');
 const chatAgentLabel = document.getElementById('chat-agent-label');
 const chatIdentityLabel = document.getElementById('chat-identity-label');
+const chatAgentCallsign = document.getElementById('chat-agent-callsign');
+const chatAgentPortrait = document.getElementById('chat-agent-portrait');
+const chatAgentPortraitFrame = document.getElementById('chat-agent-portrait-frame');
+const chatAgentPortraitFallback = document.getElementById('chat-agent-portrait-fallback');
 const chatUnreadBadgeAgent = document.getElementById('chat-unread-badge-agent');
 const chatUnreadBadgeDm = document.getElementById('chat-unread-badge-dm');
 const dmChatThreadList = document.getElementById('dm-chat-thread-list');
@@ -542,15 +550,22 @@ const agentJournalSessionOptions = document.getElementById('agent-journal-sessio
 const agentJournalSheetCloseButtons = document.querySelectorAll('[data-agent-journal-sheet-close]');
 const characterSheetCard = document.getElementById('character-sheet-card');
 const characterNameLabel = document.getElementById('sheet-character-name');
+const characterCallsignLabel = document.getElementById('sheet-character-callsign');
 const characterRoleLabel = document.getElementById('sheet-character-role');
+const characterPortrait = document.getElementById('sheet-character-portrait');
+const characterPortraitFrame = document.getElementById('sheet-portrait-frame');
+const characterPortraitFallback = document.getElementById('sheet-portrait-fallback');
 const sheetHealthCurrent = document.getElementById('sheet-health-current');
 const sheetHealthMax = document.getElementById('sheet-health-max');
 const sheetStabilityCurrent = document.getElementById('sheet-stability-current');
 const sheetStabilityMax = document.getElementById('sheet-stability-max');
+const sheetHitThresholdCurrent = document.getElementById('sheet-hit-threshold-current');
 const sheetGeneralTotal = document.getElementById('sheet-general-total');
 const sheetInvestigationTotal = document.getElementById('sheet-investigation-total');
 const sheetSaveState = document.getElementById('sheet-save-state');
 const sheetRefreshBtn = document.getElementById('sheet-refresh');
+const sheetAddWeaponBtn = document.getElementById('sheet-add-weapon');
+const sheetWeaponsList = document.getElementById('sheet-weapons-list');
 const sheetGeneralList = document.getElementById('sheet-general-list');
 const sheetGeneralExtra = document.getElementById('sheet-general-extra');
 const sheetGeneralCollapse = document.getElementById('sheet-general-collapse');
@@ -879,6 +894,7 @@ function buildDefaultSkillEntry(name, max, group) {
   return {
     id: slugifySkillName(name),
     name: String(name),
+    rating: maxValue,
     max: maxValue,
     current: maxValue,
     group: group || ''
@@ -911,21 +927,59 @@ function buildDefaultCharacterSheet(agent) {
     health_max: CHARACTER_SHEET_DEFAULTS.healthMax,
     stability_current: CHARACTER_SHEET_DEFAULTS.stabilityMax,
     stability_max: CHARACTER_SHEET_DEFAULTS.stabilityMax,
+    hit_threshold: 3,
+    weapons: [],
     general_skills: buildDefaultGeneralSkills(),
     investigation_skills: buildDefaultInvestigationSkills()
   };
+}
+
+const AGENT_PROFILE_OVERRIDES = {
+  pike: { callsign: 'PIKE', portrait: '/agents/howard_pike.jpg' },
+  allen: { callsign: 'ALLEN', portrait: '/agents/victoria_allen.jpg' },
+  clutter: { callsign: 'CLUTTER', portrait: '/agents/dwight_clutter.jpg' },
+  redwood: { callsign: 'REDWOOD', portrait: '/agents/karen_redwood.png' },
+  guerrero: { callsign: 'GUERRERO', portrait: '/agents/arnold_guerrero.jpg' }
+};
+
+function getAgentVisualProfile(agent = state.agent) {
+  const username = String(agent?.username || '').trim().toLowerCase();
+  const override = AGENT_PROFILE_OVERRIDES[username] || {};
+  const display = String(agent?.display || agent?.username || 'Agente').trim();
+  const derivedSurname = display.split(/\s+/).filter(Boolean).slice(-1)[0] || 'AGENTE';
+  return {
+    callsign: override.callsign || derivedSurname.toUpperCase(),
+    portrait: override.portrait || '',
+    fallback: (override.callsign || derivedSurname || 'OV').slice(0, 2).toUpperCase()
+  };
+}
+
+function applyAgentPortraitElements(targets, profile, altLabel) {
+  const { img, frame, fallback } = targets || {};
+  if (!img || !frame || !fallback) return;
+  if (profile?.portrait) {
+    img.src = profile.portrait;
+    img.alt = altLabel;
+    frame.classList.remove('is-empty');
+  } else {
+    img.removeAttribute('src');
+    img.alt = 'Retrato no disponible';
+    frame.classList.add('is-empty');
+  }
+  fallback.textContent = profile?.fallback || 'OV';
 }
 
 function normalizeSkillEntry(entry) {
   if (!entry) return null;
   const name = String(entry.name || '').trim() || 'Habilidad';
   const id = entry.id ? String(entry.id) : slugifySkillName(name);
-  const max = Math.max(0, Number(entry.max) || 0);
-  const current = Math.max(0, Math.min(Number(entry.current) || 0, max));
+  const rating = Math.max(0, Number(entry.rating ?? entry.max ?? entry.base) || 0);
+  const current = Math.max(0, Math.min(Number(entry.current) || 0, rating));
   return {
     id,
     name,
-    max,
+    rating,
+    max: rating,
     current,
     group: entry.group ? String(entry.group) : ''
   };
@@ -937,11 +991,45 @@ function normalizeSkillList(list) {
     .filter((entry) => entry);
 }
 
+function buildWeaponId(seed = 'weapon') {
+  const base = String(seed || 'weapon')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'weapon';
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${base}-${crypto.randomUUID().slice(0, 8)}`;
+  }
+  return `${base}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeWeaponEntry(entry) {
+  if (!entry) return null;
+  const name = String(entry.name || '').trim();
+  const modifier = String(entry.modifier || entry.bonus || '').trim();
+  const notes = String(entry.notes || '').trim();
+  if (!name && !modifier && !notes) return null;
+  return {
+    id: entry.id ? String(entry.id) : buildWeaponId(name || modifier || notes),
+    name,
+    modifier,
+    notes
+  };
+}
+
+function normalizeWeaponList(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((entry) => normalizeWeaponEntry(entry))
+    .filter((entry) => entry);
+}
+
 function normalizeCharacterSheetPayload(payload, agent) {
   const fallback = buildDefaultCharacterSheet(agent);
   if (!payload) return fallback;
   const healthMaxRaw = payload.health_max ?? payload.healthMax;
   const stabilityMaxRaw = payload.stability_max ?? payload.stabilityMax;
+  const healthCurrentRaw = payload.health_current ?? payload.healthCurrent;
+  const stabilityCurrentRaw = payload.stability_current ?? payload.stabilityCurrent;
+  const hitThresholdRaw = payload.hit_threshold ?? payload.hitThreshold;
   const healthMax = Math.max(
     0,
     Number.isFinite(Number(healthMaxRaw)) ? Number(healthMaxRaw) : fallback.health_max
@@ -954,16 +1042,21 @@ function normalizeCharacterSheetPayload(payload, agent) {
     agent_username: payload.agent_username || agent?.username || '',
     character_name: payload.character_name || payload.characterName || fallback.character_name,
     character_role: payload.character_role || payload.characterRole || fallback.character_role,
-    health_current: Math.max(
-      0,
-      Math.min(Number(payload.health_current ?? payload.healthCurrent) || fallback.health_current, healthMax)
+    health_current: Math.min(
+      Number.isFinite(Number(healthCurrentRaw)) ? Number(healthCurrentRaw) : fallback.health_current,
+      healthMax
     ),
     health_max: healthMax,
-    stability_current: Math.max(
-      0,
-      Math.min(Number(payload.stability_current ?? payload.stabilityCurrent) || fallback.stability_current, stabilityMax)
+    stability_current: Math.min(
+      Number.isFinite(Number(stabilityCurrentRaw)) ? Number(stabilityCurrentRaw) : fallback.stability_current,
+      stabilityMax
     ),
     stability_max: stabilityMax,
+    hit_threshold: Math.max(
+      0,
+      Number.isFinite(Number(hitThresholdRaw)) ? Number(hitThresholdRaw) : fallback.hit_threshold || 3
+    ),
+    weapons: normalizeWeaponList(payload.weapons || fallback.weapons),
     general_skills: normalizeSkillList(payload.general_skills || payload.generalSkills || fallback.general_skills),
     investigation_skills: normalizeSkillList(
       payload.investigation_skills || payload.investigationSkills || fallback.investigation_skills
@@ -984,15 +1077,9 @@ function setCharacterSheetSaveState(next) {
   sheetSaveState.dataset.state = next;
 }
 
-function getSkillStatusClass(current) {
+function getSkillStatusClass(current, rating) {
   if (current <= 0) return 'is-empty';
-  if (current <= 2) return 'is-low';
-  return 'is-ok';
-}
-
-function getInvestigationStatusClass(current) {
-  if (current <= 0) return 'is-empty';
-  if (current === 1) return 'is-fragile';
+  if (rating > 0 && current <= Math.max(1, Math.floor(rating / 3))) return 'is-low';
   return 'is-ok';
 }
 
@@ -1013,49 +1100,82 @@ function splitFeaturedSkills(list, count, ensureNames = []) {
   return { featured, extra };
 }
 
+function buildSkillControl(label, skillType, skillId, field, value, options = {}) {
+  const { max = 10, min = 0 } = options;
+  const control = document.createElement('div');
+  control.className = 'skill-control';
+  const controlLabel = document.createElement('span');
+  controlLabel.className = 'skill-control-label';
+  controlLabel.textContent = label;
+  const stepper = document.createElement('div');
+  stepper.className = 'skill-stepper';
+  const decrement = document.createElement('button');
+  decrement.type = 'button';
+  decrement.className = 'skill-stepper-btn';
+  decrement.textContent = '−';
+  decrement.dataset.sheetSkillType = skillType;
+  decrement.dataset.skillId = skillId;
+  decrement.dataset.field = field;
+  decrement.dataset.delta = '-1';
+  decrement.disabled = value <= min;
+  const output = document.createElement('span');
+  output.className = 'skill-stepper-value';
+  output.textContent = String(value);
+  const increment = document.createElement('button');
+  increment.type = 'button';
+  increment.className = 'skill-stepper-btn';
+  increment.textContent = '+';
+  increment.dataset.sheetSkillType = skillType;
+  increment.dataset.skillId = skillId;
+  increment.dataset.field = field;
+  increment.dataset.delta = '1';
+  increment.disabled = value >= max;
+  stepper.appendChild(decrement);
+  stepper.appendChild(output);
+  stepper.appendChild(increment);
+  control.appendChild(controlLabel);
+  control.appendChild(stepper);
+  return control;
+}
+
+function buildSkillRow(skill, skillType) {
+  const rating = Math.max(0, Number(skill.rating ?? skill.max) || 0);
+  const current = Math.max(0, Math.min(Number(skill.current) || 0, rating));
+  const row = document.createElement('div');
+  row.className = `sheet-skill sheet-skill--${skillType} ${getSkillStatusClass(current, rating)}`;
+  const header = document.createElement('div');
+  header.className = 'skill-main';
+  const name = document.createElement('div');
+  name.className = 'skill-name';
+  name.textContent = skill.name;
+  const values = document.createElement('div');
+  values.className = 'skill-values';
+  values.textContent = `${current} / ${rating}`;
+  header.appendChild(name);
+  header.appendChild(values);
+  const track = document.createElement('div');
+  track.className = 'skill-track';
+  const fill = document.createElement('span');
+  fill.className = 'skill-track-fill';
+  fill.style.width = `${rating > 0 ? (current / rating) * 100 : 0}%`;
+  track.appendChild(fill);
+  const controls = document.createElement('div');
+  controls.className = 'skill-controls-grid';
+  controls.appendChild(buildSkillControl('Valor', skillType, skill.id, 'rating', rating, { max: 10 }));
+  controls.appendChild(buildSkillControl('Actual', skillType, skill.id, 'current', current, { max: rating }));
+  row.appendChild(header);
+  row.appendChild(track);
+  row.appendChild(controls);
+  return row;
+}
+
 function renderGeneralSkills(skills) {
   if (!sheetGeneralList || !sheetGeneralExtra) return;
   sheetGeneralList.innerHTML = '';
   sheetGeneralExtra.innerHTML = '';
   const { featured, extra } = splitFeaturedSkills(skills, 6, []);
-  const buildRow = (skill) => {
-    const row = document.createElement('div');
-    row.className = `sheet-skill sheet-skill--general ${getSkillStatusClass(skill.current)}`;
-    const header = document.createElement('div');
-    header.className = 'skill-main';
-    const name = document.createElement('div');
-    name.className = 'skill-name';
-    name.textContent = skill.name;
-    const values = document.createElement('div');
-    values.className = 'skill-values';
-    const current = document.createElement('span');
-    current.className = 'skill-current';
-    current.textContent = skill.current;
-    const max = document.createElement('span');
-    max.className = 'skill-max';
-    max.textContent = `/${skill.max}`;
-    values.appendChild(current);
-    values.appendChild(max);
-    header.appendChild(name);
-    header.appendChild(values);
-    const segments = document.createElement('div');
-    segments.className = 'skill-segments';
-    const isEmpty = skill.current <= 0;
-    for (let i = 0; i < skill.max; i += 1) {
-      const segment = document.createElement('button');
-      segment.type = 'button';
-      segment.className = `skill-segment${i < skill.current ? ' filled' : ''}`;
-      segment.dataset.generalSkill = skill.id;
-      segment.disabled = isEmpty;
-      segment.setAttribute('aria-label', `Gastar 1 punto de ${skill.name}`);
-      segments.appendChild(segment);
-    }
-    row.appendChild(header);
-    row.appendChild(segments);
-    return row;
-  };
-  featured.forEach((skill) => sheetGeneralList.appendChild(buildRow(skill)));
-  extra.forEach((skill) => sheetGeneralExtra.appendChild(buildRow(skill)));
+  featured.forEach((skill) => sheetGeneralList.appendChild(buildSkillRow(skill, 'general')));
+  extra.forEach((skill) => sheetGeneralExtra.appendChild(buildSkillRow(skill, 'general')));
   if (sheetGeneralCollapse) {
     sheetGeneralCollapse.hidden = extra.length === 0;
   }
@@ -1072,130 +1192,104 @@ function renderInvestigationSkills(skills) {
   });
   Object.entries(CHARACTER_SHEET_INVESTIGATION_GROUPS).forEach(([groupKey, config]) => {
     const groupSkills = groups[groupKey] || [];
-    const { featured, extra } = splitFeaturedSkills(
-      groupSkills,
-      4,
-      groupKey === 'academicas' ? ['Historia natural'] : []
-    );
     const group = document.createElement('div');
     group.className = 'sheet-group';
     const title = document.createElement('div');
     title.className = 'sheet-group-title';
     title.textContent = config.label;
-    group.appendChild(title);
     const list = document.createElement('div');
     list.className = 'sheet-skill-list';
-    const buildRow = (skill) => {
-      const row = document.createElement('div');
-      row.className = `sheet-skill sheet-skill--investigation ${getInvestigationStatusClass(skill.current)}`;
-      if (state.characterSheetSelections[skill.id] > skill.current) {
-        delete state.characterSheetSelections[skill.id];
-      }
-      const header = document.createElement('div');
-      header.className = 'skill-main';
-      const name = document.createElement('div');
-      name.className = 'skill-name';
-      name.textContent = skill.name;
-      const values = document.createElement('div');
-      values.className = 'skill-values';
-      const current = document.createElement('span');
-      current.className = 'skill-current';
-      current.textContent = skill.current;
-      const max = document.createElement('span');
-      max.className = 'skill-max';
-      max.textContent = `/${skill.max}`;
-      values.appendChild(current);
-      values.appendChild(max);
-      header.appendChild(name);
-      header.appendChild(values);
-      const pipRow = document.createElement('div');
-      pipRow.className = 'skill-pips';
-      for (let i = 0; i < skill.max; i += 1) {
-        const pip = document.createElement('span');
-        pip.className = `skill-pip${i < skill.current ? ' filled' : ''}`;
-        pipRow.appendChild(pip);
-      }
-      const controls = document.createElement('div');
-      controls.className = 'skill-controls';
-      const spendBtn = document.createElement('button');
-      spendBtn.type = 'button';
-      spendBtn.className = 'ghost small';
-      spendBtn.textContent = 'Gastar';
-      spendBtn.dataset.investigationToggle = skill.id;
-      spendBtn.disabled = skill.current <= 0;
-      controls.appendChild(spendBtn);
-      const panel = document.createElement('div');
-      panel.className = 'investigation-spend';
-      panel.dataset.investigationPanel = skill.id;
-      panel.classList.toggle('is-open', state.characterSheetOpenPanels.has(skill.id));
-      const options = document.createElement('div');
-      options.className = 'spend-options';
-      for (let i = 1; i <= skill.current; i += 1) {
-        const option = document.createElement('button');
-        option.type = 'button';
-        option.className = 'spend-option';
-        option.textContent = String(i);
-        option.dataset.investigationOption = skill.id;
-        option.dataset.spendValue = String(i);
-        if (state.characterSheetSelections[skill.id] === i) {
-          option.classList.add('active');
-        }
-        options.appendChild(option);
-      }
-      const actions = document.createElement('div');
-      actions.className = 'spend-actions';
-      const apply = document.createElement('button');
-      apply.type = 'button';
-      apply.className = 'ghost small';
-      apply.textContent = 'Aplicar';
-      apply.dataset.investigationApply = skill.id;
-      apply.disabled = !state.characterSheetSelections[skill.id];
-      const cancel = document.createElement('button');
-      cancel.type = 'button';
-      cancel.className = 'ghost small';
-      cancel.textContent = 'Cancelar';
-      cancel.dataset.investigationCancel = skill.id;
-      actions.appendChild(apply);
-      actions.appendChild(cancel);
-      panel.appendChild(options);
-      panel.appendChild(actions);
-      row.appendChild(header);
-      row.appendChild(pipRow);
-      row.appendChild(controls);
-      row.appendChild(panel);
-      return row;
-    };
-    featured.forEach((skill) => list.appendChild(buildRow(skill)));
+    groupSkills.forEach((skill) => list.appendChild(buildSkillRow(skill, 'investigation')));
+    group.appendChild(title);
     group.appendChild(list);
-    if (extra.length) {
-      const details = document.createElement('details');
-      details.className = 'sheet-collapse';
-      const summary = document.createElement('summary');
-      summary.textContent = 'Más habilidades';
-      details.appendChild(summary);
-      const extraList = document.createElement('div');
-      extraList.className = 'sheet-skill-list';
-      extra.forEach((skill) => extraList.appendChild(buildRow(skill)));
-      details.appendChild(extraList);
-      group.appendChild(details);
-    }
     sheetInvestigationList.appendChild(group);
+  });
+}
+
+function renderWeapons(list) {
+  if (!sheetWeaponsList) return;
+  sheetWeaponsList.innerHTML = '';
+  if (!Array.isArray(list) || !list.length) {
+    const empty = document.createElement('div');
+    empty.className = 'sheet-weapons-empty';
+    empty.textContent = 'Sin armas registradas.';
+    sheetWeaponsList.appendChild(empty);
+    return;
+  }
+  list.forEach((weapon) => {
+    const row = document.createElement('div');
+    row.className = 'sheet-weapon';
+    row.dataset.weaponId = weapon.id;
+
+    const main = document.createElement('div');
+    main.className = 'sheet-weapon-main';
+
+    const name = document.createElement('input');
+    name.type = 'text';
+    name.className = 'sheet-weapon-input';
+    name.placeholder = 'Arma';
+    name.value = weapon.name || '';
+    name.dataset.weaponField = 'name';
+    name.dataset.weaponId = weapon.id;
+
+    const modifier = document.createElement('input');
+    modifier.type = 'text';
+    modifier.className = 'sheet-weapon-input sheet-weapon-input--modifier';
+    modifier.placeholder = 'Bonif.';
+    modifier.value = weapon.modifier || '';
+    modifier.dataset.weaponField = 'modifier';
+    modifier.dataset.weaponId = weapon.id;
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'ghost small sheet-weapon-remove';
+    remove.textContent = 'Quitar';
+    remove.dataset.removeWeapon = weapon.id;
+
+    main.appendChild(name);
+    main.appendChild(modifier);
+    main.appendChild(remove);
+
+    const notes = document.createElement('textarea');
+    notes.className = 'sheet-weapon-notes';
+    notes.placeholder = 'Notas o alcance';
+    notes.value = weapon.notes || '';
+    notes.rows = 2;
+    notes.dataset.weaponField = 'notes';
+    notes.dataset.weaponId = weapon.id;
+
+    row.appendChild(main);
+    row.appendChild(notes);
+    sheetWeaponsList.appendChild(row);
   });
 }
 
 function renderCharacterSheet() {
   if (!state.characterSheet) return;
   const sheet = state.characterSheet;
+  const profile = getAgentVisualProfile();
   if (characterNameLabel) characterNameLabel.textContent = sheet.character_name || '—';
+  if (characterCallsignLabel) characterCallsignLabel.textContent = profile.callsign || 'AGENTE';
   if (characterRoleLabel) characterRoleLabel.textContent = sheet.character_role || '';
+  applyAgentPortraitElements(
+    { img: characterPortrait, frame: characterPortraitFrame, fallback: characterPortraitFallback },
+    profile,
+    `Retrato de ${sheet.character_name || profile.callsign || 'agente'}`
+  );
   if (sheetHealthCurrent) sheetHealthCurrent.textContent = sheet.health_current;
   if (sheetHealthMax) sheetHealthMax.textContent = sheet.health_max;
   if (sheetStabilityCurrent) sheetStabilityCurrent.textContent = sheet.stability_current;
   if (sheetStabilityMax) sheetStabilityMax.textContent = sheet.stability_max;
+  if (sheetHitThresholdCurrent) sheetHitThresholdCurrent.textContent = sheet.hit_threshold ?? 3;
   const generalTotal = sheet.general_skills.reduce((acc, skill) => acc + (skill.current || 0), 0);
+  const generalBase = sheet.general_skills.reduce((acc, skill) => acc + (skill.rating || skill.max || 0), 0);
   const investigationTotal = sheet.investigation_skills.reduce((acc, skill) => acc + (skill.current || 0), 0);
-  if (sheetGeneralTotal) sheetGeneralTotal.textContent = generalTotal;
-  if (sheetInvestigationTotal) sheetInvestigationTotal.textContent = investigationTotal;
+  const investigationBase = sheet.investigation_skills.reduce((acc, skill) => acc + (skill.rating || skill.max || 0), 0);
+  if (sheetGeneralTotal) sheetGeneralTotal.textContent = `${generalTotal} / ${generalBase}`;
+  if (sheetInvestigationTotal) sheetInvestigationTotal.textContent = `${investigationTotal} / ${investigationBase}`;
+  characterSheetCard?.classList.toggle('sheet-health-negative', Number(sheet.health_current) < 0);
+  characterSheetCard?.classList.toggle('sheet-stability-negative', Number(sheet.stability_current) < 0);
+  renderWeapons(sheet.weapons || []);
   renderGeneralSkills(sheet.general_skills);
   renderInvestigationSkills(sheet.investigation_skills);
 }
@@ -1244,16 +1338,17 @@ async function saveCharacterSheet() {
 function adjustSheetMetric(metric, delta) {
   if (!state.characterSheet) return;
   if (metric === 'health') {
-    const next = Math.max(0, Math.min(state.characterSheet.health_current + delta, state.characterSheet.health_max));
+    const next = Math.min(state.characterSheet.health_current + delta, state.characterSheet.health_max);
     if (next === state.characterSheet.health_current) return;
     state.characterSheet.health_current = next;
   } else if (metric === 'stability') {
-    const next = Math.max(
-      0,
-      Math.min(state.characterSheet.stability_current + delta, state.characterSheet.stability_max)
-    );
+    const next = Math.min(state.characterSheet.stability_current + delta, state.characterSheet.stability_max);
     if (next === state.characterSheet.stability_current) return;
     state.characterSheet.stability_current = next;
+  } else if (metric === 'hit_threshold') {
+    const next = Math.max(0, (state.characterSheet.hit_threshold || 0) + delta);
+    if (next === state.characterSheet.hit_threshold) return;
+    state.characterSheet.hit_threshold = next;
   } else {
     return;
   }
@@ -1261,55 +1356,66 @@ function adjustSheetMetric(metric, delta) {
   saveCharacterSheet();
 }
 
-function spendGeneralSkill(skillId) {
+function adjustSheetSkill(skillType, skillId, field, delta) {
   if (!state.characterSheet) return;
-  const skill = state.characterSheet.general_skills.find((entry) => entry.id === skillId);
-  if (!skill || skill.current <= 0) return;
-  skill.current = Math.max(0, skill.current - 1);
-  renderCharacterSheet();
-  saveCharacterSheet();
-}
-
-function toggleInvestigationPanel(skillId) {
-  if (!state.characterSheetOpenPanels) return;
-  if (state.characterSheetOpenPanels.has(skillId)) {
-    state.characterSheetOpenPanels.delete(skillId);
+  const list = skillType === 'investigation' ? state.characterSheet.investigation_skills : state.characterSheet.general_skills;
+  const skill = list.find((entry) => entry.id === skillId);
+  if (!skill) return;
+  const currentRating = Math.max(0, Number(skill.rating ?? skill.max) || 0);
+  if (field === 'rating') {
+    const nextRating = Math.max(0, Math.min(10, currentRating + delta));
+    if (nextRating === currentRating) return;
+    skill.rating = nextRating;
+    skill.max = nextRating;
+    if ((skill.current || 0) > nextRating) {
+      skill.current = nextRating;
+    }
+  } else if (field === 'current') {
+    const nextCurrent = Math.max(0, Math.min(currentRating, (skill.current || 0) + delta));
+    if (nextCurrent === skill.current) return;
+    skill.current = nextCurrent;
   } else {
-    state.characterSheetOpenPanels.add(skillId);
+    return;
   }
   renderCharacterSheet();
+  saveCharacterSheet();
 }
 
-function selectInvestigationSpend(skillId, amount) {
-  state.characterSheetSelections[skillId] = amount;
-  renderCharacterSheet();
-}
-
-function clearInvestigationSpend(skillId) {
-  delete state.characterSheetSelections[skillId];
-  state.characterSheetOpenPanels.delete(skillId);
-  renderCharacterSheet();
-}
-
-function applyInvestigationSpend(skillId) {
+function addWeapon() {
   if (!state.characterSheet) return;
-  const skill = state.characterSheet.investigation_skills.find((entry) => entry.id === skillId);
-  const amount = Number(state.characterSheetSelections[skillId] || 0);
-  if (!skill || amount <= 0) return;
-  skill.current = Math.max(0, skill.current - amount);
-  delete state.characterSheetSelections[skillId];
-  state.characterSheetOpenPanels.delete(skillId);
+  if (!Array.isArray(state.characterSheet.weapons)) {
+    state.characterSheet.weapons = [];
+  }
+  state.characterSheet.weapons.push({
+    id: buildWeaponId('arma'),
+    name: '',
+    modifier: '',
+    notes: ''
+  });
+  renderCharacterSheet();
+}
+
+function removeWeapon(weaponId) {
+  if (!state.characterSheet?.weapons) return;
+  state.characterSheet.weapons = state.characterSheet.weapons.filter((weapon) => weapon.id !== weaponId);
   renderCharacterSheet();
   saveCharacterSheet();
+}
+
+function updateWeaponField(weaponId, field, value) {
+  if (!state.characterSheet?.weapons) return;
+  const weapon = state.characterSheet.weapons.find((entry) => entry.id === weaponId);
+  if (!weapon) return;
+  weapon[field] = String(value || '');
 }
 
 function refreshCharacterSheetPools() {
   if (!state.characterSheet) return;
   state.characterSheet.general_skills.forEach((skill) => {
-    skill.current = skill.max;
+    skill.current = skill.rating ?? skill.max ?? 0;
   });
   state.characterSheet.investigation_skills.forEach((skill) => {
-    skill.current = skill.max;
+    skill.current = skill.rating ?? skill.max ?? 0;
   });
   state.characterSheetSelections = {};
   state.characterSheetOpenPanels = new Set();
@@ -2678,6 +2784,7 @@ function bindEvents() {
     });
   });
   sheetRefreshBtn?.addEventListener('click', () => refreshCharacterSheetPools());
+  sheetAddWeaponBtn?.addEventListener('click', () => addWeapon());
   characterSheetCard?.addEventListener('click', (event) => {
     const adjustBtn = event.target.closest('[data-sheet-adjust]');
     if (adjustBtn) {
@@ -2686,33 +2793,33 @@ function bindEvents() {
       if (!Number.isNaN(delta)) adjustSheetMetric(metric, delta);
       return;
     }
-    const generalSpend = event.target.closest('[data-general-skill]');
-    if (generalSpend) {
-      spendGeneralSkill(generalSpend.dataset.generalSkill);
-      return;
-    }
-    const toggleBtn = event.target.closest('[data-investigation-toggle]');
-    if (toggleBtn) {
-      toggleInvestigationPanel(toggleBtn.dataset.investigationToggle);
-      return;
-    }
-    const optionBtn = event.target.closest('[data-investigation-option]');
-    if (optionBtn) {
-      const amount = Number(optionBtn.dataset.spendValue || 0);
-      if (amount > 0) {
-        selectInvestigationSpend(optionBtn.dataset.investigationOption, amount);
+    const skillAdjustBtn = event.target.closest('[data-sheet-skill-type][data-skill-id][data-field]');
+    if (skillAdjustBtn) {
+      const skillType = skillAdjustBtn.dataset.sheetSkillType;
+      const skillId = skillAdjustBtn.dataset.skillId;
+      const field = skillAdjustBtn.dataset.field;
+      const delta = Number(skillAdjustBtn.dataset.delta || 0);
+      if (skillType && skillId && field && !Number.isNaN(delta)) {
+        adjustSheetSkill(skillType, skillId, field, delta);
       }
       return;
     }
-    const applyBtn = event.target.closest('[data-investigation-apply]');
-    if (applyBtn) {
-      applyInvestigationSpend(applyBtn.dataset.investigationApply);
-      return;
+    const removeWeaponBtn = event.target.closest('[data-remove-weapon]');
+    if (removeWeaponBtn) {
+      removeWeapon(removeWeaponBtn.dataset.removeWeapon);
     }
-    const cancelBtn = event.target.closest('[data-investigation-cancel]');
-    if (cancelBtn) {
-      clearInvestigationSpend(cancelBtn.dataset.investigationCancel);
-    }
+  });
+  characterSheetCard?.addEventListener('input', (event) => {
+    const field = event.target.closest('[data-weapon-field]');
+    if (!field) return;
+    updateWeaponField(field.dataset.weaponId, field.dataset.weaponField, field.value);
+    setCharacterSheetSaveState('idle');
+  });
+  characterSheetCard?.addEventListener('change', (event) => {
+    const field = event.target.closest('[data-weapon-field]');
+    if (!field) return;
+    updateWeaponField(field.dataset.weaponId, field.dataset.weaponField, field.value);
+    saveCharacterSheet();
   });
 
   if (mobileMapTopbar) {
@@ -5450,6 +5557,10 @@ function getChatRole() {
 }
 
 function updateChatStatusLabels() {
+  const profile = getAgentVisualProfile();
+  if (chatAgentCallsign) {
+    chatAgentCallsign.textContent = profile.callsign || 'AGENTE';
+  }
   if (chatAgentLabel) {
     chatAgentLabel.textContent = `Agente: ${state.agent?.display || '—'}`;
   }
@@ -5457,6 +5568,11 @@ function updateChatStatusLabels() {
     const identity = state.chat.identities.find((item) => item.id === state.chat.activeIdentityId);
     chatIdentityLabel.textContent = `Identidad: ${identity ? identity.name : '—'}`;
   }
+  applyAgentPortraitElements(
+    { img: chatAgentPortrait, frame: chatAgentPortraitFrame, fallback: chatAgentPortraitFallback },
+    profile,
+    `Retrato de ${state.agent?.display || profile.callsign || 'agente'}`
+  );
   if (dmChatActiveLabel) {
     const thread = state.chat.threads.find((item) => item.id === state.chat.activeThreadId);
     if (thread) {
@@ -6387,8 +6503,17 @@ function clearAgentSession() {
 
 function applyAgentStatus() {
   if (!clearanceStatus || !agentStatus) return;
+  const profile = getAgentVisualProfile();
   clearanceStatus.textContent = state.dmMode ? 'Sr. Verdad' : 'Agente de Campo';
   agentStatus.textContent = state.agent ? state.agent.display : 'Ningún agente seleccionado';
+  if (topAgentCallsign) {
+    topAgentCallsign.textContent = profile.callsign || '—';
+  }
+  applyAgentPortraitElements(
+    { img: topAgentPortrait, frame: topAgentPortraitFrame, fallback: topAgentPortraitFallback },
+    profile,
+    `Retrato de ${state.agent?.display || profile.callsign || 'agente'}`
+  );
   if (state.dmMode || state.agent) {
     startActivityPolling();
     reloadChatData();
