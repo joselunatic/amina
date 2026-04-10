@@ -3054,6 +3054,7 @@ function createPoiIconImageData(name) {
   ctx.lineCap = 'round';
   const center = size / 2;
   const pad = size * 0.18;
+  const innerPad = size * 0.24;
 
   const drawPolygon = (points, fill = false) => {
     ctx.beginPath();
@@ -3066,84 +3067,113 @@ function createPoiIconImageData(name) {
     ctx.stroke();
   };
 
+  const drawCircle = (x, y, radius, fill = false) => {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    if (fill) ctx.fill();
+    ctx.stroke();
+  };
+
+  const drawRect = (x, y, width, height, fill = false) => {
+    if (fill) ctx.fillRect(x, y, width, height);
+    ctx.strokeRect(x, y, width, height);
+  };
+
   switch (name) {
     case 'pdi-base': {
-      drawPolygon(
-        [
-          [center, pad],
-          [size - pad, center],
-          [center, size - pad],
-          [pad, center]
-        ],
-        false
-      );
+      const shieldTop = innerPad;
+      const shieldBottom = size - innerPad;
+      drawPolygon([
+        [center, shieldTop],
+        [size - innerPad, size * 0.34],
+        [size * 0.68, shieldBottom],
+        [center, size - pad],
+        [size * 0.32, shieldBottom],
+        [innerPad, size * 0.34]
+      ]);
+      ctx.beginPath();
+      ctx.moveTo(center, shieldTop + size * 0.08);
+      ctx.lineTo(center, shieldBottom - size * 0.06);
+      ctx.moveTo(size * 0.34, center);
+      ctx.lineTo(size * 0.66, center);
+      ctx.stroke();
       break;
     }
     case 'pdi-crime': {
       ctx.beginPath();
-      ctx.moveTo(pad, pad);
-      ctx.lineTo(size - pad, size - pad);
-      ctx.moveTo(size - pad, pad);
-      ctx.lineTo(pad, size - pad);
+      ctx.moveTo(center, innerPad);
+      ctx.lineTo(center, size - innerPad);
+      ctx.moveTo(innerPad, center);
+      ctx.lineTo(size - innerPad, center);
       ctx.stroke();
+      drawCircle(center, center, size * 0.07, false);
       break;
     }
     case 'pdi-cell': {
       drawPolygon(
         [
-          [center, pad],
-          [size - pad, size - pad],
-          [pad, size - pad]
-        ],
-        false
+          [center, innerPad],
+          [size - innerPad, size - innerPad],
+          [innerPad, size - innerPad]
+        ]
       );
+      drawCircle(center, center + size * 0.08, size * 0.06, true);
       break;
     }
     case 'pdi-town': {
-      drawPolygon(
-        [
-          [pad, pad],
-          [size - pad, pad],
-          [size - pad, size - pad],
-          [pad, size - pad]
-        ],
-        false
-      );
+      drawPolygon([
+        [innerPad, center],
+        [center, innerPad],
+        [size - innerPad, center]
+      ]);
+      drawRect(size * 0.28, center, size * 0.44, size * 0.26, false);
+      ctx.beginPath();
+      ctx.moveTo(center, center + size * 0.26);
+      ctx.lineTo(center, center);
+      ctx.stroke();
       break;
     }
     case 'pdi-industrial': {
-      const step = (size - pad * 2) / 4;
-      drawPolygon(
-        [
-          [pad, center - step],
-          [pad + step, pad],
-          [pad + step * 2, center - step],
-          [pad + step * 3, pad],
-          [size - pad, center - step],
-          [size - pad, size - pad],
-          [pad, size - pad]
-        ],
-        false
-      );
+      drawRect(innerPad, size * 0.42, size * 0.5, size * 0.24, false);
+      drawRect(size * 0.62, size * 0.24, size * 0.12, size * 0.42, false);
+      ctx.beginPath();
+      ctx.moveTo(innerPad, size * 0.42);
+      ctx.lineTo(size * 0.4, size * 0.3);
+      ctx.lineTo(size * 0.52, size * 0.42);
+      ctx.stroke();
       break;
     }
     case 'pdi-natural': {
+      drawPolygon([
+        [center, innerPad],
+        [size * 0.64, center],
+        [center, size * 0.7],
+        [size * 0.36, center]
+      ]);
       ctx.beginPath();
-      ctx.arc(center, center, size * 0.22, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(center, center + size * 0.22);
+      ctx.moveTo(center, size * 0.7);
       ctx.lineTo(center, size - pad);
       ctx.stroke();
       break;
     }
     case 'pdi-npc': {
+      drawCircle(center, size * 0.32, size * 0.1, true);
       ctx.beginPath();
-      ctx.arc(center, center, size * 0.12, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(size * 0.3, size * 0.64);
+      ctx.quadraticCurveTo(center, size * 0.46, size * 0.7, size * 0.64);
+      ctx.stroke();
       break;
     }
-    case 'pdi-rumor':
+    case 'pdi-rumor': {
+      ctx.beginPath();
+      ctx.arc(center, center, size * 0.16, Math.PI * 0.2, Math.PI * 1.7);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(center, center, size * 0.27, Math.PI * 0.15, Math.PI * 1.75);
+      ctx.stroke();
+      drawCircle(center, center, size * 0.03, true);
+      break;
+    }
     case 'pdi-unknown':
     default: {
       ctx.font = `600 ${Math.round(size * 0.5)}px "Fira Code", monospace`;
