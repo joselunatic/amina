@@ -533,6 +533,7 @@ const agentJournalToggleBtn = document.getElementById('agent-journal-toggle');
 const agentJournalDetail = document.getElementById('agent-journal-detail');
 const agentJournalCurrentState = document.getElementById('agent-journal-current-state');
 const agentJournalSeasonChips = document.querySelectorAll('[data-agent-journal-season-chip]');
+const agentJournalSeasonChipGroup = document.getElementById('agent-journal-season-chips');
 const agentJournalSessionPicker = document.getElementById('agent-journal-session-picker');
 const agentJournalSessionSheet = document.getElementById('agent-journal-session-sheet');
 const agentJournalSessionSheetSubtitle = document.getElementById('agent-journal-sheet-subtitle');
@@ -751,6 +752,20 @@ async function openAgentJournalSessionSheet() {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }
+  if (isMobileView()) {
+    const chipRect = agentJournalSeasonChipGroup?.getBoundingClientRect?.();
+    const pickerRect = agentJournalSessionPicker?.getBoundingClientRect?.();
+    const anchorTop = Math.max(
+      76,
+      Math.min(
+        Math.round(chipRect?.top || pickerRect?.top || 112),
+        Math.round(window.innerHeight * 0.42)
+      )
+    );
+    agentJournalSessionSheet.style.setProperty('--archive-session-sheet-top', `${anchorTop}px`);
+  } else {
+    agentJournalSessionSheet.style.removeProperty('--archive-session-sheet-top');
+  }
   agentJournalSessionSheet.classList.remove('hidden');
   agentJournalSessionSheet.setAttribute('aria-hidden', 'false');
   state.agentJournalSessionSheetOpen = true;
@@ -760,6 +775,7 @@ function closeAgentJournalSessionSheet() {
   if (!agentJournalSessionSheet) return;
   agentJournalSessionSheet.classList.add('hidden');
   agentJournalSessionSheet.setAttribute('aria-hidden', 'true');
+  agentJournalSessionSheet.style.removeProperty('--archive-session-sheet-top');
   state.agentJournalSessionSheetOpen = false;
 }
 
@@ -4043,6 +4059,12 @@ function sanitize(str) {
     .replace(/>/g, '&gt;');
 }
 
+function normalizeDisplayText(value) {
+  if (value === null || value === undefined) return '';
+  const text = String(value).trim();
+  return text;
+}
+
 function sanitizeUrlValue(url) {
   if (!url) return '';
   try {
@@ -7146,20 +7168,19 @@ function buildAgentDetailHeader(entity, options = {}) {
     : entity.role || getEntityTypeLabel(entity.type || entity.kind);
   const subtitle = sanitize(subtitleSource);
   const badges = [];
-  badges.push(`<span class="badge">${sanitize(getEntityTypeLabel(entity.type || entity.kind))}</span>`);
+  const pushBadge = (kind, value, prefix = '') => {
+    const text = normalizeDisplayText(value);
+    if (!text) return;
+    badges.push(`<span class="${kind}">${sanitize(prefix ? `${prefix}${text}` : text)}</span>`);
+  };
+  pushBadge('badge', getEntityTypeLabel(entity.type || entity.kind));
   if (isPoi) {
-    if (entity.threat_level) badges.push(`<span class="badge-soft">Amenaza ${sanitize(String(entity.threat_level))}</span>`);
-    const veil = formatVeilLabel(entity.veil_status || entity.alignment || '');
-    if (veil) badges.push(`<span class="badge-soft">Velo ${sanitize(veil)}</span>`);
+    pushBadge('badge-soft', entity.session_tag || entity.sessions, 'Sesión ');
   } else {
-    if (entity.status) badges.push(`<span class="badge-soft">${sanitize(String(entity.status))}</span>`);
-    if (entity.alignment) badges.push(`<span class="badge-soft">${sanitize(String(entity.alignment))}</span>`);
-    if (entity.threat_level || entity.threat) {
-      badges.push(`<span class="badge-soft">Amenaza ${sanitize(String(entity.threat_level || entity.threat))}</span>`);
-    }
-  }
-  if (entity.session_tag || entity.sessions) {
-    badges.push(`<span class="badge-soft">${sanitize(String(entity.session_tag || entity.sessions))}</span>`);
+    pushBadge('badge-soft', entity.status);
+    pushBadge('badge-soft', entity.alignment);
+    pushBadge('badge-soft', entity.session_tag || entity.sessions, 'Sesión ');
+    if (entity.visibility === 'locked') pushBadge('badge-soft', 'Bloqueada');
   }
   return `
     <div class="agent-detail-header agent-detail-header--${sanitize(visual.tone)}">
@@ -10839,16 +10860,18 @@ function renderAgentEntityDetailCard(entity, ctx = {}) {
   const callsign = sanitize(entity?.code_name || entity?.name || '');
   const role = sanitize(entity?.role || 'Sin rol');
   const threat = sanitize(entity?.threat_level || entity?.threat || '—');
-  const status = sanitize(entity?.status || 'estado?');
-  const alignment = sanitize(entity?.alignment || 'afinidad?');
+  const rawStatus = normalizeDisplayText(entity?.status);
+  const rawAlignment = normalizeDisplayText(entity?.alignment);
+  const status = sanitize(rawStatus || 'estado?');
+  const alignment = sanitize(rawAlignment || 'afinidad?');
   const categoryLabel = sanitize(categoryLabels[entity?.category] || entity?.role || entity?.category || 'PdI');
   const sessionTag = sanitize(entity?.session_tag || entity?.sessions || '');
   const locked = entity?.visibility === 'locked';
-  const badgeRow = `
-    <span class="badge">${status}</span>
-    <span class="badge">${alignment}</span>
-    ${entity?.visibility === 'locked' ? '<span class="badge-soft">Bloqueada</span>' : ''}
-  `;
+  const badgeRow = [
+    rawStatus ? `<span class="badge">${sanitize(rawStatus)}</span>` : '',
+    rawAlignment ? `<span class="badge">${sanitize(rawAlignment)}</span>` : '',
+    entity?.visibility === 'locked' ? '<span class="badge-soft">Bloqueada</span>' : ''
+  ].filter(Boolean).join('');
 
   const poiMapPayload = isPoi
     ? {
