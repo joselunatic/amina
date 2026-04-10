@@ -350,6 +350,7 @@ const TICKER_STATE_KEY = 'amina_ticker_state';
 const POI_SOURCE_ID = 'pois';
 const POI_LAYER_IDS = {
   clusters: 'poi-clusters',
+  clusterHalo: 'poi-cluster-halo',
   clusterCount: 'poi-cluster-count',
   clusterPips: 'poi-cluster-pips',
   ring: 'poi-ring',
@@ -3243,6 +3244,66 @@ function ensurePoiSource(map) {
 }
 
 function ensurePoiLayers(map) {
+  const clusterThreatColor = [
+    'match',
+    ['coalesce', ['to-number', ['get', 'threat_max']], 1],
+    1,
+    'rgba(255, 196, 128, 0.65)',
+    2,
+    'rgba(255, 186, 108, 0.78)',
+    3,
+    'rgba(255, 156, 92, 0.86)',
+    4,
+    'rgba(255, 124, 84, 0.92)',
+    5,
+    'rgba(255, 92, 92, 0.96)',
+    'rgba(255, 186, 108, 0.78)'
+  ];
+  const clusterThreatGlow = [
+    'match',
+    ['coalesce', ['to-number', ['get', 'threat_max']], 1],
+    1,
+    'rgba(255, 196, 128, 0.12)',
+    2,
+    'rgba(255, 186, 108, 0.16)',
+    3,
+    'rgba(255, 156, 92, 0.22)',
+    4,
+    'rgba(255, 124, 84, 0.26)',
+    5,
+    'rgba(255, 92, 92, 0.3)',
+    'rgba(255, 186, 108, 0.16)'
+  ];
+  const clusterStrokeWidth = [
+    'interpolate',
+    ['linear'],
+    ['coalesce', ['to-number', ['get', 'threat_max']], 1],
+    1,
+    1.1,
+    3,
+    1.6,
+    5,
+    2.3
+  ];
+
+  if (map.getLayer(POI_LAYER_IDS.clusterPips)) {
+    map.removeLayer(POI_LAYER_IDS.clusterPips);
+  }
+
+  if (!map.getLayer(POI_LAYER_IDS.clusterHalo)) {
+    map.addLayer({
+      id: POI_LAYER_IDS.clusterHalo,
+      type: 'circle',
+      source: POI_SOURCE_ID,
+      filter: ['==', 'cluster', true],
+      paint: {
+        'circle-color': clusterThreatGlow,
+        'circle-radius': ['step', ['get', 'point_count'], 22, 12, 28, 30, 36],
+        'circle-blur': 0.45
+      }
+    });
+  }
+
   if (!map.getLayer(POI_LAYER_IDS.clusters)) {
     map.addLayer({
       id: POI_LAYER_IDS.clusters,
@@ -3252,8 +3313,8 @@ function ensurePoiLayers(map) {
       paint: {
         'circle-color': 'rgba(22, 14, 8, 0.85)',
         'circle-radius': ['step', ['get', 'point_count'], 16, 12, 20, 30, 26],
-        'circle-stroke-color': 'rgba(255, 186, 108, 0.7)',
-        'circle-stroke-width': 1
+        'circle-stroke-color': clusterThreatColor,
+        'circle-stroke-width': clusterStrokeWidth
       }
     });
   }
@@ -3276,39 +3337,6 @@ function ensurePoiLayers(map) {
         'text-color': '#ffe1c0',
         'text-halo-color': 'rgba(10, 6, 4, 0.7)',
         'text-halo-width': 1
-      }
-    });
-  }
-
-  if (!map.getLayer(POI_LAYER_IDS.clusterPips)) {
-    map.addLayer({
-      id: POI_LAYER_IDS.clusterPips,
-      type: 'symbol',
-      source: POI_SOURCE_ID,
-      filter: ['==', 'cluster', true],
-      minzoom: 5,
-      layout: {
-        'icon-image': [
-          'match',
-          ['to-number', ['get', 'threat_max']],
-          1,
-          'poi-pips-1',
-          2,
-          'poi-pips-2',
-          3,
-          'poi-pips-3',
-          4,
-          'poi-pips-4',
-          5,
-          'poi-pips-5',
-          'poi-pips-1'
-        ],
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.8, 9, 1.05, 12, 1.25],
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true
-      },
-      paint: {
-        'icon-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.35, 9, 0.6, 12, 0.85, 14, 0.95]
       }
     });
   }
