@@ -8392,6 +8392,26 @@ body:not(.is-mobile)[data-workspace-view='database'] .agent-detail-subtitle {
   color: rgba(200, 241, 219, 0.78);
 }
 
+.archive-session-sheet-close {
+  border: 1px solid rgba(0, 255, 136, 0.18);
+  background: rgba(0, 0, 0, 0.24);
+  color: rgba(235, 255, 244, 0.92);
+  border-radius: 999px;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  line-height: 1;
+  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.03);
+}
+
+.archive-session-sheet-close:hover {
+  border-color: rgba(111, 255, 166, 0.4);
+  background: rgba(11, 42, 25, 0.82);
+}
+
 .archive-session-option-list {
   display: grid;
   gap: 0.55rem;
@@ -8463,7 +8483,7 @@ body:not(.is-mobile)[data-workspace-view='database'] .agent-detail-subtitle {
     padding-right: 6rem;
   }
 
-  .archive-session-sheet-header > .ghost.small {
+  .archive-session-sheet-header > .archive-session-sheet-close {
     position: absolute;
     top: 0;
     right: 0;
