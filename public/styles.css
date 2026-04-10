@@ -3869,6 +3869,22 @@ body.agent-creature-view #agent-entity-hero-card {
   box-shadow: 0 0 18px rgba(75, 211, 255, 0.45);
 }
 
+.graph-empty-state {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100% - 3rem));
+  padding: 1rem 1.2rem;
+  border: 1px solid rgba(93, 255, 205, 0.24);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(7, 18, 24, 0.94), rgba(3, 10, 15, 0.92));
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  color: rgba(223, 244, 255, 0.88);
+}
+
 @keyframes graph-spinner {
   0% {
     transform: rotate(0deg);
@@ -4573,6 +4589,10 @@ body.booting .crt-screen {
   margin-top: 0.5rem;
   position: relative;
   z-index: 5;
+}
+
+.mobile-more-switch {
+  display: none;
 }
 
 @media (min-width: 901px) {
@@ -7418,6 +7438,9 @@ body.mode-dm .mobile-tab[data-mobile-tab='sheet'] {
   padding: 0.5rem 0.75rem;
   border-radius: 8px;
   background: rgba(4, 7, 9, 0.6);
+  display: flex;
+  flex-direction: column;
+  min-height: 84px;
   cursor: pointer;
   transition: border-color 0.2s ease, transform 0.2s ease;
   overflow: hidden;
@@ -8045,6 +8068,18 @@ body.mode-dm .mobile-tab[data-mobile-tab='sheet'] {
   gap: 0.55rem;
   max-height: min(50vh, 360px);
   overflow-y: auto;
+}
+
+.archive-session-create {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(111, 255, 166, 0.34);
+  background: linear-gradient(180deg, rgba(16, 73, 41, 0.95), rgba(7, 35, 21, 0.95));
+  color: #f3fff8;
+  text-align: left;
+  letter-spacing: 0.1em;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
 }
 
 .archive-session-option,

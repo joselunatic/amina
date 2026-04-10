@@ -661,7 +661,28 @@ export class GraphAPI {
     this.layoutName = layoutName;
     const { nodes, edges, focusId } = this.rebuildElements(ctx, { mode });
     if (!nodes.length) {
+      if (this.cy) {
+        this.cy.destroy?.();
+        this.cy = null;
+      }
+      this.resetContainer();
+      this.toggleLoader(false);
       this.container.textContent = 'Sin relaciones registradas.';
+      return Promise.resolve();
+    }
+    if (nodes.length === 1 && !edges.length) {
+      if (this.cy) {
+        this.cy.destroy?.();
+        this.cy = null;
+      }
+      this.resetContainer();
+      this.toggleLoader(false);
+      this.updateSummary(ctx.entity, mode);
+      const emptyState = this.helpers.createElement('div');
+      emptyState.classList = emptyState.classList || createClassList();
+      emptyState.classList.add('graph-empty-state');
+      emptyState.textContent = 'Sin relaciones ni PdI vinculados para esta entidad.';
+      this.container.appendChild(emptyState);
       return Promise.resolve();
     }
     const elements = [...nodes, ...edges];

@@ -653,6 +653,12 @@ function getAgentJournalSessionsForSeason(season = state.agentJournalSeason) {
   return Array.isArray(state.agentJournalCatalog?.[normalized]) ? state.agentJournalCatalog[normalized] : [];
 }
 
+function getNextAgentJournalSessionNumber(season = state.agentJournalSeason) {
+  const sessions = getAgentJournalSessionsForSeason(season);
+  if (!sessions.length) return 1;
+  return Math.max(...sessions) + 1;
+}
+
 function syncAgentJournalSelectionControls() {
   const season = Number(state.agentJournalSeason) || 2;
   const session = Number(state.agentJournalSession) || 0;
@@ -672,12 +678,14 @@ function syncAgentJournalSelectionControls() {
     chip.setAttribute('aria-selected', String(active));
   });
   if (agentJournalSessionPicker) {
-    agentJournalSessionPicker.textContent = sessions.includes(session)
-      ? `Sesión ${session}`
-      : sessions.length
-        ? 'Seleccionar episodio'
-        : 'Sin episodios';
-    agentJournalSessionPicker.disabled = sessions.length === 0;
+    if (sessions.includes(session)) {
+      agentJournalSessionPicker.textContent = `Sesión ${session}`;
+    } else if (Number.isFinite(session) && session >= 0) {
+      agentJournalSessionPicker.textContent = `Sesión ${session} · Nueva`;
+    } else {
+      agentJournalSessionPicker.textContent = 'Seleccionar episodio';
+    }
+    agentJournalSessionPicker.disabled = false;
   }
 }
 
@@ -687,6 +695,15 @@ function renderAgentJournalSessionOptions() {
   const activeSession = Number(state.agentJournalSession) || 0;
   const sessions = getAgentJournalSessionsForSeason(season);
   agentJournalSessionOptions.innerHTML = '';
+  const createButton = document.createElement('button');
+  createButton.type = 'button';
+  createButton.className = 'archive-session-create';
+  createButton.textContent = `+ Nuevo episodio (${getNextAgentJournalSessionNumber(season)})`;
+  createButton.addEventListener('click', async () => {
+    closeAgentJournalSessionSheet();
+    await setAgentJournalSelection(season, getNextAgentJournalSessionNumber(season), { allowMissing: true });
+  });
+  agentJournalSessionOptions.appendChild(createButton);
   if (!sessions.length) {
     const empty = document.createElement('div');
     empty.className = 'archive-session-option-empty';
@@ -710,6 +727,14 @@ function renderAgentJournalSessionOptions() {
 function openAgentJournalSessionSheet() {
   if (!agentJournalSessionSheet) return;
   renderAgentJournalSessionOptions();
+  if (agentJournalSessionOptions) {
+    agentJournalSessionOptions.scrollTop = 0;
+  }
+  if (typeof window !== 'undefined') {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
   agentJournalSessionSheet.classList.remove('hidden');
   agentJournalSessionSheet.setAttribute('aria-hidden', 'false');
   state.agentJournalSessionSheetOpen = true;
@@ -750,9 +775,12 @@ async function setAgentJournalSelection(season, session, options = {}) {
   const normalizedSeason = [1, 2].includes(Number(season)) ? Number(season) : 2;
   await ensureAgentJournalCatalog();
   const availableSessions = getAgentJournalSessionsForSeason(normalizedSeason);
-  const nextSession = availableSessions.includes(Number(session))
-    ? Number(session)
-    : availableSessions[0] ?? 0;
+  const requestedSession = Number(session);
+  const nextSession = options.allowMissing && Number.isFinite(requestedSession) && requestedSession >= 0
+    ? requestedSession
+    : availableSessions.includes(requestedSession)
+      ? requestedSession
+      : availableSessions[0] ?? 0;
   state.agentJournalSeason = normalizedSeason;
   state.agentJournalSession = nextSession;
   syncAgentJournalSelectionControls();
@@ -10524,6 +10552,21 @@ function setActiveEntityAgentById(id) {
   renderAgentEntityDetailCard(entity);
 }
 
+async function applyAgentContext(ctx, id) {
+  if (!ctx?.entity || ctx.entity.visibility === 'locked') return;
+  const merged = { ...ctx.entity, poi_links: ctx.pois, sessions: ctx.sessions, links: ctx.relations };
+  state.activeEntityAgent = merged;
+  updateAgentCreatureLayout(merged);
+  renderAgentEntityDetailCard(merged, ctx);
+  const detailTarget = agentDossierDetail || dossierDetail;
+  if (detailTarget) {
+    renderDossierDetailView(detailTarget, merged, { dm: false });
+  }
+  state.agentGraphFocusId = Number(id);
+  await ensureAgentGraphApi().update(ctx, { focusId: id, mode: 'agent', layout: state.agentGraphLayout });
+  setCookie('agent_active_entity', id);
+}
+
 async function loadAgentContext(id) {
   if (!state.agent) return;
   try {
@@ -10534,17 +10577,7 @@ async function loadAgentContext(id) {
     }
     if (!response.ok) return;
     const ctx = await response.json();
-    if (ctx.entity && ctx.entity.visibility === 'locked') return;
-    const merged = { ...ctx.entity, poi_links: ctx.pois, sessions: ctx.sessions, links: ctx.relations };
-    updateAgentCreatureLayout(merged);
-    renderAgentEntityDetailCard(merged, ctx);
-    const detailTarget = agentDossierDetail || dossierDetail;
-    if (detailTarget) {
-      renderDossierDetailView(detailTarget, merged, { dm: false });
-    }
-    state.agentGraphFocusId = Number(id);
-    await ensureAgentGraphApi().update(ctx, { focusId: id, mode: 'agent', layout: state.agentGraphLayout });
-    setCookie('agent_active_entity', id);
+    await applyAgentContext(ctx, id);
   } catch (err) {
     logDebug(`Contexto agente error: ${err.message}`);
   }
@@ -10728,9 +10761,14 @@ function initAgentNotesEditor(root, entity, ctx) {
           if (status) status.textContent = error.error || 'No se pudo guardar.';
           return;
         }
+        const saved = await response.json().catch(() => ({}));
         if (status) status.textContent = 'Notas actualizadas.';
         state.agentDossierPanel = 'notes';
-        await loadAgentContext(entity.id);
+        if (saved?.context?.entity) {
+          await applyAgentContext(saved.context, entity.id);
+        } else {
+          await loadAgentContext(entity.id);
+        }
         loadActivity();
       } catch (err) {
         if (status) status.textContent = 'No se pudo guardar.';

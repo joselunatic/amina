@@ -62,8 +62,37 @@ test.describe('Vista móvil AMINA', () => {
     if (!disabled) {
       await picker.click();
       await expect(page.locator('#agent-journal-session-sheet')).toBeVisible();
-      await expect(page.locator('#agent-journal-session-options .archive-session-option').first()).toBeVisible();
+      await expect(page.locator('#agent-journal-session-options .archive-session-create')).toBeVisible();
+      const options = page.locator('#agent-journal-session-options .archive-session-option');
+      if (await options.count()) {
+        await expect(options.first()).toBeVisible();
+      } else {
+        await expect(page.locator('#agent-journal-session-options .archive-session-option-empty')).toBeVisible();
+      }
     }
+  });
+
+  test('ARCHIVO permite preparar un episodio nuevo desde el selector', async ({ page }) => {
+    await page.locator(mobileTabSelector('archive')).click();
+    await page.locator('[data-agent-journal-season-chip="2"]').click();
+    await page.locator('#agent-journal-session-picker').click();
+    const createButton = page.locator('#agent-journal-session-options .archive-session-create');
+    await expect(createButton).toBeVisible();
+    const currentStateBefore = (await page.locator('#agent-journal-current-state').textContent()) || '';
+    await createButton.click();
+    await expect(page.locator('#agent-journal-session-sheet')).toBeHidden();
+    const currentStateAfter = (await page.locator('#agent-journal-current-state').textContent()) || '';
+    expect(currentStateAfter).not.toBe(currentStateBefore);
+    await expect(page.locator('#agent-journal-session-picker')).toContainText('Nueva');
+  });
+
+  test('ARCHIVO al abrir selector resetea el scroll vertical', async ({ page }) => {
+    await page.locator(mobileTabSelector('archive')).click();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.locator('#agent-journal-session-picker').click();
+    await expect(page.locator('#agent-journal-session-sheet')).toBeVisible();
+    const scrollY = await page.evaluate(() => window.scrollY);
+    expect(scrollY).toBeLessThan(40);
   });
 
   test('DOSSIER muestra la lista de entidades', async ({ page }) => {
