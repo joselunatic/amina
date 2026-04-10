@@ -276,6 +276,7 @@ const state = {
     loadedIds: null
   },
   mobileMapActivityExpanded: false,
+  desktopMapActivityExpanded: false,
   showOlderMobilePois: false,
   missionNotes: '',
   journalDm: '',
@@ -2465,7 +2466,12 @@ function bindEvents() {
     loadActivity({ page: state.activityPagination.page + 1, append: true });
   });
   activityToggleBtn?.addEventListener('click', () => {
-    state.mobileMapActivityExpanded = !state.mobileMapActivityExpanded;
+    const isMobile = typeof isMobileView === 'function' ? isMobileView() : document.body.classList.contains('is-mobile');
+    if (isMobile) {
+      state.mobileMapActivityExpanded = !state.mobileMapActivityExpanded;
+    } else {
+      state.desktopMapActivityExpanded = !state.desktopMapActivityExpanded;
+    }
     syncActivityPanelState();
   });
   agentSelect?.addEventListener('change', () => {
@@ -6330,12 +6336,17 @@ function updateActivityPaginationControls() {
 
 function syncActivityPanelState() {
   if (!activityPanel || !activityToggleBtn) return;
-  const mobileMap =
-    (typeof isMobileView === 'function' ? isMobileView() : document.body.classList.contains('is-mobile')) &&
-    state.workspaceView === 'map';
-  const expanded = !mobileMap || state.mobileMapActivityExpanded;
+  const isMobile = typeof isMobileView === 'function' ? isMobileView() : document.body.classList.contains('is-mobile');
+  const mapView = state.workspaceView === 'map';
+  const mobileMap = isMobile && mapView;
+  const desktopMap = !isMobile && mapView;
+  const expanded = mobileMap
+    ? state.mobileMapActivityExpanded
+    : desktopMap
+      ? state.desktopMapActivityExpanded
+      : true;
   activityPanel.classList.toggle('is-collapsed', !expanded);
-  activityToggleBtn.classList.toggle('hidden', !mobileMap);
+  activityToggleBtn.classList.toggle('hidden', !mapView);
   activityToggleBtn.setAttribute('aria-expanded', String(expanded));
   activityToggleBtn.textContent = expanded ? 'Ocultar' : 'Mostrar';
 }
@@ -9694,6 +9705,7 @@ function setMobileTab(tab) {
   updateMobileStateBadge();
   if (tab !== 'map') {
     state.mobileMapActivityExpanded = false;
+    state.desktopMapActivityExpanded = false;
   }
   if (tab === 'map') {
     setWorkspaceView('map');
