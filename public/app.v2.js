@@ -325,7 +325,7 @@ const state = {
   dmGraphScope: DM_GRAPH_SCOPE.CAMPAIGN,
   agentGraphLayout: 'spread',
   agentGraphFocusId: null,
-  agentGraphScope: AGENT_GRAPH_SCOPE.CAMPAIGN,
+  agentGraphScope: AGENT_GRAPH_SCOPE.ENTITY,
   dmGraphSelections: [],
   agentGraphSelections: []
 };
@@ -337,7 +337,7 @@ window.state = state;
 
 const mapCenter = [-76.229, 40.68];
 const BESTIARY_FALLBACK_IMAGE = '/creature.png';
-const HERO_FALLBACK_IMAGE = '/noimage.png';
+const HERO_FALLBACK_IMAGE = '/icon-192.png';
 const LOCKED_IMAGE = '/locked.png';
 const DECIMAL_STYLE = 'mapbox://styles/mapbox-map-design/ck4014y110wt61ctt07egsel6';
 const MISSION_NOTES_KEY = 'amina_mission_notes';
@@ -659,6 +659,13 @@ function getNextAgentJournalSessionNumber(season = state.agentJournalSeason) {
   return Math.max(...sessions) + 1;
 }
 
+function getPreferredAgentJournalSession(season = state.agentJournalSeason, requestedSession = state.agentJournalSession) {
+  const sessions = getAgentJournalSessionsForSeason(season);
+  const numericRequested = Number(requestedSession);
+  if (sessions.includes(numericRequested)) return numericRequested;
+  return sessions[sessions.length - 1] ?? 0;
+}
+
 function syncAgentJournalSelectionControls() {
   const season = Number(state.agentJournalSeason) || 2;
   const session = Number(state.agentJournalSession) || 0;
@@ -724,8 +731,16 @@ function renderAgentJournalSessionOptions() {
   });
 }
 
-function openAgentJournalSessionSheet() {
+async function openAgentJournalSessionSheet() {
   if (!agentJournalSessionSheet) return;
+  await ensureAgentJournalCatalog();
+  const season = Number(state.agentJournalSeason) || 2;
+  const preferredSession = getPreferredAgentJournalSession(season, state.agentJournalSession);
+  if (preferredSession !== Number(state.agentJournalSession) && preferredSession > 0) {
+    state.agentJournalSession = preferredSession;
+    syncAgentJournalSelectionControls();
+    updateAgentJournalSummary();
+  }
   renderAgentJournalSessionOptions();
   if (agentJournalSessionOptions) {
     agentJournalSessionOptions.scrollTop = 0;
@@ -780,13 +795,13 @@ async function setAgentJournalSelection(season, session, options = {}) {
     ? requestedSession
     : availableSessions.includes(requestedSession)
       ? requestedSession
-      : availableSessions[0] ?? 0;
+      : getPreferredAgentJournalSession(normalizedSeason, requestedSession);
   state.agentJournalSeason = normalizedSeason;
   state.agentJournalSession = nextSession;
   syncAgentJournalSelectionControls();
   updateAgentJournalSummary();
   if (options.load !== false) {
-    await loadAgentJournal();
+    await loadAgentJournal({ preserveMissing: !!options.allowMissing });
   }
 }
 
@@ -2577,9 +2592,9 @@ function bindEvents() {
       await setAgentJournalSelection(season, state.agentJournalSession);
     });
   });
-  agentJournalSessionPicker?.addEventListener('click', () => {
+  agentJournalSessionPicker?.addEventListener('click', async () => {
     if (agentJournalSessionPicker.disabled) return;
-    openAgentJournalSessionSheet();
+    await openAgentJournalSessionSheet();
   });
   agentJournalSheetCloseButtons.forEach((button) => {
     button.addEventListener('click', () => closeAgentJournalSessionSheet());
@@ -8165,6 +8180,10 @@ async function renderAgentRelationsGraph() {
       handleUnauthorized();
       return;
     }
+    if (response.status === 404) {
+      agentGraphContainer.textContent = 'La entidad seleccionada no está disponible para este agente.';
+      return;
+    }
     if (!response.ok) throw new Error('No se pudo cargar contexto para el grafo de agente.');
     const ctx = await response.json();
     await ensureAgentGraphApi().update(ctx, { focusId, mode: 'agent', layout: state.agentGraphLayout });
@@ -8364,6 +8383,7 @@ function setWorkspaceView(view) {
     connectChatSocket();
   }
   if (view === 'console' && state.agent) {
+    void loadAgentJournal();
     reloadChatData();
     connectChatSocket();
   }
@@ -9421,11 +9441,15 @@ function renderMissionCards() {
   syncAgentJournalPanelState();
 }
 
-async function loadAgentJournal() {
+async function loadAgentJournal(options = {}) {
   if (!state.agent) return;
   await ensureAgentJournalCatalog();
   const season = Number(state.agentJournalSeason) || Number(agentJournalSeasonInput?.value) || 2;
-  const session = Number(state.agentJournalSession) || Number(agentJournalSessionInput?.value) || 0;
+  const requestedSession = Number(state.agentJournalSession) || Number(agentJournalSessionInput?.value) || 0;
+  const session =
+    options.preserveMissing && Number.isFinite(requestedSession) && requestedSession > 0
+      ? requestedSession
+      : getPreferredAgentJournalSession(season, requestedSession);
   state.agentJournalSeason = season;
   state.agentJournalSession = session;
   syncAgentJournalSelectionControls();

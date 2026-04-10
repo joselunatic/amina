@@ -1369,6 +1369,102 @@ body[data-mobile-tab='base'] #base3d-canvas {
   width: 100%;
 }
 
+@media (min-width: 1100px) {
+  .mode-agent[data-workspace-view='database'] .app-shell {
+    display: grid;
+    grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.25fr);
+    grid-template-areas:
+      'workspace top'
+      'nav nav';
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .mode-agent[data-workspace-view='database'] .view-top {
+    grid-area: top;
+    display: block;
+  }
+
+  .mode-agent[data-workspace-view='database'] .workspace-nav {
+    grid-area: nav;
+    justify-content: flex-start;
+    margin-top: 0;
+  }
+
+  .mode-agent[data-workspace-view='database'] .workspace {
+    grid-area: workspace;
+    align-self: stretch;
+    min-height: clamp(720px, 78vh, 980px);
+    height: clamp(720px, 78vh, 980px);
+    max-height: clamp(720px, 78vh, 980px);
+    overflow: hidden;
+  }
+
+  .mode-agent[data-workspace-view='database'] .workspace-view.agent-view[data-view='database'] {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mode-agent[data-workspace-view='database'] .database-stack {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: 1fr;
+    overflow: hidden;
+  }
+
+  .mode-agent[data-workspace-view='database'] #dossier-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .mode-agent[data-workspace-view='database'] #dossier-card .dossier-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mode-agent[data-workspace-view='database'] #dossier-card .dossier-list {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-right: 0.25rem;
+    overflow: auto;
+  }
+
+  .mode-agent[data-workspace-view='database'] .workspace-top.agent-top[data-view='database'] {
+    display: flex;
+    align-self: stretch;
+    min-height: clamp(720px, 78vh, 980px);
+    height: clamp(720px, 78vh, 980px);
+    max-height: clamp(720px, 78vh, 980px);
+    overflow: hidden;
+  }
+
+  .mode-agent[data-workspace-view='database'] .workspace-top.agent-top[data-view='database'] .dm-entities-top {
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .mode-agent[data-workspace-view='database'] .workspace-top.agent-top[data-view='database'] .dm-entity-detail-card,
+  .mode-agent[data-workspace-view='database'] .workspace-top.agent-top[data-view='database'] .dm-entity-hero-card,
+  .mode-agent[data-workspace-view='database'] .workspace-top.agent-top[data-view='database'] .bestiary-card {
+    min-height: 0;
+  }
+
+  .mode-agent[data-workspace-view='database'] .workspace-top.agent-top[data-view='database'] .dm-entity-detail-card {
+    max-height: none;
+  }
+
+  .mode-agent[data-workspace-view='database'] #agent-entity-detail-card .agent-dossier-panel {
+    max-height: none;
+  }
+}
+
 @media (max-width: 900px) {
   body.is-mobile .workspace-nav {
     display: none;

@@ -670,21 +670,6 @@ export class GraphAPI {
       this.container.textContent = 'Sin relaciones registradas.';
       return Promise.resolve();
     }
-    if (nodes.length === 1 && !edges.length) {
-      if (this.cy) {
-        this.cy.destroy?.();
-        this.cy = null;
-      }
-      this.resetContainer();
-      this.toggleLoader(false);
-      this.updateSummary(ctx.entity, mode);
-      const emptyState = this.helpers.createElement('div');
-      emptyState.classList = emptyState.classList || createClassList();
-      emptyState.classList.add('graph-empty-state');
-      emptyState.textContent = 'Sin relaciones ni PdI vinculados para esta entidad.';
-      this.container.appendChild(emptyState);
-      return Promise.resolve();
-    }
     const elements = [...nodes, ...edges];
     if (!this.cy) {
       this.resetContainer();
@@ -703,6 +688,15 @@ export class GraphAPI {
     this.cy.resize?.();
     this.updateNodeFocus(focusId);
     const targetFocusId = options.focusId || focusId;
+    if (nodes.length === 1 && !edges.length) {
+      this.setupInteractions(mode);
+      this.updateSummary(ctx.entity, mode);
+      this.updateNodeFocus(targetFocusId);
+      this.cy.center?.(this.cy.nodes?.(`[id = "${targetFocusId}"]`));
+      this.cy.fit?.(undefined, 80);
+      this.toggleLoader(false);
+      return Promise.resolve();
+    }
     const layout = this.getLayoutOptions(layoutName, targetFocusId);
     this.toggleLoader(true);
     this.setupInteractions(mode);
