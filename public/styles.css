@@ -10149,3 +10149,123 @@ body[data-skin='amina-hermes'] .boot-console {
     font-size: 0.76rem;
   }
 }
+
+/* Hermes geometry normalization: sharper large surfaces, restrained radius on controls */
+body[data-skin='amina-hermes'] .crt-screen,
+body[data-skin='amina-hermes'] .amina-topbar,
+body[data-skin='amina-hermes'] .control-panel,
+body[data-skin='amina-hermes'] .console-card,
+body[data-skin='amina-hermes'] .dossier-card,
+body[data-skin='amina-hermes'] .map-panel,
+body[data-skin='amina-hermes'] .chat-terminal-screen,
+body[data-skin='amina-hermes'] .mail-list,
+body[data-skin='amina-hermes'] .mail-reader,
+body[data-skin='amina-hermes'] .app-footer,
+body[data-skin='amina-hermes'] .boot-frame,
+body[data-skin='amina-hermes'] .boot-crt,
+body[data-skin='amina-hermes'] .boot-console,
+body[data-skin='amina-hermes'] .entity-delete-panel,
+body[data-skin='amina-hermes'] .unlock-panel,
+body[data-skin='amina-hermes'] .lightbox-body,
+body[data-skin='amina-hermes'] .inbox-panel {
+  border-radius: 0;
+}
+
+body[data-skin='amina-hermes'] .dossier-active-strip,
+body[data-skin='amina-hermes'] .dossier-card-row,
+body[data-skin='amina-hermes'] .sheet-group,
+body[data-skin='amina-hermes'] .sheet-collapse,
+body[data-skin='amina-hermes'] .sheet-weapon,
+body[data-skin='amina-hermes'] .sheet-weapons-empty,
+body[data-skin='amina-hermes'] .agent-detail-header,
+body[data-skin='amina-hermes'] .dm-detail-box,
+body[data-skin='amina-hermes'] .entity-delete-header,
+body[data-skin='amina-hermes'] .session-archive-header,
+body[data-skin='amina-hermes'] .session-archive-detail,
+body[data-skin='amina-hermes'] .mailbox-empty,
+body[data-skin='amina-hermes'] .message-reader-header,
+body[data-skin='amina-hermes'] .reply-pane,
+body[data-skin='amina-hermes'] .graph-selection,
+body[data-skin='amina-hermes'] .mobile-focal-card,
+body[data-skin='amina-hermes'] .map-mobile-sheet .mobile-focal-card {
+  border-radius: 4px;
+}
+
+body[data-skin='amina-hermes'] .workspace-tabs,
+body[data-skin='amina-hermes'] .agent-dossier-tabs,
+body[data-skin='amina-hermes'] .pill-switch,
+body[data-skin='amina-hermes'] .dm-mobile-tab-switch,
+body[data-skin='amina-hermes'] .mobile-nav,
+body[data-skin='amina-hermes'] .mobile-more-switch {
+  border-radius: 6px;
+}
+
+body[data-skin='amina-hermes'] .workspace-tab,
+body[data-skin='amina-hermes'] .agent-dossier-tab,
+body[data-skin='amina-hermes'] .pill-switch button,
+body[data-skin='amina-hermes'] .mobile-tab,
+body[data-skin='amina-hermes'] .mobile-more-option,
+body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-option,
+body[data-skin='amina-hermes'] .skin-switch--boot .skin-switch-option,
+body[data-skin='amina-hermes'] .top-agent-portrait-frame,
+body[data-skin='amina-hermes'] .chat-agent-portrait-frame,
+body[data-skin='amina-hermes'] .sheet-status-pill,
+body[data-skin='amina-hermes'] .badge,
+body[data-skin='amina-hermes'] .badge-soft,
+body[data-skin='amina-hermes'] .dossier-active-icon,
+body[data-skin='amina-hermes'] .dossier-row-visual,
+body[data-skin='amina-hermes'] .mobile-tab-icon,
+body[data-skin='amina-hermes'] .sheet-portrait-frame,
+body[data-skin='amina-hermes'] .agent-detail-icon {
+  border-radius: 6px;
+}
+
+body[data-skin='amina-hermes'] .mobile-tab,
+body[data-skin='amina-hermes'] .mobile-more-option,
+body[data-skin='amina-hermes'] .workspace-tab,
+body[data-skin='amina-hermes'] .agent-dossier-tab {
+  box-shadow: none;
+}
+
+body[data-skin='amina-hermes'] .season-chip,
+body[data-skin='amina-hermes'] .session-picker-btn,
+body[data-skin='amina-hermes'] .sheet-stepper,
+body[data-skin='amina-hermes'] .sheet-stepper-btn,
+body[data-skin='amina-hermes'] .skill-stepper,
+body[data-skin='amina-hermes'] .skill-stepper-btn,
+body[data-skin='amina-hermes'] .ghost.small,
+body[data-skin='amina-hermes'] button,
+body[data-skin='amina-hermes'] input,
+body[data-skin='amina-hermes'] select,
+body[data-skin='amina-hermes'] textarea {
+  border-radius: 4px;
+}
+
+@media (max-width: 900px) {
+  body[data-skin='amina-hermes'] .mobile-nav,
+  body[data-skin='amina-hermes'] .mobile-more-switch {
+    border-radius: 0;
+  }
+
+  body[data-skin='amina-hermes'] .mobile-focal-card,
+  body[data-skin='amina-hermes'][data-mobile-tab='map'] .mobile-focal-card,
+  body[data-skin='amina-hermes'] .map-panel,
+  body[data-skin='amina-hermes'] .console-card,
+  body[data-skin='amina-hermes'] .dossier-card,
+  body[data-skin='amina-hermes'] .sheet-group,
+  body[data-skin='amina-hermes'] .sheet-weapon,
+  body[data-skin='amina-hermes'] .sheet-weapons-empty,
+  body[data-skin='amina-hermes'] .chat-terminal-screen,
+  body[data-skin='amina-hermes'] .mail-list,
+  body[data-skin='amina-hermes'] .mail-reader {
+    border-radius: 2px;
+  }
+
+  body[data-skin='amina-hermes'] .mobile-tab,
+  body[data-skin='amina-hermes'] .mobile-more-option,
+  body[data-skin='amina-hermes'] .mobile-tab-icon,
+  body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-option,
+  body[data-skin='amina-hermes'] .logout-button {
+    border-radius: 4px;
+  }
+}
