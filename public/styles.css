@@ -9762,6 +9762,7 @@ body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-options {
   border: none;
   background: transparent;
   padding: 0;
+  gap: 0.2rem;
 }
 
 body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-option {
@@ -9774,6 +9775,12 @@ body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-option {
 body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-option.active {
   background: rgba(231, 220, 195, 0.08);
   color: #f5ead4;
+}
+
+body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-option {
+  min-width: 2.2rem;
+  padding: 0.32rem 0.55rem;
+  text-align: center;
 }
 
 body[data-skin='amina-hermes'] .boot-console-header {
@@ -10012,14 +10019,15 @@ body[data-skin='amina-hermes'] .boot-console {
   }
 
   body[data-skin='amina-hermes'] .top-ticker {
-    grid-template-columns: minmax(0, 1fr) 48px;
-    grid-template-rows: auto;
+    grid-template-columns: minmax(0, 1fr) auto 48px;
+    grid-template-rows: auto auto;
     gap: 0.45rem;
     align-items: stretch;
   }
 
   body[data-skin='amina-hermes'] .top-agent-chip {
     grid-column: 1;
+    grid-row: 1;
     min-width: 0;
     min-height: 48px;
     padding: 0 0.7rem 0 0;
@@ -10039,14 +10047,53 @@ body[data-skin='amina-hermes'] .boot-console {
     letter-spacing: 0.14em;
   }
 
-  body[data-skin='amina-hermes'] .top-ticker-label,
-  body[data-skin='amina-hermes'] .top-ticker-track,
-  body[data-skin='amina-hermes'] .skin-switch--topbar {
+  body[data-skin='amina-hermes'] .top-ticker-label {
     display: none;
   }
 
-  body[data-skin='amina-hermes'] .logout-button {
+  body[data-skin='amina-hermes'] .top-ticker-track {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: 28px;
+    padding: 0.1rem 0 0;
+    border-left: none;
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
+  }
+
+  body[data-skin='amina-hermes'] #ticker-track {
+    font-size: 0.48rem;
+    letter-spacing: 0.18em;
+    opacity: 0.82;
+  }
+
+  body[data-skin='amina-hermes'] .skin-switch--topbar {
+    display: flex;
     grid-column: 2;
+    grid-row: 1;
+    min-height: 48px;
+    border-left: 1px solid rgba(231, 220, 195, 0.14);
+    padding: 0 0.35rem 0 0.55rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-options {
+    gap: 0.12rem;
+  }
+
+  body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-option {
+    min-width: 1.9rem;
+    padding: 0.28rem 0.42rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+  }
+
+  body[data-skin='amina-hermes'] .logout-button {
+    grid-column: 3;
+    grid-row: 1;
     width: 48px;
     min-width: 48px;
     height: 48px;
