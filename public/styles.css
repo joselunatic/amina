@@ -5317,6 +5317,10 @@ body.booting .crt-screen {
     letter-spacing: 0.25em;
   }
 
+  body:not([data-skin='amina-hermes']) .top-ticker-label {
+    display: none;
+  }
+
   .top-ticker-track {
     grid-column: 1 / -1;
   }
