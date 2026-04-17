@@ -9776,6 +9776,50 @@ body[data-skin='amina-hermes'] .skin-switch--topbar .skin-switch-option.active {
   color: #f5ead4;
 }
 
+body[data-skin='amina-hermes'] .boot-console-header {
+  color: #eadfc8;
+}
+
+body[data-skin='amina-hermes'] .agent-login label,
+body[data-skin='amina-hermes'] .boot-dm-form label,
+body[data-skin='amina-hermes'] .skin-switch-label {
+  color: rgba(234, 223, 200, 0.72);
+}
+
+body[data-skin='amina-hermes'] .agent-login select,
+body[data-skin='amina-hermes'] .agent-login input {
+  background: rgba(13, 25, 24, 0.94);
+  border: 1px solid rgba(231, 220, 195, 0.18);
+  color: #f5ead4;
+  color-scheme: dark;
+  box-shadow: none;
+}
+
+body[data-skin='amina-hermes'] .agent-login select option,
+body[data-skin='amina-hermes'] .boot-dm-form select option,
+body[data-skin='amina-hermes'] select option {
+  background: #12211f;
+  color: #f5ead4;
+}
+
+body[data-skin='amina-hermes'] .agent-login select:focus,
+body[data-skin='amina-hermes'] .agent-login input:focus,
+body[data-skin='amina-hermes'] .boot-dm-form input:focus,
+body[data-skin='amina-hermes'] select:focus,
+body[data-skin='amina-hermes'] input:focus,
+body[data-skin='amina-hermes'] textarea:focus {
+  outline: none;
+  border-color: rgba(231, 220, 195, 0.34);
+  box-shadow: 0 0 0 1px rgba(231, 220, 195, 0.16);
+}
+
+body[data-skin='amina-hermes'] .agent-login button.ghost,
+body[data-skin='amina-hermes'] #boot-dm-change.ghost {
+  background: transparent;
+  border-color: rgba(231, 220, 195, 0.14);
+  color: rgba(234, 223, 200, 0.88);
+}
+
 body[data-skin='amina-hermes'] .logout-button {
   border-radius: 0;
   border-top: none;
@@ -9802,6 +9846,13 @@ body[data-skin='amina-hermes'] .app-footer {
   background: rgba(7, 22, 21, 0.72);
   border-color: rgba(231, 220, 195, 0.16);
   box-shadow: none;
+}
+
+body[data-skin='amina-hermes'] .control-panel::before,
+body[data-skin='amina-hermes'] .control-panel::after {
+  opacity: 0.08;
+  animation: none;
+  mix-blend-mode: normal;
 }
 
 body[data-skin='amina-hermes'] .console-card .card-title,
@@ -9835,6 +9886,57 @@ body[data-skin='amina-hermes'] .chat-terminal-output {
   color: rgba(243, 239, 226, 0.9);
 }
 
+body[data-skin='amina-hermes'] .top-agent-clearance,
+body[data-skin='amina-hermes'] .top-agent-name,
+body[data-skin='amina-hermes'] #ticker-track,
+body[data-skin='amina-hermes'] #ticker-track span,
+body[data-skin='amina-hermes'] .footer-status,
+body[data-skin='amina-hermes'] .footer-status span {
+  color: rgba(234, 223, 200, 0.72);
+}
+
+body[data-skin='amina-hermes'] .top-agent-chip {
+  min-width: 220px;
+}
+
+body[data-skin='amina-hermes'] .top-ticker-track {
+  font-family: var(--font-accent);
+  letter-spacing: 0.14em;
+}
+
+body[data-skin='amina-hermes'] .pill-switch,
+body[data-skin='amina-hermes'] .workspace-tabs,
+body[data-skin='amina-hermes'] .agent-dossier-tabs,
+body[data-skin='amina-hermes'] .dm-mobile-tab-switch {
+  border-color: rgba(231, 220, 195, 0.16);
+}
+
+body[data-skin='amina-hermes'] .pill-switch button,
+body[data-skin='amina-hermes'] .workspace-tab,
+body[data-skin='amina-hermes'] .agent-dossier-tab,
+body[data-skin='amina-hermes'] .mobile-tab,
+body[data-skin='amina-hermes'] .mobile-more-option {
+  background: rgba(231, 220, 195, 0.03);
+  border-color: rgba(231, 220, 195, 0.14);
+  color: rgba(234, 223, 200, 0.74);
+  box-shadow: none;
+}
+
+body[data-skin='amina-hermes'] .pill-switch button.active,
+body[data-skin='amina-hermes'] .workspace-tab.active,
+body[data-skin='amina-hermes'] .agent-dossier-tab.active,
+body[data-skin='amina-hermes'] .mobile-tab.active,
+body[data-skin='amina-hermes'] .mobile-more-option.active {
+  background: rgba(231, 220, 195, 0.09);
+  color: #f5ead4;
+}
+
+body[data-skin='amina-hermes'] .app-footer {
+  border-top: 1px solid rgba(231, 220, 195, 0.16);
+  background: rgba(7, 22, 21, 0.82);
+  font-family: var(--font-accent);
+}
+
 body[data-skin='amina-hermes'] input,
 body[data-skin='amina-hermes'] select,
 body[data-skin='amina-hermes'] textarea,
@@ -9844,6 +9946,7 @@ body[data-skin='amina-hermes'] .boot-dm-form input {
   border-color: rgba(231, 220, 195, 0.18);
   color: var(--text);
   font-family: var(--font-ui);
+  color-scheme: dark;
 }
 
 body[data-skin='amina-hermes'] button,

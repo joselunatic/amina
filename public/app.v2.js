@@ -6306,6 +6306,9 @@ function showAgentLogin() {
   bootMenu.classList.add('hidden');
   agentLoginDiv.classList.remove('hidden');
   agentLoginDiv.classList.add('visible');
+  if (bootDmChangeBtn) bootDmChangeBtn.hidden = true;
+  bootDmForm?.classList.remove('visible');
+  hideDmPasswordPanel();
   agentLoginStatus.textContent = '';
   agentPassInput.value = '';
   hideAgentPasswordPanel();
@@ -6317,6 +6320,7 @@ function hideAgentLogin() {
   agentLoginDiv.classList.remove('visible');
   agentLoginDiv.classList.add('hidden');
   bootMenu.classList.remove('hidden');
+  if (bootDmChangeBtn) bootDmChangeBtn.hidden = false;
   hideAgentPasswordPanel();
 }
 
@@ -6475,11 +6479,13 @@ function showDmPasswordPanel() {
   if (!bootDmPasswordPanel) return;
   bootDmPasswordPanel.classList.remove('hidden');
   updateDmPasswordPanel();
+  if (bootDmChangeBtn) bootDmChangeBtn.textContent = 'Ocultar configuración';
 }
 
 function hideDmPasswordPanel() {
   if (!bootDmPasswordPanel) return;
   bootDmPasswordPanel.classList.add('hidden');
+  if (bootDmChangeBtn) bootDmChangeBtn.textContent = 'Configurar contraseña';
   resetDmPasswordForm();
 }
 
