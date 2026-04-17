@@ -90,6 +90,13 @@ const DM_GRAPH_CAMPAIGN_LABEL = 'Campaña · grafo global';
 const DM_ACTOR = 'MrTruth';
 const DM_DEFAULT_SENDER = 'Sr. Verdad';
 const IS_AUTOMATED_BROWSER = typeof navigator !== 'undefined' && navigator.webdriver === true;
+const SKIN_STORAGE_KEY = 'amina_skin';
+const DEFAULT_SKIN = 'amina-classic';
+const AVAILABLE_SKINS = new Set(['amina-classic', 'amina-hermes']);
+const SKIN_THEME_COLORS = {
+  'amina-classic': '#03140c',
+  'amina-hermes': '#111418'
+};
 
 // Character sheet model: each skill keeps its assigned value (`rating`) and its current reserve (`current`).
 // Restoring reserves returns `current` to `rating`.
@@ -454,6 +461,8 @@ const commandMapBtn = document.getElementById('command-map');
 const commandInboxBtn = document.getElementById('command-inbox');
 const tickerTrack = document.getElementById('ticker-track');
 const logoutButton = document.getElementById('logout-button');
+const skinChoiceButtons = Array.from(document.querySelectorAll('[data-skin-choice]'));
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 const mobileNav = document.getElementById('mobile-nav');
 const mobileMoreSwitch = document.getElementById('mobile-more-switch');
 const mobileMoreOptions = document.querySelectorAll('[data-mobile-more-view]');
@@ -2482,6 +2491,7 @@ async function saveBaseEditor() {
 async function init() {
   try {
     console.log('DEBUG: init started');
+    initializeSkin();
     populateCategoryOptions();
     bindEvents();
     enterNewEntityMode();
@@ -2540,6 +2550,43 @@ async function init() {
   } catch (e) {
     console.error('DEBUG: init failed', e);
   }
+}
+
+function normalizeSkin(value) {
+  return AVAILABLE_SKINS.has(value) ? value : DEFAULT_SKIN;
+}
+
+function setThemeColorMeta(skin) {
+  if (!themeColorMeta) return;
+  themeColorMeta.setAttribute('content', SKIN_THEME_COLORS[skin] || SKIN_THEME_COLORS[DEFAULT_SKIN]);
+}
+
+function updateSkinButtons(skin) {
+  skinChoiceButtons.forEach((button) => {
+    const active = button.dataset.skinChoice === skin;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function applySkin(skin, { persist = true } = {}) {
+  const normalized = normalizeSkin(skin);
+  document.body.dataset.skin = normalized;
+  setThemeColorMeta(normalized);
+  updateSkinButtons(normalized);
+  if (persist) {
+    localStorage.setItem(SKIN_STORAGE_KEY, normalized);
+  }
+}
+
+function initializeSkin() {
+  let stored = DEFAULT_SKIN;
+  try {
+    stored = localStorage.getItem(SKIN_STORAGE_KEY) || DEFAULT_SKIN;
+  } catch (error) {
+    console.warn('Skin storage unavailable', error);
+  }
+  applySkin(stored, { persist: false });
 }
 
 function populateCategoryOptions() {
@@ -2612,6 +2659,9 @@ function bindEvents() {
   bootDmPasswordPanel?.addEventListener('submit', (event) => {
     event.preventDefault();
     handleDmPasswordSave();
+  });
+  skinChoiceButtons.forEach((button) => {
+    button.addEventListener('click', () => applySkin(button.dataset.skinChoice));
   });
   bootDmSaveBtn?.addEventListener('click', handleDmPasswordSave);
   bootDmCancelBtn?.addEventListener('click', hideDmPasswordPanel);
