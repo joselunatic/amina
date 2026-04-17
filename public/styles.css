@@ -5164,6 +5164,32 @@ body.booting .crt-screen {
 }
 
 @media (max-width: 900px) {
+  .top-agent-chip {
+    gap: 0.45rem;
+    padding: 0.16rem 0.32rem 0.16rem 0.18rem;
+    border-radius: 0.85rem;
+  }
+
+  .top-agent-portrait-frame {
+    width: 28px;
+    height: 28px;
+  }
+
+  .top-agent-copy {
+    gap: 0;
+  }
+
+  .top-agent-clearance,
+  .top-agent-name {
+    font-size: 0.48rem;
+    letter-spacing: 0.12em;
+  }
+
+  .top-agent-callsign {
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+  }
+
   .mobile-nav {
     display: flex;
     justify-content: space-around;
@@ -6698,11 +6724,13 @@ body.map-mobile-fullscreen #map-panel .map-mobile-sheet .mobile-focal-related {
 
   .chat-terminal-agent-profile {
     align-items: flex-start;
+    gap: 0.45rem;
   }
 
   .chat-agent-portrait-frame {
-    width: 44px;
-    height: 54px;
+    width: 36px;
+    height: 44px;
+    border-radius: 0.62rem;
   }
 
   .chat-terminal-status {
@@ -6721,6 +6749,16 @@ body.map-mobile-fullscreen #map-panel .map-mobile-sheet .mobile-focal-related {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .chat-agent-callsign {
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+  }
+
+  .chat-agent-profile-copy span,
+  .chat-agent-profile-copy strong {
+    line-height: 1.12;
   }
 
   .dm-chat-grid {
@@ -9151,11 +9189,59 @@ body:not(.is-mobile)[data-workspace-view='database'] .agent-detail-subtitle {
 
 body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-header-identity {
   align-items: flex-start;
+  gap: 0.7rem;
 }
 
 body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-portrait-frame {
-  width: 72px;
-  height: 92px;
+  width: 56px;
+  height: 72px;
+  border-radius: 0.75rem;
+  flex: 0 0 auto;
+}
+
+body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-header {
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-header-main {
+  gap: 0.12rem;
+  flex: 1 1 auto;
+}
+
+body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-callsign {
+  font-size: 0.58rem;
+}
+
+body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-name {
+  font-size: 0.92rem;
+  letter-spacing: 0.05em;
+}
+
+body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-role {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+}
+
+body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-status-pill {
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  padding: 0.25rem 0.45rem;
+}
+
+@media (max-width: 480px) {
+  body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-portrait-frame {
+    width: 50px;
+    height: 64px;
+  }
+
+  body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-header-identity {
+    gap: 0.6rem;
+  }
+
+  body.is-mobile[data-mobile-tab='more'][data-mobile-more-view='sheet'] .sheet-name {
+    font-size: 0.86rem;
+  }
 }
 
 .sheet-layout {
