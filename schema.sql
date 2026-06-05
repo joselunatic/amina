@@ -184,6 +184,68 @@ CREATE TABLE IF NOT EXISTS entity_relations (
   FOREIGN KEY (to_entity_id) REFERENCES entities(id)
 );
 
+-- Media assets repository
+CREATE TABLE IF NOT EXISTS media_assets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  filename TEXT NOT NULL,
+  original_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  description TEXT,
+  url TEXT NOT NULL,
+  created_by TEXT NOT NULL DEFAULT 'dm',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Scene system
+CREATE TABLE IF NOT EXISTS scenes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT,
+  default_target TEXT NOT NULL DEFAULT 'all',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS scene_beats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scene_id INTEGER NOT NULL,
+  order_index INTEGER NOT NULL DEFAULT 0,
+  type TEXT NOT NULL,
+  payload TEXT NOT NULL DEFAULT '{}',
+  delay_ms INTEGER DEFAULT 0,
+  duration_ms INTEGER,
+  target TEXT NOT NULL DEFAULT 'inherit',
+  label TEXT,
+  FOREIGN KEY (scene_id) REFERENCES scenes(id) ON DELETE CASCADE
+);
+
+-- DM presets: saved events ready to fire during session
+CREATE TABLE IF NOT EXISTS dm_presets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  category TEXT,
+  effect_type TEXT NOT NULL,
+  payload TEXT NOT NULL DEFAULT '{}',
+  target TEXT NOT NULL DEFAULT 'screen',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Analysis queue: items shown as "in progress" until DM fires the result
+CREATE TABLE IF NOT EXISTS analysis_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  label TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  result_effect TEXT,
+  result_payload TEXT NOT NULL DEFAULT '{}',
+  result_target TEXT NOT NULL DEFAULT 'all',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Optional seeding for quick starts. Commented so deployments can decide whether to run it manually.
 -- INSERT INTO pois
 -- (name, category, latitude, longitude, public_note, dm_note, threat_level, veil_status, session_tag)

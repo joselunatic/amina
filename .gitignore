@@ -2,6 +2,10 @@
 /node_modules
 /mobile/node_modules
 
+# Uploads (media assets - keep dir, ignore content)
+/uploads/*
+!/uploads/.gitkeep
+
 # Data
 #*.db
 #*.sql

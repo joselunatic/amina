@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AMINA - Vista de Agente</title>
+    <title>AMINA — Entropia</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
-    <link rel="stylesheet" href="agent.css" />
+    <link rel="stylesheet" href="entropia.css" />
 </head>
 <body>
     <div id="map"></div>
-    <div id="glitch-overlay" class="glitch-overlay"></div>
-    <div id="vignette-overlay" class="vignette-overlay"></div>
-    <div id="noise-overlay" class="noise-overlay"></div>
+
+    <!-- Overlays -->
     <div id="blackout-overlay" class="blackout-overlay"></div>
     <div id="media-image-overlay" class="media-overlay media-image-overlay">
         <img id="media-image-el" src="" alt="" />
@@ -61,9 +60,40 @@
         </div>
     </div>
     <audio id="audio-player"></audio>
-    <div id="agent-id-display"></div>
+
+    <!-- Scanlines texture -->
+    <div id="scanlines"></div>
+
+    <!-- Ambient HUD elements -->
+    <div id="amina-hud">
+        <div id="hud-top-left">
+            <div id="incident-code" class="hud-item">INC-0000-00</div>
+            <div id="membrana-status" class="hud-item">MEMBRANA: INTACT</div>
+        </div>
+        <div id="hud-top-center">
+            <div id="system-ticker" class="hud-item">SYSTEM ONLINE</div>
+        </div>
+        <div id="hud-top-right">
+            <div id="signal-indicator" class="hud-item">◯ ACTIVE</div>
+        </div>
+        <div id="hud-bottom-left">
+            <div id="coordinates-display" class="hud-item">COORD: 00.0000, 00.0000</div>
+        </div>
+        <div id="hud-bottom-right">
+            <div id="system-clock" class="hud-item">00:00:00</div>
+        </div>
+    </div>
+
+    <!-- Ambient branding -->
+    <div id="screen-brand">
+        <span class="brand-label">AMINA</span>
+        <span class="brand-sub">SURVEILLANCE NETWORK</span>
+    </div>
+
+    <!-- Scene indicator (shown during playback) -->
+    <div id="scene-indicator"></div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-    <script src="agent.js" type="module"></script>
+    <script src="entropia.js" type="module"></script>
 </body>
 </html>

@@ -2637,6 +2637,236 @@ async function deleteEntity(id) {
   });
 }
 
+// --- Media Assets ---
+
+async function listMediaAssets() {
+  return all('SELECT * FROM media_assets ORDER BY created_at DESC');
+}
+
+async function getMediaAssetById(id) {
+  return get('SELECT * FROM media_assets WHERE id = ?', [id]);
+}
+
+async function createMediaAsset({ filename, original_name, mime_type, size, description, url, created_by }) {
+  const result = await run(
+    `INSERT INTO media_assets (filename, original_name, mime_type, size, description, url, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [filename, original_name, mime_type, size, description || null, url, created_by || 'dm']
+  );
+  return getMediaAssetById(result.lastID);
+}
+
+async function updateMediaAsset(id, { description }) {
+  await run(
+    'UPDATE media_assets SET description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [description || null, id]
+  );
+  return getMediaAssetById(id);
+}
+
+async function deleteMediaAsset(id) {
+  const asset = await getMediaAssetById(id);
+  if (!asset) return null;
+  await run('DELETE FROM media_assets WHERE id = ?', [id]);
+  return asset;
+}
+
+// --- Scenes ---
+
+async function listScenes() {
+  return all('SELECT * FROM scenes ORDER BY created_at DESC');
+}
+
+async function getSceneById(id) {
+  return get('SELECT * FROM scenes WHERE id = ?', [id]);
+}
+
+async function getSceneWithBeats(id) {
+  const scene = await getSceneById(id);
+  if (!scene) return null;
+  const beats = await getSceneBeats(id);
+  return { ...scene, beats };
+}
+
+async function createScene({ name, description, default_target }) {
+  const result = await run(
+    'INSERT INTO scenes (name, description, default_target) VALUES (?, ?, ?)',
+    [name, description || null, default_target || 'all']
+  );
+  return getSceneById(result.lastID);
+}
+
+async function updateScene(id, { name, description, default_target }) {
+  await run(
+    'UPDATE scenes SET name = ?, description = ?, default_target = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [name, description || null, default_target || 'all', id]
+  );
+  return getSceneById(id);
+}
+
+async function deleteScene(id) {
+  const result = await run('DELETE FROM scenes WHERE id = ?', [id]);
+  return result.changes > 0;
+}
+
+// --- Scene Beats ---
+
+async function getSceneBeats(sceneId) {
+  return all(
+    'SELECT * FROM scene_beats WHERE scene_id = ? ORDER BY order_index ASC',
+    [sceneId]
+  );
+}
+
+async function getSceneBeatById(beatId) {
+  return get('SELECT * FROM scene_beats WHERE id = ?', [beatId]);
+}
+
+async function createSceneBeat(sceneId, { type, payload, delay_ms, duration_ms, target, label, order_index }) {
+  const maxRow = await get(
+    'SELECT COALESCE(MAX(order_index), -1) as max_idx FROM scene_beats WHERE scene_id = ?',
+    [sceneId]
+  );
+  const nextIdx = order_index != null ? order_index : (maxRow.max_idx + 1);
+  const result = await run(
+    `INSERT INTO scene_beats (scene_id, order_index, type, payload, delay_ms, duration_ms, target, label)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      sceneId,
+      nextIdx,
+      type,
+      typeof payload === 'string' ? payload : JSON.stringify(payload || {}),
+      delay_ms || 0,
+      duration_ms || null,
+      target || 'inherit',
+      label || null
+    ]
+  );
+  return getSceneBeatById(result.lastID);
+}
+
+async function updateSceneBeat(beatId, { type, payload, delay_ms, duration_ms, target, label }) {
+  await run(
+    `UPDATE scene_beats
+     SET type = ?, payload = ?, delay_ms = ?, duration_ms = ?, target = ?, label = ?
+     WHERE id = ?`,
+    [
+      type,
+      typeof payload === 'string' ? payload : JSON.stringify(payload || {}),
+      delay_ms || 0,
+      duration_ms || null,
+      target || 'inherit',
+      label || null,
+      beatId
+    ]
+  );
+  return getSceneBeatById(beatId);
+}
+
+async function deleteSceneBeat(beatId) {
+  const result = await run('DELETE FROM scene_beats WHERE id = ?', [beatId]);
+  return result.changes > 0;
+}
+
+async function reorderSceneBeats(sceneId, orderedIds) {
+  await withTransaction(async () => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await run(
+        'UPDATE scene_beats SET order_index = ? WHERE id = ? AND scene_id = ?',
+        [i, orderedIds[i], sceneId]
+      );
+    }
+  });
+  return getSceneBeats(sceneId);
+}
+
+// --- DM Presets ---
+
+async function listPresets(category) {
+  if (category) {
+    return all('SELECT * FROM dm_presets WHERE category = ? ORDER BY name ASC', [category]);
+  }
+  return all('SELECT * FROM dm_presets ORDER BY category ASC, name ASC');
+}
+
+async function getPresetById(id) {
+  return get('SELECT * FROM dm_presets WHERE id = ?', [id]);
+}
+
+async function createPreset({ name, category, effect_type, payload, target }) {
+  const result = await run(
+    `INSERT INTO dm_presets (name, category, effect_type, payload, target)
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      name,
+      category || null,
+      effect_type,
+      typeof payload === 'string' ? payload : JSON.stringify(payload || {}),
+      target || 'screen'
+    ]
+  );
+  return getPresetById(result.lastID);
+}
+
+async function updatePreset(id, { name, category, effect_type, payload, target }) {
+  await run(
+    `UPDATE dm_presets SET name = ?, category = ?, effect_type = ?, payload = ?, target = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [
+      name,
+      category || null,
+      effect_type,
+      typeof payload === 'string' ? payload : JSON.stringify(payload || {}),
+      target || 'screen',
+      id
+    ]
+  );
+  return getPresetById(id);
+}
+
+async function deletePreset(id) {
+  const result = await run('DELETE FROM dm_presets WHERE id = ?', [id]);
+  return result.changes > 0;
+}
+
+// --- Analysis Queue ---
+
+async function listAnalysisItems() {
+  return all('SELECT * FROM analysis_queue ORDER BY created_at DESC');
+}
+
+async function getAnalysisItemById(id) {
+  return get('SELECT * FROM analysis_queue WHERE id = ?', [id]);
+}
+
+async function createAnalysisItem({ label, description, result_effect, result_payload, result_target }) {
+  const result = await run(
+    `INSERT INTO analysis_queue (label, description, status, result_effect, result_payload, result_target)
+     VALUES (?, ?, 'pending', ?, ?, ?)`,
+    [
+      label,
+      description || null,
+      result_effect || null,
+      typeof result_payload === 'string' ? result_payload : JSON.stringify(result_payload || {}),
+      result_target || 'all'
+    ]
+  );
+  return getAnalysisItemById(result.lastID);
+}
+
+async function updateAnalysisStatus(id, status) {
+  await run(
+    'UPDATE analysis_queue SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [status, id]
+  );
+  return getAnalysisItemById(id);
+}
+
+async function deleteAnalysisItem(id) {
+  const result = await run('DELETE FROM analysis_queue WHERE id = ?', [id]);
+  return result.changes > 0;
+}
+
 module.exports = {
   initialize,
   getAllPois,
@@ -2694,7 +2924,34 @@ module.exports = {
   listEntityActivity,
   updateActivityVisibility,
   listEntropiaZones,
-  replaceEntropiaZones
+  replaceEntropiaZones,
+  listMediaAssets,
+  getMediaAssetById,
+  createMediaAsset,
+  updateMediaAsset,
+  deleteMediaAsset,
+  listPresets,
+  getPresetById,
+  createPreset,
+  updatePreset,
+  deletePreset,
+  listAnalysisItems,
+  getAnalysisItemById,
+  createAnalysisItem,
+  updateAnalysisStatus,
+  deleteAnalysisItem,
+  listScenes,
+  getSceneById,
+  getSceneWithBeats,
+  createScene,
+  updateScene,
+  deleteScene,
+  getSceneBeats,
+  getSceneBeatById,
+  createSceneBeat,
+  updateSceneBeat,
+  deleteSceneBeat,
+  reorderSceneBeats
 };
 
 initialize().catch((err) => {

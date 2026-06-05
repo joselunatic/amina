@@ -29,13 +29,26 @@ const state = {
     map: null,
     agentId: getOrCreateAgentId(),
     ws: null,
-    pois: new Map(), // To store POI markers
+    pois: new Map(),
+    heatmapLoaded: false,
+    mediaImageTimeout: null,
 };
 
 const agentIdDisplay = document.getElementById('agent-id-display');
 const glitchOverlay = document.getElementById('glitch-overlay');
 const vignetteOverlay = document.getElementById('vignette-overlay');
 const noiseOverlay = document.getElementById('noise-overlay');
+const blackoutOverlay = document.getElementById('blackout-overlay');
+const mediaImageOverlay = document.getElementById('media-image-overlay');
+const mediaImageEl = document.getElementById('media-image-el');
+const mediaImageCaption = document.getElementById('media-image-caption');
+const mediaVideoOverlay = document.getElementById('media-video-overlay');
+const mediaVideoEl = document.getElementById('media-video-el');
+const mediaVideoCaption = document.getElementById('media-video-caption');
+const cardOverlay = document.getElementById('card-overlay');
+const fileRecoveryOverlay = document.getElementById('file-recovery-overlay');
+const signalTriangulationOverlay = document.getElementById('signal-triangulation-overlay');
+const audioPlayer = document.getElementById('audio-player');
 
 // --- WebSocket Communication ---
 function connectWebSocket() {
@@ -182,7 +195,323 @@ function handleEffect(effect, payload) {
         case 'LAYER_TOGGLE':
             state.map.setLayoutProperty(payload.layerId, 'visibility', payload.visible ? 'visible' : 'none');
             break;
+
+        // Media Effects
+        case 'MEDIA_IMAGE':
+            showImageOverlay(payload);
+            break;
+        case 'MEDIA_VIDEO':
+            showVideoOverlay(payload);
+            break;
+        case 'MEDIA_AUDIO':
+            playAudio(payload);
+            break;
+        case 'MEDIA_CLEAR':
+            clearMediaOverlays();
+            break;
+
+        // Card / Scene overlays
+        case 'SCENE_CARD':
+            showCard(payload);
+            break;
+
+        // Map annotation effects
+        case 'LABEL_PING':
+            pingLabel(payload);
+            break;
+        case 'HEATMAP_SET':
+            setHeatmap(payload);
+            break;
+        case 'HEATMAP_CLEAR':
+            clearHeatmap();
+            break;
+
+        // Full blackout
+        case 'MODE_BLACKOUT':
+            showBlackout(payload);
+            break;
+
+        // Clear all overlays
+        case 'CLEAR_OVERLAYS':
+            clearAll();
+            break;
+
+        case 'FILE_RECOVERY':
+            showFileRecovery(payload);
+            break;
+
+        case 'SIGNAL_TRIANGULATION':
+            showSignalTriangulation(payload);
+            break;
     }
+}
+
+// --- Media overlay handlers ---
+
+function showImageOverlay(payload) {
+    clearTimeout(state.mediaImageTimeout);
+    mediaImageEl.src = payload.url || '';
+    mediaImageCaption.textContent = payload.caption || payload.title || '';
+    mediaImageCaption.style.display = mediaImageCaption.textContent ? 'block' : 'none';
+    mediaImageOverlay.className = 'media-overlay media-image-overlay';
+    if (payload.cctv) {
+        mediaImageOverlay.classList.add('cctv-feed');
+        const timestamp = new Date().toLocaleTimeString();
+        const cctvLabel = payload.camera_name || 'CAM-04';
+        mediaImageCaption.innerHTML = `<span class="cctv-timestamp">${timestamp}</span> ${cctvLabel}`;
+    }
+    mediaImageOverlay.classList.add('active');
+
+    if (payload.duration) {
+        state.mediaImageTimeout = setTimeout(() => {
+            mediaImageOverlay.classList.remove('active');
+        }, payload.duration);
+    }
+}
+
+function showVideoOverlay(payload) {
+    mediaVideoEl.src = payload.url || '';
+    mediaVideoEl.loop = !!payload.loop;
+    mediaVideoEl.muted = payload.muted !== false;
+    mediaVideoEl.volume = payload.volume != null ? payload.volume : 1;
+    mediaVideoOverlay.className = 'media-overlay media-video-overlay';
+    if (payload.cctv) {
+        mediaVideoOverlay.classList.add('cctv-feed');
+        const timestamp = new Date().toLocaleTimeString();
+        const cctvLabel = payload.camera_name || 'CAM-04';
+        mediaVideoCaption.innerHTML = `<span class="cctv-timestamp">${timestamp}</span> ${cctvLabel}`;
+    } else {
+        mediaVideoCaption.textContent = payload.caption || '';
+    }
+    mediaVideoCaption.style.display = payload.cctv || mediaVideoCaption.textContent ? 'block' : 'none';
+    mediaVideoOverlay.classList.add('active');
+    if (payload.autoplay !== false) mediaVideoEl.play().catch(() => {});
+}
+
+function playAudio(payload) {
+    audioPlayer.src = payload.url || '';
+    audioPlayer.loop = !!payload.loop;
+    audioPlayer.volume = payload.volume != null ? payload.volume : 0.8;
+    audioPlayer.play().catch(() => {});
+}
+
+function clearMediaOverlays() {
+    clearTimeout(state.mediaImageTimeout);
+    mediaImageOverlay.classList.remove('active');
+    mediaVideoOverlay.classList.remove('active');
+    mediaVideoEl.pause();
+    mediaVideoEl.src = '';
+    audioPlayer.pause();
+    audioPlayer.src = '';
+}
+
+function showCard(payload) {
+    document.getElementById('card-subtitle').textContent = payload.subtitle || '';
+    document.getElementById('card-title').textContent = payload.title || '';
+    document.getElementById('card-body').textContent = payload.body || '';
+    cardOverlay.className = 'card-overlay active';
+    if (payload.theme) cardOverlay.classList.add(`card-theme-${payload.theme}`);
+    if (payload.voice) cardOverlay.classList.add(`card-voice-${payload.voice}`);
+}
+
+function showBlackout(_payload) {
+    blackoutOverlay.classList.add('active');
+}
+
+function showFileRecovery(payload) {
+    const lines = payload.lines || [];
+    const censored = new Set(payload.censored || []);
+    const imageUrl = payload.image_url;
+    const duration = payload.duration || 8000;
+
+    fileRecoveryOverlay.classList.add('active');
+    document.getElementById('recovery-content').innerHTML = '';
+    document.getElementById('recovery-image').innerHTML = '';
+    document.getElementById('recovery-bar').style.width = '0%';
+    document.getElementById('recovery-percent').textContent = '0%';
+
+    const progressDuration = duration * 0.8; // 80% for text, 20% for image
+    const lineDelay = progressDuration / Math.max(lines.length, 1);
+    let displayedLines = 0;
+
+    function displayNextLine() {
+        if (displayedLines >= lines.length) {
+            // Complete progress bar
+            const barEl = document.getElementById('recovery-bar');
+            barEl.style.transition = 'width 0.6s ease';
+            barEl.style.width = '100%';
+            document.getElementById('recovery-percent').textContent = '100%';
+
+            // Show image if provided
+            if (imageUrl) {
+                setTimeout(() => {
+                    const imgDiv = document.getElementById('recovery-image');
+                    imgDiv.innerHTML = `<img src="${imageUrl}" alt="Recovered" />`;
+                    imgDiv.style.opacity = '0';
+                    imgDiv.style.transition = 'opacity 0.8s ease';
+                    setTimeout(() => imgDiv.style.opacity = '1', 50);
+                }, 600);
+            }
+            return;
+        }
+
+        const lineIdx = displayedLines;
+        const line = lines[lineIdx];
+        const isCensored = censored.has(lineIdx);
+
+        const lineEl = document.createElement('div');
+        lineEl.className = 'recovery-line';
+        if (isCensored) {
+            lineEl.innerHTML = '<span class="censored">██████</span>';
+        } else {
+            lineEl.textContent = line;
+        }
+        document.getElementById('recovery-content').appendChild(lineEl);
+
+        // Update progress bar
+        const progress = Math.round((displayedLines / lines.length) * 80);
+        document.getElementById('recovery-bar').style.width = progress + '%';
+        document.getElementById('recovery-percent').textContent = progress + '%';
+
+        displayedLines++;
+        setTimeout(displayNextLine, lineDelay);
+    }
+
+    displayNextLine();
+
+    // Auto-close after duration
+    setTimeout(() => {
+        fileRecoveryOverlay.classList.remove('active');
+    }, duration + 1000);
+}
+
+function showSignalTriangulation(payload) {
+    const lng = payload.lng || 0;
+    const lat = payload.lat || 0;
+    const precision = payload.precision || 73;
+    const duration = payload.duration || 6000;
+
+    clearSignalTriangulation();
+
+    signalTriangulationOverlay.classList.add('active');
+
+    document.getElementById('tri-lat').textContent = Math.abs(lat).toFixed(4);
+    document.getElementById('tri-lng').textContent = Math.abs(lng).toFixed(4);
+    document.getElementById('tri-precision').textContent = precision + '%';
+
+    for (let i = 1; i <= 5; i++) {
+        const bar = document.getElementById(`tri-bar-${i}`);
+        bar.style.animation = 'none';
+        setTimeout(() => {
+            bar.style.animation = `bar-scan 1.5s ease-in-out ${(i - 1) * 0.2}s infinite`;
+            bar.style.height = (40 + Math.random() * 40) + '%';
+        }, 10);
+    }
+
+    const circleEl = document.createElement('div');
+    circleEl.className = 'triangulation-circle';
+    const marker = new mapboxgl.Marker({ element: circleEl })
+        .setLngLat([lng, lat])
+        .addTo(state.map);
+    state.triMarker = marker;
+
+    state.map.addSource('tri-circle', {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] } }
+    });
+    state.map.addLayer({
+        id: 'tri-circle-layer',
+        type: 'circle',
+        source: 'tri-circle',
+        paint: {
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 5, 24, 50],
+            'circle-color': 'rgba(0, 255, 136, 0)',
+            'circle-stroke-color': '#00ff88',
+            'circle-stroke-width': 2,
+            'circle-stroke-opacity': 0.6
+        }
+    });
+
+    state.map.flyTo({ center: [lng, lat], zoom: 14, essential: true, duration: 1500 });
+
+    state.triTimeout = setTimeout(() => clearSignalTriangulation(), duration);
+}
+
+function clearSignalTriangulation() {
+    clearTimeout(state.triTimeout);
+    signalTriangulationOverlay.classList.remove('active');
+    if (state.map) {
+        if (state.map.getLayer('tri-circle-layer')) state.map.removeLayer('tri-circle-layer');
+        if (state.map.getSource('tri-circle')) state.map.removeSource('tri-circle');
+    }
+    if (state.triMarker) { state.triMarker.remove(); state.triMarker = null; }
+}
+
+function clearAll() {
+    clearMediaOverlays();
+    clearSignalTriangulation();
+    blackoutOverlay.classList.remove('active');
+    cardOverlay.classList.remove('active');
+    fileRecoveryOverlay.classList.remove('active');
+    vignetteOverlay.style.display = 'none';
+    vignetteOverlay.classList.remove('vignette-level-1', 'vignette-level-2', 'vignette-level-3');
+    clearHeatmap();
+}
+
+// --- Map annotation handlers ---
+
+function pingLabel(payload) {
+    if (!state.map) return;
+    const el = document.createElement('div');
+    el.className = 'label-ping';
+    el.textContent = payload.text || '';
+    const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([payload.lng, payload.lat])
+        .addTo(state.map);
+    const duration = payload.duration || 4000;
+    setTimeout(() => marker.remove(), duration);
+}
+
+function setHeatmap(payload) {
+    if (!state.map) return;
+    const points = (payload.points || []).map(p => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+        properties: { weight: p.weight != null ? p.weight : 1 }
+    }));
+    const geojson = { type: 'FeatureCollection', features: points };
+
+    if (state.heatmapLoaded) {
+        state.map.getSource('heatmap-data').setData(geojson);
+    } else {
+        state.map.addSource('heatmap-data', { type: 'geojson', data: geojson });
+        state.map.addLayer({
+            id: 'heatmap-layer',
+            type: 'heatmap',
+            source: 'heatmap-data',
+            paint: {
+                'heatmap-weight': ['get', 'weight'],
+                'heatmap-intensity': 1.5,
+                'heatmap-color': [
+                    'interpolate', ['linear'], ['heatmap-density'],
+                    0, 'rgba(0,0,0,0)',
+                    0.2, 'rgba(0,255,100,0.3)',
+                    0.6, 'rgba(255,200,0,0.6)',
+                    1, 'rgba(255,0,0,0.9)'
+                ],
+                'heatmap-radius': 40,
+                'heatmap-opacity': 0.85
+            }
+        });
+        state.heatmapLoaded = true;
+    }
+}
+
+function clearHeatmap() {
+    if (!state.map || !state.heatmapLoaded) return;
+    if (state.map.getLayer('heatmap-layer')) state.map.removeLayer('heatmap-layer');
+    if (state.map.getSource('heatmap-data')) state.map.removeSource('heatmap-data');
+    state.heatmapLoaded = false;
 }
 
 

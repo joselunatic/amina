@@ -8,6 +8,7 @@ const {
   normalizeUsername,
   DEBUG_MODE
 } = require('./src/app');
+const db = require('./db');
 
 const DEFAULT_PORT = 3002;
 const PORT = parseInt(process.env.PORT, 10) || DEFAULT_PORT;
@@ -18,8 +19,72 @@ const wss = new WebSocketServer({ noServer: true });
 
 const dmClients = new Set();
 const agentClients = new Map();
+const screenClients = new Set();
 const messageClients = new Set();
 const chatClients = new Map();
+
+// --- Effect dispatch (centralised) ---
+
+function dispatchEffect(effect, payload, target, agentId) {
+  const msg = JSON.stringify({ type: 'effect', effect, payload });
+  if (target === 'all') {
+    for (const ws of agentClients.keys()) { if (ws.readyState === 1) ws.send(msg); }
+    for (const ws of screenClients) { if (ws.readyState === 1) ws.send(msg); }
+  } else if (target === 'agents') {
+    for (const ws of agentClients.keys()) { if (ws.readyState === 1) ws.send(msg); }
+  } else if (target === 'screen') {
+    for (const ws of screenClients) { if (ws.readyState === 1) ws.send(msg); }
+  } else if (target === 'agent' && agentId) {
+    for (const [ws, d] of agentClients.entries()) {
+      if (d.agentId === agentId) { ws.send(msg); break; }
+    }
+  }
+}
+
+// --- Scene autoplay engine ---
+
+const sceneState = {
+  active: false,
+  beats: [],
+  index: -1,
+  timeoutId: null
+};
+
+function stopScene() {
+  clearTimeout(sceneState.timeoutId);
+  sceneState.active = false;
+  sceneState.beats = [];
+  sceneState.index = -1;
+  dispatchEffect('CLEAR_OVERLAYS', {}, 'all');
+  console.log('[scene] stopped');
+}
+
+function advanceBeat() {
+  sceneState.index++;
+  const beat = sceneState.beats[sceneState.index];
+  if (!beat) {
+    sceneState.active = false;
+    console.log('[scene] finished');
+    return;
+  }
+
+  const fire = () => {
+    let payload;
+    try { payload = JSON.parse(beat.payload); } catch { payload = {}; }
+    const target = (beat.target === 'inherit') ? 'all' : beat.target;
+    console.log(`[scene] beat ${sceneState.index + 1}/${sceneState.beats.length}: ${beat.type} → ${target}`);
+    dispatchEffect(beat.type, payload, target);
+    if (beat.duration_ms) {
+      sceneState.timeoutId = setTimeout(advanceBeat, beat.duration_ms);
+    } else {
+      advanceBeat();
+    }
+  };
+
+  sceneState.timeoutId = setTimeout(fire, beat.delay_ms || 0);
+}
+
+// --- Broadcast helpers ---
 
 function broadcastMessageEvent(message) {
   if (!message) return;
@@ -37,21 +102,14 @@ function broadcastMessageEvent(message) {
     }
   });
   for (const client of messageClients) {
-    if (client.readyState === 1) {
-      client.send(payload);
-    }
+    if (client.readyState === 1) client.send(payload);
   }
 }
 
 function broadcastAgentList() {
   const agents = Array.from(agentClients.values());
-  const message = JSON.stringify({
-    type: 'agents-list',
-    agents
-  });
-  for (const client of dmClients) {
-    client.send(message);
-  }
+  const message = JSON.stringify({ type: 'agents-list', agents });
+  for (const client of dmClients) { client.send(message); }
 }
 
 function broadcastChatMessage({ thread, message }) {
@@ -65,33 +123,22 @@ function broadcastChatMessage({ thread, message }) {
   });
   for (const [client, meta] of chatClients.entries()) {
     if (client.readyState !== 1) continue;
-    if (meta.role === 'dm') {
-      client.send(payload);
-      continue;
-    }
+    if (meta.role === 'dm') { client.send(payload); continue; }
     if (meta.role === 'agent' && meta.agentUsername === thread.agent_username) {
       client.send(payload);
     }
   }
 }
 
+// --- Session helpers ---
+
 function createSessionResponseShim() {
   const headers = new Map();
   return {
-    getHeader(name) {
-      return headers.get(String(name).toLowerCase());
-    },
-    setHeader(name, value) {
-      headers.set(String(name).toLowerCase(), value);
-    },
-    removeHeader(name) {
-      headers.delete(String(name).toLowerCase());
-    },
-    writeHead() {},
-    end() {},
-    on() {},
-    once() {},
-    emit() {}
+    getHeader(name) { return headers.get(String(name).toLowerCase()); },
+    setHeader(name, value) { headers.set(String(name).toLowerCase(), value); },
+    removeHeader(name) { headers.delete(String(name).toLowerCase()); },
+    writeHead() {}, end() {}, on() {}, once() {}, emit() {}
   };
 }
 
@@ -111,9 +158,7 @@ function refreshSocketSession(request) {
     }
     request.session.reload((err) => {
       if (err) {
-        if (DEBUG_MODE) {
-          console.warn('[DEBUG] WebSocket session reload failed:', err.message);
-        }
+        if (DEBUG_MODE) console.warn('[DEBUG] WebSocket session reload failed:', err.message);
         request.session = null;
         return resolve(null);
       }
@@ -131,20 +176,16 @@ function getSocketAuthMeta(sessionState) {
   }
   if (sessionState.role === 'agent' && sessionState.agentId) {
     const agentUsername = normalizeUsername(sessionState.agentId);
-    return {
-      role: 'agent',
-      agentId: agentUsername,
-      agentUsername
-    };
+    return { role: 'agent', agentId: agentUsername, agentUsername };
   }
   return { role: 'guest', agentId: null, agentUsername: null };
 }
 
 function sendSocketError(ws, error) {
-  if (ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'error', error }));
-  }
+  if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'error', error }));
 }
+
+// --- Client registration ---
 
 function registerDmClient(ws) {
   dmClients.add(ws);
@@ -158,67 +199,55 @@ function registerAgentClient(ws, agentId) {
   broadcastAgentList();
 }
 
+function registerScreenClient(ws) {
+  screenClients.add(ws);
+  console.log('Screen client connected');
+}
+
 function unregisterSocket(ws) {
   let shouldBroadcastAgents = false;
-  if (dmClients.has(ws)) {
-    dmClients.delete(ws);
-    console.log('DM client disconnected');
-  }
-  if (agentClients.has(ws)) {
-    agentClients.delete(ws);
-    console.log('Agent client disconnected');
-    shouldBroadcastAgents = true;
-  }
-  if (messageClients.has(ws)) {
-    messageClients.delete(ws);
-  }
-  if (chatClients.has(ws)) {
-    chatClients.delete(ws);
-  }
-  if (shouldBroadcastAgents) {
-    broadcastAgentList();
-  }
+  if (dmClients.has(ws)) { dmClients.delete(ws); console.log('DM client disconnected'); }
+  if (agentClients.has(ws)) { agentClients.delete(ws); console.log('Agent client disconnected'); shouldBroadcastAgents = true; }
+  if (screenClients.has(ws)) { screenClients.delete(ws); console.log('Screen client disconnected'); }
+  if (messageClients.has(ws)) messageClients.delete(ws);
+  if (chatClients.has(ws)) chatClients.delete(ws);
+  if (shouldBroadcastAgents) broadcastAgentList();
 }
 
 async function registerSocketFromSession(ws, request, data) {
+  // Screen role: no auth required (projector display)
+  if (data.role === 'screen') {
+    unregisterSocket(ws);
+    registerScreenClient(ws);
+    return;
+  }
+
   const sessionState = await refreshSocketSession(request);
   const auth = getSocketAuthMeta(sessionState);
 
   if (data.role === 'dm') {
-    if (auth.role !== 'dm') {
-      sendSocketError(ws, 'DM session is required for DM realtime.');
-      return;
-    }
+    if (auth.role !== 'dm') { sendSocketError(ws, 'DM session is required for DM realtime.'); return; }
     unregisterSocket(ws);
     registerDmClient(ws);
     return;
   }
 
   if (data.role === 'agent') {
-    if (auth.role !== 'agent' || !auth.agentId) {
-      sendSocketError(ws, 'Agent session is required for agent realtime.');
-      return;
-    }
+    if (auth.role !== 'agent' || !auth.agentId) { sendSocketError(ws, 'Agent session is required for agent realtime.'); return; }
     unregisterSocket(ws);
     registerAgentClient(ws, auth.agentId);
     return;
   }
 
   if (data.role === 'console') {
-    if (auth.role === 'guest') {
-      sendSocketError(ws, 'Session is required for message realtime.');
-      return;
-    }
+    if (auth.role === 'guest') { sendSocketError(ws, 'Session is required for message realtime.'); return; }
     unregisterSocket(ws);
     messageClients.add(ws);
     return;
   }
 
   if (data.role === 'chat') {
-    if (auth.role === 'guest') {
-      sendSocketError(ws, 'Session is required for chat realtime.');
-      return;
-    }
+    if (auth.role === 'guest') { sendSocketError(ws, 'Session is required for chat realtime.'); return; }
     unregisterSocket(ws);
     chatClients.set(ws, {
       role: auth.role,
@@ -230,57 +259,81 @@ async function registerSocketFromSession(ws, request, data) {
   sendSocketError(ws, 'Unknown realtime registration role.');
 }
 
-setRealtimeHooks({
-  broadcastMessageEvent,
-  broadcastChatMessage
-});
+setRealtimeHooks({ broadcastMessageEvent, broadcastChatMessage, dispatchEffect });
+
+// --- WebSocket message handler ---
 
 wss.on('connection', (ws, request) => {
-  if (DEBUG_MODE) {
-    console.log('[DEBUG] WebSocket client connected');
-  }
+  if (DEBUG_MODE) console.log('[DEBUG] WebSocket client connected');
 
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
+
       if (data.type === 'hello') {
         await registerSocketFromSession(ws, request, data);
-      } else if (data.type === 'effect') {
+        return;
+      }
+
+      if (data.type === 'effect') {
         const sessionState = await refreshSocketSession(request);
         const auth = getSocketAuthMeta(sessionState);
-        if (!dmClients.has(ws)) {
-          return;
-        }
+        if (!dmClients.has(ws)) return;
         if (auth.role !== 'dm') {
           unregisterSocket(ws);
           sendSocketError(ws, 'DM session is required for DM realtime.');
           return;
         }
         const { effect, target, agentId, payload } = data;
-        const effectMessage = JSON.stringify({ type: 'effect', effect, payload });
-
-        if (target === 'all') {
-          for (const clientWs of agentClients.keys()) {
-            clientWs.send(effectMessage);
-          }
-        } else if (target === 'agent' && agentId) {
-          for (const [clientWs, clientData] of agentClients.entries()) {
-            if (clientData.agentId === agentId) {
-              clientWs.send(effectMessage);
-              break;
-            }
-          }
-        }
+        dispatchEffect(effect, payload, target, agentId);
+        return;
       }
+
+      if (data.type === 'scene-control') {
+        const sessionState = await refreshSocketSession(request);
+        const auth = getSocketAuthMeta(sessionState);
+        if (!dmClients.has(ws) || auth.role !== 'dm') {
+          sendSocketError(ws, 'DM session is required for scene control.');
+          return;
+        }
+
+        const { action, sceneId } = data;
+
+        if (action === 'play') {
+          clearTimeout(sceneState.timeoutId);
+          const beats = await db.getSceneBeats(sceneId);
+          sceneState.beats = beats;
+          sceneState.index = -1;
+          sceneState.active = true;
+          console.log(`[scene] playing scene ${sceneId} (${beats.length} beats)`);
+          advanceBeat();
+
+        } else if (action === 'stop') {
+          stopScene();
+
+        } else if (action === 'next') {
+          clearTimeout(sceneState.timeoutId);
+          advanceBeat();
+
+        } else if (action === 'prev') {
+          clearTimeout(sceneState.timeoutId);
+          sceneState.index = Math.max(-1, sceneState.index - 2);
+          advanceBeat();
+
+        } else if (action === 'pause') {
+          clearTimeout(sceneState.timeoutId);
+          console.log('[scene] paused');
+        }
+        return;
+      }
+
     } catch (e) {
       console.error('Failed to parse WebSocket message', e);
     }
   });
 
   ws.on('close', () => {
-    if (DEBUG_MODE) {
-      console.log('[DEBUG] WebSocket client disconnected');
-    }
+    if (DEBUG_MODE) console.log('[DEBUG] WebSocket client disconnected');
     unregisterSocket(ws);
   });
 });
@@ -293,7 +346,6 @@ server.on('upgrade', async (request, socket, head) => {
     socket.destroy();
     return;
   }
-
   wss.handleUpgrade(request, socket, head, (ws) => {
     wss.emit('connection', ws, request);
   });

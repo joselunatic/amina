@@ -14,6 +14,10 @@ const { registerAuthRoutes } = require('./routes/auth');
 const { registerMessageRoutes } = require('./routes/messages');
 const { registerEventTickerRoutes } = require('./routes/eventTicker');
 const { registerPoiRoutes } = require('./routes/pois');
+const { registerMediaRoutes } = require('./routes/media');
+const { registerScenesRoutes } = require('./routes/scenes');
+const { registerPresetsRoutes } = require('./routes/presets');
+const { registerAnalysisRoutes } = require('./routes/analysis');
 const { normalizeUsername, validateNewPassword } = require('./validation/auth');
 const { getChangedFields, validatePoi, validateEntity } = require('./validation/entities');
 const {
@@ -95,7 +99,8 @@ const POI_ID_OFFSET = 100000;
 const DM_ACTOR = 'MrTruth';
 const realtimeHooks = {
   broadcastMessageEvent: () => {},
-  broadcastChatMessage: () => {}
+  broadcastChatMessage: () => {},
+  dispatchEffect: () => {}
 };
 
 function redactPayload(payload) {
@@ -197,7 +202,18 @@ const sessionMiddleware = session({
   }
 });
 app.use(sessionMiddleware);
+
+// Protected routes first (before static) so they take precedence
+app.get('/dm', requireDmSession, (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'dm.html'));
+});
+
+app.get('/entropia', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'entropia.html'));
+});
+
 app.use('/agents', express.static(path.join(__dirname, '..', 'agents')));
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 function encodePoiIds(entity) {
@@ -880,6 +896,17 @@ function getActorName(req) {
   return 'Sistema';
 }
 
+registerMediaRoutes(app, { requireDm: requireDmSession });
+registerScenesRoutes(app, { requireDm: requireDmSession });
+registerPresetsRoutes(app, {
+  requireDm: requireDmSession,
+  dispatchEffect: (...args) => realtimeHooks.dispatchEffect(...args)
+});
+registerAnalysisRoutes(app, {
+  requireDm: requireDmSession,
+  dispatchEffect: (...args) => realtimeHooks.dispatchEffect(...args)
+});
+
 app.use(errorHandler);
 
 function setRealtimeHooks(nextHooks = {}) {
@@ -888,6 +915,9 @@ function setRealtimeHooks(nextHooks = {}) {
   }
   if (typeof nextHooks.broadcastChatMessage === 'function') {
     realtimeHooks.broadcastChatMessage = nextHooks.broadcastChatMessage;
+  }
+  if (typeof nextHooks.dispatchEffect === 'function') {
+    realtimeHooks.dispatchEffect = nextHooks.dispatchEffect;
   }
 }
 

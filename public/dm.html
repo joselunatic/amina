@@ -8,102 +8,443 @@
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
 </head>
 <body>
-    <h1>Consola de Efectos de DM</h1>
+    <header class="dm-header">
+        <h1>AMINA · Consola de DM</h1>
+        <nav class="dm-tabs">
+            <button class="tab-btn active" data-tab="effects">Efectos</button>
+            <button class="tab-btn" data-tab="media">Media</button>
+            <button class="tab-btn" data-tab="scenes">Escenas</button>
+            <button class="tab-btn" data-tab="intel">Intel</button>
+            <button class="tab-btn" data-tab="help">Ayuda</button>
+        </nav>
+    </header>
 
-    <div class="main-container">
-        <div class="controls-column">
-            <div class="control-section">
-                <h2>Estado del Sistema</h2>
-                <div class="agent-list-container">
-                    <label for="agent-select">Agente Objetivo:</label>
-                    <select id="agent-select">
-                        <option value="all">Todos los Agentes</option>
-                    </select>
+    <!-- ===== TAB: EFECTOS ===== -->
+    <div id="tab-effects" class="tab-panel active">
+        <div class="main-container">
+            <div class="controls-column">
+
+                <div class="control-section">
+                    <h2>Objetivo</h2>
+                    <div class="agent-list-container">
+                        <label for="agent-select">Target:</label>
+                        <select id="agent-select">
+                            <option value="all">Todos (Agentes + Pantalla)</option>
+                            <option value="agents">Solo Agentes</option>
+                            <option value="screen">Pantalla (Entropia)</option>
+                        </select>
+                    </div>
                 </div>
+
+                <div class="control-section">
+                    <h2>Eventos Narrativos Rápidos</h2>
+                    <div id="quick-events-grid" class="quick-events-grid"></div>
+                </div>
+
+                <div class="control-section">
+                    <h2>Efectos Visuales</h2>
+                    <button id="effect-glitch">Glitch</button>
+                    <button id="effect-noise">Ruido</button>
+                    <div class="control-group">
+                        <label for="vignette-level">Viñeta (0-3):</label>
+                        <input type="range" id="vignette-level" min="0" max="3" value="0" />
+                        <button id="effect-vignette">Aplicar Viñeta</button>
+                    </div>
+                    <button id="effect-blackout">Blackout</button>
+                    <button id="effect-clear">Limpiar Overlays</button>
+                </div>
+
+                <div class="control-section">
+                    <h2>Efectos de Cámara</h2>
+                    <button id="effect-nudge">Mover Cámara</button>
+                    <div class="control-group">
+                        <input type="text" id="focus-coords" placeholder="lng,lat,zoom" value="-76.26391,40.70682,16" />
+                        <button id="effect-focus">Enfocar Incidente</button>
+                    </div>
+                    <div class="control-group">
+                        <input type="text" id="sweep-coords" placeholder="start_lng,lat|end_lng,lat" value="-76.3,40.7|-76.2,40.65" />
+                        <button id="effect-sweep">Barrido de Área</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h2>Efectos de POI</h2>
+                    <div class="control-group">
+                        <label for="poi-select">POI:</label>
+                        <select id="poi-select"></select>
+                    </div>
+                    <div class="control-group">
+                        <button id="effect-poi-blink-on">Parpadeo ON</button>
+                        <button id="effect-poi-blink-off">Parpadeo OFF</button>
+                        <button id="effect-poi-highlight">Resaltar</button>
+                        <button id="effect-poi-lock">Bloquear</button>
+                        <button id="effect-poi-unlock">Desbloquear</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h2>Tipo de Marker</h2>
+                    <div id="amina-marker-selector" class="marker-selector"></div>
+                </div>
+
+                <div class="control-section">
+                    <h2>Capas</h2>
+                    <div class="control-group">
+                        <input type="text" id="layer-id" value="3d-buildings" placeholder="ID de Capa" />
+                        <button id="effect-layer-on">Mostrar</button>
+                        <button id="effect-layer-off">Ocultar</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h2>POI Efímero</h2>
+                    <div class="control-group">
+                        <input type="text" id="ephemeral-poi-name" placeholder="Nombre" />
+                        <input type="text" id="ephemeral-poi-coords" placeholder="lng,lat" value="-76.4,40.75" />
+                        <button id="create-ephemeral-poi">Crear</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h2>Card de Escena</h2>
+                    <div class="control-group">
+                        <input type="text" id="card-title-input" placeholder="Título" />
+                        <input type="text" id="card-subtitle-input" placeholder="Subtítulo (opcional)" />
+                        <textarea id="card-body-input" placeholder="Cuerpo del mensaje..." rows="3"></textarea>
+                        <select id="card-theme-input">
+                            <option value="">Default</option>
+                            <option value="danger">Peligro (rojo)</option>
+                            <option value="warning">Aviso (amarillo)</option>
+                        </select>
+                        <button id="effect-card">Mostrar Card</button>
+                    </div>
+                </div>
+
             </div>
 
-            <div class="control-section">
-                <h2>Efectos Visuales Globales</h2>
-                <button id="effect-glitch">Activar Glitch</button>
-                <button id="effect-noise">Activar Ruido</button>
-                <div class="control-group">
-                    <label for="vignette-level">Nivel de Viñeta:</label>
-                    <input type="range" id="vignette-level" min="0" max="3" value="0" />
-                    <button id="effect-vignette">Aplicar Viñeta</button>
+            <div class="intel-column">
+                <div class="control-section">
+                    <h2>Mapa de Operaciones</h2>
+                    <div id="dm-map"></div>
+                    <button id="request-satellite-image">Imagen Satelital</button>
                 </div>
-            </div>
-
-            <div class="control-section">
-                <h2>Efectos de Cámara</h2>
-                <button id="effect-nudge">Mover Cámara</button>
-                <div class="control-group">
-                    <input type="text" id="focus-coords" placeholder="lng,lat,zoom" value="-76.26391,40.70682,16" />
-                    <button id="effect-focus">Enfocar Incidente</button>
-                </div>
-                 <div class="control-group">
-                    <input type="text" id="sweep-coords" placeholder="start_lng,lat|end_lng,lat" value="-76.3,40.7|-76.2,40.65" />
-                    <button id="effect-sweep">Barrido de Área</button>
-                </div>
-            </div>
-
-            <div class="control-section">
-                <h2>Efectos de POI</h2>
-                <div class="control-group">
-                    <label for="poi-select">POI Objetivo:</label>
-                    <select id="poi-select">
-                        <!-- POIs will be loaded here by dm.js -->
-                    </select>
-                </div>
-                <div class="control-group">
-                    <button id="effect-poi-blink-on">Iniciar Parpadeo</button>
-                    <button id="effect-poi-blink-off">Detener Parpadeo</button>
-                    <button id="effect-poi-highlight">Resaltar</button>
-                    <button id="effect-poi-lock">Bloquear</button>
-                    <button id="effect-poi-unlock">Desbloquear</button>
-                </div>
-            </div>
-
-            <div class="control-section">
-                <h2>Tipo de Marker AMINA</h2>
-                <div id="amina-marker-selector" class="marker-selector">
-                    <!-- Marker type buttons will be rendered here by dm.js -->
-                </div>
-            </div>
-            
-            <div class="control-section">
-                <h2>Efectos de Capas</h2>
-                <div class="control-group">
-                    <input type="text" id="layer-id" value="3d-buildings" placeholder="ID de la Capa" />
-                    <button id="effect-layer-on">Mostrar Capa</button>
-                    <button id="effect-layer-off">Ocultar Capa</button>
-                </div>
-            </div>
-
-            <div class="control-section">
-                <h2>POI Efímero</h2>
-                <div id="ephemeral-poi-form" class="control-group">
-                    <input type="text" id="ephemeral-poi-name" placeholder="Nombre del POI Efímero" />
-                    <input type="text" id="ephemeral-poi-coords" placeholder="lng,lat" value="-76.4,40.75" />
-                    <button id="create-ephemeral-poi">Crear y Resaltar POI Efímero</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="intel-column">
-            <div class="control-section">
-                <h2>Mapa de Operaciones</h2>
-                <div id="dm-map"></div>
-                <!-- The static image request button and panel will now live outside the map section -->
-                <button id="request-satellite-image">Solicitar Imagen Satelital</button>
-            </div>
-            <div class="control-section">
-                <h2>Análisis de Inteligencia</h2>
-                <div id="image-analysis-panel">
-                    <p>Esperando solicitud de imagen...</p>
+                <div class="control-section">
+                    <h2>Análisis de Inteligencia</h2>
+                    <div id="image-analysis-panel"><p>Esperando solicitud...</p></div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- ===== TAB: MEDIA ===== -->
+    <div id="tab-media" class="tab-panel">
+        <div class="media-tab-layout">
+            <div class="media-upload-section control-section">
+                <h2>Subir Asset</h2>
+                <div id="upload-drop-zone" class="upload-drop-zone">
+                    <span>Arrastra archivos aquí o</span>
+                    <label class="upload-label">
+                        <span>Seleccionar archivo</span>
+                        <input type="file" id="upload-file-input" accept="image/*,video/*,audio/*" />
+                    </label>
+                </div>
+                <div class="control-group">
+                    <input type="text" id="upload-description" placeholder="Descripción (opcional)" />
+                    <button id="upload-submit">Subir</button>
+                </div>
+                <div id="upload-status"></div>
+            </div>
+
+            <div class="media-grid-section control-section">
+                <h2>Repositorio de Media <button id="media-refresh" class="btn-small">↻ Actualizar</button></h2>
+                <div id="media-grid" class="media-grid">
+                    <p class="media-empty">Cargando assets...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TAB: INTEL ===== -->
+    <div id="tab-intel" class="tab-panel">
+        <div class="intel-tab-layout">
+
+            <!-- PRESETS SECTION -->
+            <div class="intel-section control-section">
+                <h2>Presets de Evento <button id="intel-presets-refresh" class="btn-small">↻</button></h2>
+                <p class="intel-hint">Guarda eventos preparados para la sesión. Un click los lanza.</p>
+
+                <div class="control-group">
+                    <input type="text" id="preset-name" placeholder="Nombre del preset" />
+                    <input type="text" id="preset-category" placeholder="Categoría (ej: Hospital, Mina)" />
+                    <select id="preset-target">
+                        <option value="screen">Pantalla</option>
+                        <option value="all">Todos</option>
+                        <option value="agents">Solo Agentes</option>
+                    </select>
+                    <select id="preset-effect-type">
+                        <option value="SCENE_CARD">Card de texto</option>
+                        <option value="FILE_RECOVERY">Recuperación de archivo</option>
+                        <option value="SIGNAL_TRIANGULATION">Triangulación de señal</option>
+                        <option value="MEDIA_IMAGE">Imagen</option>
+                        <option value="MEDIA_VIDEO">Vídeo</option>
+                        <option value="MEDIA_AUDIO">Audio</option>
+                        <option value="MODE_BLACKOUT">Blackout</option>
+                        <option value="CLEAR_OVERLAYS">Limpiar Overlays</option>
+                        <option value="GLITCH">Glitch</option>
+                        <option value="NOISE_PULSE">Ruido</option>
+                    </select>
+                    <textarea id="preset-payload" rows="4" placeholder='{"title":"...","body":"...","voice":"ov"}'></textarea>
+                    <button id="preset-create-btn">Guardar Preset</button>
+                </div>
+
+                <div id="preset-filter-bar" class="preset-filter-bar"></div>
+                <div id="presets-list" class="presets-list">
+                    <p class="intel-empty">Cargando presets...</p>
+                </div>
+            </div>
+
+            <!-- ANALYSIS QUEUE SECTION -->
+            <div class="intel-section control-section">
+                <h2>Cola de Análisis <button id="intel-analysis-refresh" class="btn-small">↻</button></h2>
+                <p class="intel-hint">Crea análisis pendientes. Los jugadores ven que AMINA procesa algo. Lanza el resultado cuando sea dramáticamente oportuno.</p>
+
+                <div class="control-group">
+                    <input type="text" id="analysis-label" placeholder="Etiqueta (ej: VOICEPRINT ANALYSIS)" />
+                    <input type="text" id="analysis-description" placeholder="Descripción privada para el DM" />
+                    <select id="analysis-result-target">
+                        <option value="all">Todos</option>
+                        <option value="screen">Pantalla</option>
+                        <option value="agents">Solo Agentes</option>
+                    </select>
+                    <select id="analysis-result-effect">
+                        <option value="SCENE_CARD">Card de texto</option>
+                        <option value="FILE_RECOVERY">Recuperación de archivo</option>
+                        <option value="SIGNAL_TRIANGULATION">Triangulación de señal</option>
+                        <option value="MEDIA_IMAGE">Imagen</option>
+                        <option value="MEDIA_VIDEO">Vídeo</option>
+                        <option value="MEDIA_AUDIO">Audio</option>
+                        <option value="GLITCH">Glitch</option>
+                        <option value="">Sin efecto (solo marcar completo)</option>
+                    </select>
+                    <textarea id="analysis-result-payload" rows="4" placeholder='{"title":"MATCH FOUND","body":"CONFIDENCE: 87%","voice":"alert"}'></textarea>
+                    <button id="analysis-create-btn">Añadir a Cola</button>
+                </div>
+
+                <div id="analysis-list" class="analysis-list">
+                    <p class="intel-empty">Cola vacía.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ===== TAB: ESCENAS ===== -->
+    <div id="tab-scenes" class="tab-panel">
+        <div class="scenes-layout">
+
+            <div class="scenes-sidebar control-section">
+                <h2>Escenas</h2>
+                <div class="control-group">
+                    <input type="text" id="new-scene-name" placeholder="Nueva escena..." />
+                    <select id="scene-target-select">
+                        <option value="all">Todos</option>
+                        <option value="agents">Solo Agentes</option>
+                        <option value="screen">Pantalla</option>
+                    </select>
+                    <button id="scene-create-btn">Crear</button>
+                </div>
+                <ul id="scene-list" class="scene-list"></ul>
+            </div>
+
+            <div class="scenes-builder control-section" id="scene-builder">
+                <div id="scene-empty-state" class="scene-empty-state">
+                    <p>Selecciona o crea una escena para empezar.</p>
+                </div>
+                <div id="scene-editor" style="display:none">
+                    <div class="scene-editor-header">
+                        <h2 id="scene-editor-name">Escena</h2>
+                        <div class="scene-controls">
+                            <button id="scene-play-btn" title="Play">▶</button>
+                            <button id="scene-pause-btn" title="Pausa">⏸</button>
+                            <button id="scene-next-btn" title="Siguiente beat">⏭</button>
+                            <button id="scene-prev-btn" title="Beat anterior">⏮</button>
+                            <button id="scene-stop-btn" title="Stop">⏹</button>
+                        </div>
+                    </div>
+
+                    <div id="beat-list" class="beat-list"></div>
+                    <button id="add-beat-btn" class="btn-add-beat">+ Añadir Beat</button>
+
+                    <div class="scene-import-export">
+                        <button id="scene-export-btn">📤 Exportar JSON</button>
+                        <button id="scene-import-btn">📥 Importar JSON</button>
+                        <textarea id="scene-json-area" placeholder="JSON de escena..." rows="6" style="display:none"></textarea>
+                        <button id="scene-import-confirm-btn" style="display:none">Confirmar Importación</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COORD PICKER MAP PANEL -->
+            <div class="scenes-map-panel control-section">
+                <h2>Coord Picker <span id="coord-picker-hint" class="coord-picker-hint"></span></h2>
+                <div id="coord-picker-map"></div>
+                <div id="coord-picker-display" class="coord-picker-display">Click en el mapa para seleccionar coords</div>
+                <div id="sweep-toggle-row" class="sweep-toggle-row" style="display:none">
+                    <span>Click establece:</span>
+                    <button id="sweep-toggle-btn" class="btn-small active">INICIO</button>
+                </div>
+                <div class="coord-picker-actions">
+                    <button id="coord-copy-btn" class="btn-small" title="Copiar coordenadas al portapapeles">⎘ Copiar</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ===== TAB: AYUDA ===== -->
+    <div id="tab-help" class="tab-panel help-panel">
+
+        <div class="help-hero">
+            <div class="help-hero-title">AMINA — Mesa de Efectos</div>
+            <div class="help-hero-sub">Todo lo que necesitas saber para dirigir la partida</div>
+        </div>
+
+        <div class="help-grid">
+
+            <!-- LO BÁSICO -->
+            <section class="help-section help-section--full">
+                <h3 class="help-section-title">Cómo funciona</h3>
+                <p class="help-note">Eres el único que ves esta pantalla. Cuando lanzas un efecto aquí, elige quién lo recibe en tiempo real:</p>
+                <table class="help-table">
+                    <thead><tr><th>Si eliges…</th><th>Verán:</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Todos</strong></td><td>Los jugadores en sus móviles/portátiles + el proyector (pantalla de sala)</td></tr>
+                        <tr><td><strong>Solo jugadores</strong></td><td>Solo en sus dispositivos (no se proyecta)</td></tr>
+                        <tr><td><strong>Proyector</strong></td><td>Solo la pantalla de sala (los jugadores no ven nada)</td></tr>
+                        <tr><td><strong>Jugador X</strong></td><td>Solo ese jugador — info privada, secreto para los demás</td></tr>
+                    </tbody>
+                </table>
+                <p class="help-note">Lo que tocas aquí aparece al instante en las otras pantallas. No hay botones en la pantalla del proyector, solo lo que tú envías.</p>
+            </section>
+
+            <!-- QUÉ PUEDE VER CADA EFECTO -->
+            <section class="help-section help-section--full">
+                <h3 class="help-section-title">Tipos de efectos</h3>
+                <ul class="help-list help-list--bullets">
+                    <li><strong>Distorsión:</strong> flash de glitch, ruido, viñeta oscura, pantalla negra</li>
+                    <li><strong>Cámara del mapa:</strong> sacudida, enfocar un punto, mostrar una zona rectangular</li>
+                    <li><strong>Marcadores:</strong> parpadeo, resalte, "bloqueo" visual de un punto de interés</li>
+                    <li><strong>Multimedia:</strong> imagen a pantalla completa, vídeo (puede parecer cámara de vigilancia), audio de fondo</li>
+                    <li><strong>Tarjeta de texto:</strong> mensaje en el centro con diferentes estilos (oficial, corrupto, alerta, etc.)</li>
+                    <li><strong>Especiales:</strong> recuperación de archivo (efecto de progreso con texto), triangulación de señal (coords + barras animadas)</li>
+                </ul>
+            </section>
+
+            <!-- TARJETAS DE TEXTO CON ESTILO -->
+            <section class="help-section help-section--full">
+                <h3 class="help-section-title">Tarjetas de texto — diferentes estilos</h3>
+                <p class="help-note">Las tarjetas de texto tienen "voces" visuales distintas. Elige la que encaje con la fuente de la información:</p>
+                <div class="help-voices">
+                    <div class="help-voice voice-ov"><span class="voice-tag">OV</span> Informe oficial — verde y formal (OV te lo envía)</div>
+                    <div class="help-voice voice-intercepted"><span class="voice-tag">Interceptada</span> Transmisión sospechosa — ámbar y nerviosa (origen desconocido)</div>
+                    <div class="help-voice voice-corrupted"><span class="voice-tag">Corrupta</span> Datos dañados — gris y fracturado (sistema falla)</div>
+                    <div class="help-voice voice-alert"><span class="voice-tag">Alerta</span> Sistema se asusta — rojo pulsante (urgencia máxima)</div>
+                    <div class="help-voice voice-human"><span class="voice-tag">Humano</span> Persona real — verde cálido (alguien te escribe)</div>
+                </div>
+            </section>
+
+            <!-- EFECTOS ESPECIALES -->
+            <section class="help-section help-section--full">
+                <h3 class="help-section-title">Efectos especiales — narración en acción</h3>
+                <ul class="help-list help-list--bullets">
+                    <li><strong>Recuperación de archivo:</strong> Barra de progreso que sube mientras aparecen líneas de texto. Puedes marcar campos como censurados (█████). Al final, imagen opcional.</li>
+                    <li><strong>Triangulación de señal:</strong> Muestra coordenadas con barras pulsantes. El mapa vuela a esa posición automáticamente. Parece que AMINA está localizando algo en tiempo real.</li>
+                    <li><strong>Etiqueta en el mapa:</strong> Aparece una anotación flotante en una posición del mapa (ej: "Sospechoso visto aquí") y desaparece sola después de unos segundos.</li>
+                    <li><strong>Heatmap:</strong> Dibuja una zona roja en el mapa mostrando concentración de actividad o peligro.</li>
+                </ul>
+            </section>
+
+            <!-- EVENTOS RÁPIDOS -->
+            <section class="help-section help-section--full">
+                <h3 class="help-section-title">Botones de un click — eventos narrativos rápidos</h3>
+                <p class="help-note" style="margin-bottom:12px">En el tab <strong>Efectos</strong> tienes 10 botones que lanzan efectos preconfigurados. Un click = efecto al instante. Pasa el ratón para ver qué ven los jugadores.</p>
+                <ul class="help-list help-list--bullets">
+                    <li><strong>Alerta Membrana</strong> — Rojo pulsante, anomalía detectada</li>
+                    <li><strong>Señal Adquirida</strong> — Ámbar, AMINA localizó algo (no sabe qué)</li>
+                    <li><strong>Acceso No Autorizado</strong> — Gris glitch, hackeo en progreso</li>
+                    <li><strong>Interferencia</strong> — Gris oscuro, zona con mucho ruido</li>
+                    <li><strong>Apagón</strong> — Rojo urgencia, sistemas colapsando</li>
+                    <li><strong>Archivo Recuperado</strong> — Verde oficial, OV envió información</li>
+                    <li><strong>Entidad Detectada</strong> — Rojo alerta, firma esoterrorista confirmada</li>
+                    <li><strong>Mensaje Interceptado</strong> — Ámbar sospechoso, comunicación de origen desconocido</li>
+                    <li><strong>Coords Localizadas</strong> — Verde confianza, triangulación completada</li>
+                    <li><strong>Error Sistema</strong> — Gris pánico, AMINA está siendo atacada</li>
+                </ul>
+            </section>
+
+            <!-- ESCENAS — SECUENCIAS AUTOMÁTICAS -->
+            <section class="help-section help-section--full">
+                <h3 class="help-section-title">Escenas — encadenar efectos automáticamente</h3>
+                <p class="help-note">Una escena es una secuencia de efectos que se ejecutan uno tras otro sin que toques nada.</p>
+                <ol class="help-list">
+                    <li>Crea una escena con un nombre.</li>
+                    <li>Añade "beats" (pasos): cada beat es un efecto con opciones propias.</li>
+                    <li>Pulsa <strong>▶ Play</strong> — se ejecutan todos en orden automáticamente.</li>
+                    <li>Usa <strong>⏭ Next</strong> para saltar al siguiente beat, <strong>⏸ Pause</strong> para pausar, <strong>⏹ Stop</strong> para cancelar todo.</li>
+                </ol>
+                <p class="help-note" style="margin-top:12px">En el panel lateral del mapa, haz click en la posición que quieras — rellena automáticamente las coordenadas. Para áreas rectangulares, usa el toggle INICIO/FIN para establecer las dos esquinas.</p>
+            </section>
+
+            <!-- INTEL — EFECTOS LISTOS + ANÁLISIS PENDIENTES -->
+            <section class="help-section help-section--full">
+                <h3 class="help-section-title">Tab Intel — dos herramientas de control</h3>
+
+                <h4 class="help-subsection-title">Efectos preparados (Presets)</h4>
+                <p class="help-note">Guarda efectos completos antes de la partida. Categorízalos (Hospital, Mina, Interrogatorio…) para encontrarlos rápido en la mesa.</p>
+                <ul class="help-list help-list--bullets">
+                    <li>Crea un efecto nuevo: dale nombre, categoría, elige qué tipo (imagen, tarjeta, etc.) y configura los detalles.</li>
+                    <li>Guarda. Durante la partida, filtra por categoría y lanza con un click.</li>
+                </ul>
+
+                <h4 class="help-subsection-title" style="margin-top:16px">Análisis en cola (simulan que AMINA está procesando)</h4>
+                <p class="help-note">Crea el efecto de que AMINA tiene "algo analizando". Los jugadores lo ven como pendiente hasta que tú decidas revelar el resultado.</p>
+                <ul class="help-list help-list--bullets">
+                    <li>Nuevo análisis: etiqueta (lo que "procesa" AMINA, todos lo ven), descripción privada (solo tú), y qué efecto mostrar al completar.</li>
+                    <li>Los jugadores ven: "VOICEPRINT ANALYSIS — PENDIENTE" en la consola.</li>
+                    <li>Cuando llegue el momento narrativo: pulsa <strong>⚡ Disparar</strong> — revelan el resultado.</li>
+                    <li>Ejemplo: encuentran una grabación → creas "VOICEPRINT ANALYSIS" (pendiente) → 20 min después, en el interrogatorio → disparas → aparece "VOICEPRINT MATCH: VICTORIA ALLEN".</li>
+                </ul>
+            </section>
+
+            <!-- MAPA LATERAL — SELECCIONAR POSICIONES -->
+            <section class="help-section">
+                <h3 class="help-section-title">Mapa lateral — cómo establecer posiciones</h3>
+                <p class="help-note" style="margin-bottom:10px">En el tab Escenas, a la derecha hay un pequeño mapa. Úsalo para elegir dónde ocurren los efectos.</p>
+                <ol class="help-list">
+                    <li>Abre un efecto que use coordenadas (enfocar mapa, etiqueta, etc.).</li>
+                    <li>Haz click en el mapa → las coordenadas se rellenan automáticamente.</li>
+                    <li>Para áreas rectangulares, usa el toggle <strong>INICIO / FIN</strong> — primer click marca una esquina, segundo click la otra.</li>
+                    <li>El mapa muestra una vista previa de lo que pasará (marcador, rectángulo, círculo, etc.).</li>
+                    <li>Botón <strong>⎘ Copiar</strong> si quieres tener las coords en el portapapeles.</li>
+                </ol>
+            </section>
+
+            <!-- PANTALLA DEL PROYECTOR -->
+            <section class="help-section">
+                <h3 class="help-section-title">Pantalla de proyector — `/entropia`</h3>
+                <p class="help-note" style="margin-bottom:10px">Abre esta dirección en el navegador del proyector de sala. No necesita contraseña.</p>
+                <ul class="help-list help-list--bullets">
+                    <li>Mapa grande de la zona, igual que el que ven los jugadores.</li>
+                    <li>Reloj en directo, código de incidente, estado de AMINA, etiquetas.</li>
+                    <li>Recibe los mismos efectos que lanzas (si eliges "Todos" o "Proyector").</li>
+                    <li>Sin botones ni controles visibles — los jugadores solo ven lo que tú envías.</li>
+                    <li>Se reconecta automáticamente si hay desconexión.</li>
+                </ul>
+                <p class="help-note" style="margin-top:12px"><strong>Setup típico:</strong> Proyector en `/entropia` (sin tocar). Tú en `/dm` (tu portátil). Jugadores en `/agent` (sus móviles). Todos en la misma red.</p>
+            </section>
+
+        </div><!-- .help-grid -->
+    </div><!-- #tab-help -->
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script src="dm.js" type="module"></script>
