@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="entropia.css" />
 </head>
 <body>
+    <!-- ALGORITHM BACKGROUND — global signal analysis simulation -->
+    <div id="algorithm-background"></div>
+
     <!-- AMINA HOME — persistent background, never fully hidden -->
     <div id="amina-home" class="amina-home">
         <div class="home-container">
@@ -23,45 +26,45 @@
             <div class="home-content">
                 <div class="amina-logo">
                     <div class="logo-text">[ AMINA ]</div>
-                    <div class="logo-sub">ANALYSIS & MONITORING</div>
-                    <div class="logo-sub">INTELLIGENCE NETWORK</div>
-                    <div class="logo-sub">APPARATUS</div>
+                    <div class="logo-sub">ANÁLISIS DE MISIONES E</div>
+                    <div class="logo-sub">INVESTIGACIÓN DE NUEVAS</div>
+                    <div class="logo-sub">AMENAZAS</div>
                 </div>
 
                 <div class="system-status">
                     <div class="status-line">
-                        <span class="status-label">SYSTEM STATUS:</span>
-                        <span class="status-value online">● ONLINE</span>
+                        <span class="status-label">ESTADO DEL SISTEMA:</span>
+                        <span class="status-value online">● EN LÍNEA</span>
                     </div>
                     <div class="status-line">
-                        <span class="status-label">MEMBRANA STATE:</span>
-                        <span class="status-value" id="home-membrana">INTACT</span>
+                        <span class="status-label">ESTADO DE MEMBRANA:</span>
+                        <span class="status-value" id="home-membrana">INTACTA</span>
                     </div>
                     <div class="status-line">
-                        <span class="status-label">AGENTS CONNECTED:</span>
+                        <span class="status-label">AGENTES CONECTADOS:</span>
                         <span class="status-value" id="home-agents">0</span>
                     </div>
                     <div class="status-line">
-                        <span class="status-label">SURVEILLANCE ZONE:</span>
-                        <span class="status-value">SCHUYLKILL COUNTY PA</span>
+                        <span class="status-label">ZONA DE VIGILANCIA:</span>
+                        <span class="status-value">CONDADO SCHUYLKILL, PA</span>
                     </div>
                 </div>
 
                 <div class="home-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
 
                 <div class="initialization-log">
-                    <div class="log-line">[ <span class="time-stamp">00:00:00</span> ] SYSTEM BOOTSTRAP INITIATED</div>
-                    <div class="log-line">[ <span class="time-stamp">00:00:01</span> ] MAPBOX SERVICES: READY</div>
-                    <div class="log-line">[ <span class="time-stamp">00:00:02</span> ] WEBSOCKET CONNECTION: ESTABLISHED</div>
-                    <div class="log-line">[ <span class="time-stamp">00:00:03</span> ] EFFECT DISPATCHER: LISTENING</div>
-                    <div class="log-line animate-pulse">[ <span class="time-stamp">00:00:04</span> ] AWAITING COMMAND...</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:00</span> ] INICIO DEL SISTEMA</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:01</span> ] SERVICIOS DE MAPEO: LISTO</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:02</span> ] CONEXIÓN DE RED: ESTABLECIDA</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:03</span> ] DESPACHADOR DE EFECTOS: ESCUCHANDO</div>
+                    <div class="log-line animate-pulse">[ <span class="time-stamp">00:00:04</span> ] ESPERANDO COMANDO...</div>
                 </div>
             </div>
 
             <!-- Bottom section: footer -->
             <div class="home-footer">
-                <div class="footer-line">For Authorized Personnel Only</div>
-                <div class="footer-line">Unauthorized Access Subject to Legal Action</div>
+                <div class="footer-line">Solo para Personal Autorizado</div>
+                <div class="footer-line">El Acceso No Autorizado está Sujeto a Acciones Legales</div>
             </div>
         </div>
     </div>
@@ -126,7 +129,7 @@
     <div id="amina-hud">
         <div id="hud-top-left">
             <div id="incident-code" class="hud-item">INC-0000-00</div>
-            <div id="membrana-status" class="hud-item">MEMBRANA: INTACT</div>
+            <div id="membrana-status" class="hud-item">MEMBRANA: INTACTA</div>
         </div>
         <div id="hud-top-center">
             <div id="system-ticker" class="hud-item">SYSTEM ONLINE</div>

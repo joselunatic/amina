@@ -42,8 +42,8 @@ const sceneIndicator      = document.getElementById('scene-indicator');
 
 // --- AMINA Home management ---
 function updateHomeScreen() {
-    const membEl = document.getElementById('boot-membrana');
-    const agentsEl = document.getElementById('boot-agents');
+    const membEl = document.getElementById('home-membrana');
+    const agentsEl = document.getElementById('home-agents');
     if (membEl) membEl.textContent = state.membranStatus;
     if (agentsEl) agentsEl.textContent = state.agentsConnected;
 }
@@ -489,6 +489,173 @@ function setMembranStatus(status) {
     el.className = `hud-item status-${status.toLowerCase()}`;
 }
 
+// --- Algorithm Background Animation (global signal analysis simulation) ---
+
+function initializeAlgorithmBackground() {
+    const container = document.getElementById('algorithm-background');
+    if (!container) return;
+
+    // Configuration for background animation
+    const config = {
+        signalNodes: 40,      // Total global signal monitoring points
+        threatPoints: 8,      // Veil ruptures and anomalies
+        scanWaves: 5,         // Simultaneous scanning waves
+        networkLines: 6,      // Signal propagation connections
+        hotspots: 4           // Regional analysis hotspots
+    };
+
+    // Get viewport dimensions
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Create signal nodes (scattered globally)
+    for (let i = 0; i < config.signalNodes; i++) {
+        const node = document.createElement('div');
+        node.className = 'signal-node active';
+        const x = Math.random() * vw;
+        const y = Math.random() * vh;
+        const size = 2 + Math.random() * 3;
+        node.style.left = x + 'px';
+        node.style.top = y + 'px';
+        node.style.width = size + 'px';
+        node.style.height = size + 'px';
+        node.style.background = 'rgba(0, 255, 136, 0.4)';
+        node.style.animationDelay = (Math.random() * 4) + 's';
+        container.appendChild(node);
+    }
+
+    // Create threat indicators (veil ruptures and extraterrestrial entities)
+    for (let i = 0; i < config.threatPoints; i++) {
+        const threat = document.createElement('div');
+        const threatType = i < 3 ? 'rupture' : 'entity';
+        threat.className = `threat-indicator ${threatType}`;
+        const x = Math.random() * vw;
+        const y = Math.random() * vh;
+        const size = 15 + Math.random() * 25;
+        threat.style.left = x + 'px';
+        threat.style.top = y + 'px';
+        threat.style.width = size + 'px';
+        threat.style.height = size + 'px';
+        threat.style.background = threatType === 'rupture'
+            ? 'rgba(255, 65, 54, 0.15)'
+            : 'rgba(180, 100, 255, 0.15)';
+        threat.style.animationDelay = (Math.random() * 3) + 's';
+        container.appendChild(threat);
+    }
+
+    // Create regional hotspots (analysis focus areas)
+    for (let i = 0; i < config.hotspots; i++) {
+        const hotspot = document.createElement('div');
+        hotspot.className = 'regional-hotspot active';
+        const x = Math.random() * vw * 0.9 + vw * 0.05;
+        const y = Math.random() * vh * 0.9 + vh * 0.05;
+        const size = 80 + Math.random() * 150;
+        hotspot.style.left = (x - size / 2) + 'px';
+        hotspot.style.top = (y - size / 2) + 'px';
+        hotspot.style.width = size + 'px';
+        hotspot.style.height = size + 'px';
+        hotspot.style.animationDelay = (Math.random() * 3.5) + 's';
+        container.appendChild(hotspot);
+    }
+
+    // Periodic scanning waves from random locations
+    function createScanWave() {
+        const wave = document.createElement('div');
+        wave.className = 'scan-wave propagating';
+        const x = Math.random() * vw;
+        const y = Math.random() * vh;
+        const size = 40;
+        wave.style.left = (x - size / 2) + 'px';
+        wave.style.top = (y - size / 2) + 'px';
+        wave.style.width = size + 'px';
+        wave.style.height = size + 'px';
+        wave.style.borderColor = Math.random() > 0.5 ? 'rgba(0,255,136,0.1)' : 'rgba(180,100,255,0.1)';
+        container.appendChild(wave);
+
+        // Remove after animation completes
+        setTimeout(() => wave.remove(), 4000);
+    }
+
+    // Launch scanning waves periodically
+    setInterval(createScanWave, 3000);
+    // Create initial wave
+    createScanWave();
+
+    // Animated connection lines between random nodes
+    function createNetworkLine() {
+        const x1 = Math.random() * vw;
+        const y1 = Math.random() * vh;
+        const x2 = Math.random() * vw;
+        const y2 = Math.random() * vh;
+
+        const line = document.createElement('div');
+        line.className = 'network-line active';
+        const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+
+        line.style.position = 'absolute';
+        line.style.left = x1 + 'px';
+        line.style.top = y1 + 'px';
+        line.style.width = length + 'px';
+        line.style.height = '1px';
+        line.style.transform = `rotate(${angle}deg)`;
+        line.style.transformOrigin = '0 0';
+        line.style.animationDelay = (Math.random() * 3) + 's';
+
+        container.appendChild(line);
+
+        // Remove after animation
+        setTimeout(() => line.remove(), 3000);
+    }
+
+    // Create initial network lines
+    for (let i = 0; i < config.networkLines; i++) {
+        setTimeout(createNetworkLine, i * 400);
+    }
+
+    // Periodically create new network lines
+    setInterval(() => {
+        if (Math.random() > 0.3) createNetworkLine();
+    }, 4000);
+
+    // Add analysis status text at random locations
+    const statusMessages = [
+        'SIGNAL ANALYSIS...',
+        'VEIL RUPTURE SCAN...',
+        'ENTITY DETECTION...',
+        'THREAT ASSESSMENT...',
+        'NETWORK MAPPING...',
+        'ANOMALY LOGGED...',
+        'FREQUENCY TRACKING...',
+        'INTERDIMENSIONAL SCAN...'
+    ];
+
+    function createStatusIndicator() {
+        const status = document.createElement('div');
+        status.className = 'algorithm-status analyzing';
+        status.textContent = statusMessages[Math.floor(Math.random() * statusMessages.length)];
+        const x = Math.random() * (vw - 200);
+        const y = Math.random() * (vh - 100);
+        status.style.left = x + 'px';
+        status.style.top = y + 'px';
+        status.style.animationDelay = (Math.random() * 1.5) + 's';
+
+        container.appendChild(status);
+
+        // Remove after duration
+        setTimeout(() => status.remove(), 6000);
+    }
+
+    // Create status indicators periodically
+    setInterval(createStatusIndicator, 5000);
+    // Create initial indicators
+    for (let i = 0; i < 2; i++) {
+        setTimeout(createStatusIndicator, i * 1000);
+    }
+
+    console.log('[entropia] Algorithm background initialized - global signal analysis simulation active');
+}
+
 // --- Map init ---
 async function initializeMap() {
     try {
@@ -526,6 +693,7 @@ async function initializeMap() {
 }
 
 // --- Initialization ---
+initializeAlgorithmBackground();
 initializeHUD();
 updateHomeScreen();
 initializeMap();
