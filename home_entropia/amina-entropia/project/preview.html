@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AMINA — Entropia Preview</title>
+    <link rel="stylesheet" href="entropia.css" />
+    <style>
+        /* Stub: map placeholder so layout renders */
+        #map { position: absolute; inset: 0; background: #000; }
+        /* Ensure HUD is visible in preview */
+        #amina-hud { z-index: 15; }
+        #screen-brand { z-index: 15; }
+    </style>
+</head>
+<body>
+    <!-- ALGORITHM BACKGROUND -->
+    <div id="algorithm-background"></div>
+
+    <!-- AMINA HOME -->
+    <div id="amina-home" class="amina-home">
+        <div class="home-container">
+            <div class="home-header">
+                <div class="ov-seal">
+                    <div class="seal-circle">◊</div>
+                    <div class="seal-text">ORDO VERITATIS</div>
+                </div>
+            </div>
+
+            <div class="home-content">
+                <div class="amina-logo">
+                    <div class="logo-text">[ AMINA ]</div>
+                    <div class="logo-sub">ANÁLISIS DE MISIONES E</div>
+                    <div class="logo-sub">INVESTIGACIÓN DE NUEVAS</div>
+                    <div class="logo-sub">AMENAZAS</div>
+                </div>
+
+                <div class="system-status">
+                    <div class="status-line">
+                        <span class="status-label">ESTADO DEL SISTEMA:</span>
+                        <span class="status-value online">● EN LÍNEA</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">ESTADO DE MEMBRANA:</span>
+                        <span class="status-value" id="home-membrana">INTACTA</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">AGENTES CONECTADOS:</span>
+                        <span class="status-value" id="home-agents">3</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">ZONA DE VIGILANCIA:</span>
+                        <span class="status-value">CONDADO SCHUYLKILL, PA</span>
+                    </div>
+                </div>
+
+                <div class="home-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+                <div class="initialization-log">
+                    <div class="log-line">[ <span class="time-stamp">00:00:00</span> ] INICIO DEL SISTEMA</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:01</span> ] SERVICIOS DE MAPEO: LISTO</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:02</span> ] CONEXIÓN DE RED: ESTABLECIDA</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:03</span> ] DESPACHADOR DE EFECTOS: ESCUCHANDO</div>
+                    <div class="log-line animate-pulse">[ <span class="time-stamp">00:00:04</span> ] ESPERANDO COMANDO...</div>
+                </div>
+            </div>
+
+            <div class="home-footer">
+                <div class="footer-line">Solo para Personal Autorizado</div>
+                <div class="footer-line">El Acceso No Autorizado está Sujeto a Acciones Legales</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Overlays (hidden by default) -->
+    <div id="blackout-overlay" class="blackout-overlay"></div>
+    <div id="media-image-overlay" class="media-overlay media-image-overlay">
+        <img id="media-image-el" src="" alt="" />
+        <div class="media-caption" id="media-image-caption"></div>
+    </div>
+    <div id="media-video-overlay" class="media-overlay media-video-overlay">
+        <video id="media-video-el" playsinline></video>
+        <div class="media-caption" id="media-video-caption"></div>
+    </div>
+    <div id="card-overlay" class="card-overlay">
+        <div class="card-inner">
+            <div class="card-subtitle" id="card-subtitle"></div>
+            <div class="card-title" id="card-title"></div>
+            <div class="card-body" id="card-body"></div>
+        </div>
+    </div>
+    <div id="file-recovery-overlay" class="file-recovery-overlay">
+        <div class="recovery-inner">
+            <div class="recovery-title">ARCHIVE RECOVERY IN PROGRESS</div>
+            <div class="recovery-progress">
+                <div class="recovery-bar" id="recovery-bar"></div>
+                <div class="recovery-percent" id="recovery-percent">0%</div>
+            </div>
+            <div class="recovery-content" id="recovery-content"></div>
+            <div class="recovery-image" id="recovery-image"></div>
+        </div>
+    </div>
+    <div id="signal-triangulation-overlay" class="signal-triangulation-overlay">
+        <div class="triangulation-inner">
+            <div class="triangulation-title">SIGNAL TRIANGULATION</div>
+            <div class="triangulation-coords">
+                <div class="coord-item"><span class="coord-label">LAT:</span> <span class="coord-value" id="tri-lat">40.6800</span></div>
+                <div class="coord-item"><span class="coord-label">LNG:</span> <span class="coord-value" id="tri-lng">76.2290</span></div>
+            </div>
+            <div class="triangulation-bars">
+                <div class="tri-bar" id="tri-bar-1"></div>
+                <div class="tri-bar" id="tri-bar-2"></div>
+                <div class="tri-bar" id="tri-bar-3"></div>
+                <div class="tri-bar" id="tri-bar-4"></div>
+                <div class="tri-bar" id="tri-bar-5"></div>
+            </div>
+            <div class="triangulation-precision">
+                <span class="precision-label">PRECISION:</span>
+                <span class="precision-value" id="tri-precision">73%</span>
+            </div>
+            <div class="triangulation-status" id="tri-status">SCANNING...</div>
+        </div>
+    </div>
+    <audio id="audio-player"></audio>
+
+    <!-- Scanlines -->
+    <div id="scanlines"></div>
+
+    <!-- HUD -->
+    <div id="amina-hud">
+        <div id="hud-top-left">
+            <div id="incident-code" class="hud-item">INC-4471-07</div>
+            <div id="membrana-status" class="hud-item status-intact">MEMBRANA: INTACTA</div>
+        </div>
+        <div id="hud-top-center">
+            <div id="system-ticker" class="hud-item">SENSORS ACTIVE</div>
+        </div>
+        <div id="hud-top-right">
+            <div id="signal-indicator" class="hud-item">◯ ACTIVE</div>
+        </div>
+        <div id="hud-bottom-left">
+            <div id="coordinates-display" class="hud-item">COORD: 40.6800N, 76.2290W</div>
+        </div>
+        <div id="hud-bottom-right">
+            <div id="system-clock" class="hud-item">00:00:00</div>
+        </div>
+    </div>
+
+    <!-- Branding -->
+    <div id="screen-brand">
+        <span class="brand-label">AMINA</span>
+        <span class="brand-sub">SURVEILLANCE NETWORK</span>
+    </div>
+
+    <div id="scene-indicator"></div>
+
+    <script>
+    // ── Simulate algorithm background (no WebSocket needed) ──
+    (function initAlgorithmBg() {
+        const container = document.getElementById('algorithm-background');
+        if (!container) return;
+        const vw = window.innerWidth, vh = window.innerHeight;
+
+        // Signal nodes
+        for (let i = 0; i < 42; i++) {
+            const n = document.createElement('div');
+            n.className = 'signal-node active';
+            const size = 2 + Math.random() * 3;
+            Object.assign(n.style, {
+                left: (Math.random() * vw) + 'px',
+                top: (Math.random() * vh) + 'px',
+                width: size + 'px', height: size + 'px',
+                background: 'rgba(0,255,136,0.4)',
+                animationDelay: (Math.random() * 4) + 's'
+            });
+            container.appendChild(n);
+        }
+
+        // Threat indicators
+        for (let i = 0; i < 8; i++) {
+            const t = document.createElement('div');
+            const type = i < 3 ? 'rupture' : 'entity';
+            t.className = `threat-indicator ${type}`;
+            const size = 15 + Math.random() * 25;
+            Object.assign(t.style, {
+                left: (Math.random() * vw) + 'px',
+                top: (Math.random() * vh) + 'px',
+                width: size + 'px', height: size + 'px',
+                background: type === 'rupture' ? 'rgba(255,65,54,0.15)' : 'rgba(180,100,255,0.15)',
+                animationDelay: (Math.random() * 3) + 's'
+            });
+            container.appendChild(t);
+        }
+
+        // Regional hotspots
+        for (let i = 0; i < 4; i++) {
+            const h = document.createElement('div');
+            h.className = 'regional-hotspot active';
+            const size = 80 + Math.random() * 150;
+            const x = Math.random() * vw * 0.8 + vw * 0.1;
+            const y = Math.random() * vh * 0.8 + vh * 0.1;
+            Object.assign(h.style, {
+                left: (x - size/2) + 'px', top: (y - size/2) + 'px',
+                width: size + 'px', height: size + 'px',
+                animationDelay: (Math.random() * 3.5) + 's'
+            });
+            container.appendChild(h);
+        }
+
+        // Scan waves — periodic
+        function createWave() {
+            const w = document.createElement('div');
+            w.className = 'scan-wave propagating';
+            const size = 40;
+            Object.assign(w.style, {
+                left: (Math.random() * vw - size/2) + 'px',
+                top: (Math.random() * vh - size/2) + 'px',
+                width: size + 'px', height: size + 'px',
+                borderColor: Math.random() > 0.5
+                    ? 'rgba(0,255,136,0.12)' : 'rgba(180,100,255,0.12)'
+            });
+            container.appendChild(w);
+            setTimeout(() => w.remove(), 4500);
+        }
+        createWave();
+        setInterval(createWave, 3000);
+
+        // Network lines — periodic
+        function createLine() {
+            const l = document.createElement('div');
+            l.className = 'network-line active';
+            const x1 = Math.random() * vw, y1 = Math.random() * vh;
+            const x2 = Math.random() * vw, y2 = Math.random() * vh;
+            const len = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+            const angle = Math.atan2(y2-y1, x2-x1) * 180 / Math.PI;
+            Object.assign(l.style, {
+                position: 'absolute',
+                left: x1 + 'px', top: y1 + 'px',
+                width: len + 'px', height: '1px',
+                transform: `rotate(${angle}deg)`,
+                transformOrigin: '0 0',
+                animationDelay: (Math.random() * 3) + 's'
+            });
+            container.appendChild(l);
+            setTimeout(() => l.remove(), 3500);
+        }
+        for (let i = 0; i < 6; i++) setTimeout(createLine, i * 400);
+        setInterval(() => Math.random() > 0.3 && createLine(), 4000);
+
+        // Status floaters
+        const msgs = ['SIGNAL ANALYSIS...','VEIL RUPTURE SCAN...','ENTITY DETECTION...',
+            'THREAT ASSESSMENT...','NETWORK MAPPING...','ANOMALY LOGGED...',
+            'FREQUENCY TRACKING...','INTERDIMENSIONAL SCAN...'];
+        function createStatus() {
+            const s = document.createElement('div');
+            s.className = 'algorithm-status analyzing';
+            s.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+            Object.assign(s.style, {
+                left: (Math.random() * (vw - 220)) + 'px',
+                top: (Math.random() * (vh - 60)) + 'px',
+                animationDelay: (Math.random() * 1.5) + 's'
+            });
+            container.appendChild(s);
+            setTimeout(() => s.remove(), 6000);
+        }
+        for (let i = 0; i < 2; i++) setTimeout(createStatus, i * 1200);
+        setInterval(createStatus, 5000);
+    })();
+
+    // ── Clock ──
+    function updateClock() {
+        const n = new Date();
+        document.getElementById('system-clock').textContent =
+            [n.getHours(), n.getMinutes(), n.getSeconds()]
+            .map(v => String(v).padStart(2,'0')).join(':');
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+    </script>
+</body>
+</html>

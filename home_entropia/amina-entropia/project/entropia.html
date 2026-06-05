@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AMINA — Entropia</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="entropia.css" />
+</head>
+<body>
+    <!-- ALGORITHM BACKGROUND — global signal analysis simulation -->
+    <div id="algorithm-background"></div>
+
+    <!-- AMINA HOME — persistent background, never fully hidden -->
+    <div id="amina-home" class="amina-home">
+        <div class="home-container">
+            <!-- Top section: OV branding -->
+            <div class="home-header">
+                <div class="ov-seal">
+                    <div class="seal-circle">◊</div>
+                    <div class="seal-text">ORDO VERITATIS</div>
+                </div>
+            </div>
+
+            <!-- Middle section: AMINA info -->
+            <div class="home-content">
+                <div class="amina-logo">
+                    <div class="logo-text">[ AMINA ]</div>
+                    <div class="logo-sub">ANÁLISIS DE MISIONES E</div>
+                    <div class="logo-sub">INVESTIGACIÓN DE NUEVAS</div>
+                    <div class="logo-sub">AMENAZAS</div>
+                </div>
+
+                <div class="system-status">
+                    <div class="status-line">
+                        <span class="status-label">ESTADO DEL SISTEMA:</span>
+                        <span class="status-value online">● EN LÍNEA</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">ESTADO DE MEMBRANA:</span>
+                        <span class="status-value" id="home-membrana">INTACTA</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">AGENTES CONECTADOS:</span>
+                        <span class="status-value" id="home-agents">0</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">ZONA DE VIGILANCIA:</span>
+                        <span class="status-value">CONDADO SCHUYLKILL, PA</span>
+                    </div>
+                </div>
+
+                <div class="home-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+                <div class="initialization-log">
+                    <div class="log-line">[ <span class="time-stamp">00:00:00</span> ] INICIO DEL SISTEMA</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:01</span> ] SERVICIOS DE MAPEO: LISTO</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:02</span> ] CONEXIÓN DE RED: ESTABLECIDA</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:03</span> ] DESPACHADOR DE EFECTOS: ESCUCHANDO</div>
+                    <div class="log-line animate-pulse">[ <span class="time-stamp">00:00:04</span> ] ESPERANDO COMANDO...</div>
+                </div>
+            </div>
+
+            <!-- Bottom section: footer -->
+            <div class="home-footer">
+                <div class="footer-line">Solo para Personal Autorizado</div>
+                <div class="footer-line">El Acceso No Autorizado está Sujeto a Acciones Legales</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Overlays -->
+    <div id="blackout-overlay" class="blackout-overlay"></div>
+    <div id="media-image-overlay" class="media-overlay media-image-overlay">
+        <img id="media-image-el" src="" alt="" />
+        <div class="media-caption" id="media-image-caption"></div>
+    </div>
+    <div id="media-video-overlay" class="media-overlay media-video-overlay">
+        <video id="media-video-el" playsinline></video>
+        <div class="media-caption" id="media-video-caption"></div>
+    </div>
+    <div id="card-overlay" class="card-overlay">
+        <div class="card-inner">
+            <div class="card-subtitle" id="card-subtitle"></div>
+            <div class="card-title" id="card-title"></div>
+            <div class="card-body" id="card-body"></div>
+        </div>
+    </div>
+    <div id="file-recovery-overlay" class="file-recovery-overlay">
+        <div class="recovery-inner">
+            <div class="recovery-title">ARCHIVE RECOVERY IN PROGRESS</div>
+            <div class="recovery-progress">
+                <div class="recovery-bar" id="recovery-bar"></div>
+                <div class="recovery-percent" id="recovery-percent">0%</div>
+            </div>
+            <div class="recovery-content" id="recovery-content"></div>
+            <div class="recovery-image" id="recovery-image"></div>
+        </div>
+    </div>
+    <div id="signal-triangulation-overlay" class="signal-triangulation-overlay">
+        <div class="triangulation-inner">
+            <div class="triangulation-title">SIGNAL TRIANGULATION</div>
+            <div class="triangulation-coords">
+                <div class="coord-item"><span class="coord-label">LAT:</span> <span class="coord-value" id="tri-lat">00.0000</span></div>
+                <div class="coord-item"><span class="coord-label">LNG:</span> <span class="coord-value" id="tri-lng">00.0000</span></div>
+            </div>
+            <div class="triangulation-bars">
+                <div class="tri-bar" id="tri-bar-1"></div>
+                <div class="tri-bar" id="tri-bar-2"></div>
+                <div class="tri-bar" id="tri-bar-3"></div>
+                <div class="tri-bar" id="tri-bar-4"></div>
+                <div class="tri-bar" id="tri-bar-5"></div>
+            </div>
+            <div class="triangulation-precision">
+                <span class="precision-label">PRECISION:</span>
+                <span class="precision-value" id="tri-precision">73%</span>
+            </div>
+            <div class="triangulation-status" id="tri-status">SCANNING...</div>
+        </div>
+    </div>
+    <audio id="audio-player"></audio>
+
+    <!-- Scanlines texture -->
+    <div id="scanlines"></div>
+
+    <!-- Ambient HUD elements -->
+    <div id="amina-hud">
+        <div id="hud-top-left">
+            <div id="incident-code" class="hud-item">INC-0000-00</div>
+            <div id="membrana-status" class="hud-item">MEMBRANA: INTACTA</div>
+        </div>
+        <div id="hud-top-center">
+            <div id="system-ticker" class="hud-item">SYSTEM ONLINE</div>
+        </div>
+        <div id="hud-top-right">
+            <div id="signal-indicator" class="hud-item">◯ ACTIVE</div>
+        </div>
+        <div id="hud-bottom-left">
+            <div id="coordinates-display" class="hud-item">COORD: 00.0000, 00.0000</div>
+        </div>
+        <div id="hud-bottom-right">
+            <div id="system-clock" class="hud-item">00:00:00</div>
+        </div>
+    </div>
+
+    <!-- Ambient branding -->
+    <div id="screen-brand">
+        <span class="brand-label">AMINA</span>
+        <span class="brand-sub">SURVEILLANCE NETWORK</span>
+    </div>
+
+    <!-- Scene indicator (shown during playback) -->
+    <div id="scene-indicator"></div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <script src="entropia.js" type="module"></script>
+</body>
+</html>
