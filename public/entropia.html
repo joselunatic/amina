@@ -8,6 +8,64 @@
     <link rel="stylesheet" href="entropia.css" />
 </head>
 <body>
+    <!-- AMINA HOME — persistent background, never fully hidden -->
+    <div id="amina-home" class="amina-home">
+        <div class="home-container">
+            <!-- Top section: OV branding -->
+            <div class="home-header">
+                <div class="ov-seal">
+                    <div class="seal-circle">◊</div>
+                    <div class="seal-text">ORDO VERITATIS</div>
+                </div>
+            </div>
+
+            <!-- Middle section: AMINA info -->
+            <div class="home-content">
+                <div class="amina-logo">
+                    <div class="logo-text">[ AMINA ]</div>
+                    <div class="logo-sub">ANALYSIS & MONITORING</div>
+                    <div class="logo-sub">INTELLIGENCE NETWORK</div>
+                    <div class="logo-sub">APPARATUS</div>
+                </div>
+
+                <div class="system-status">
+                    <div class="status-line">
+                        <span class="status-label">SYSTEM STATUS:</span>
+                        <span class="status-value online">● ONLINE</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">MEMBRANA STATE:</span>
+                        <span class="status-value" id="home-membrana">INTACT</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">AGENTS CONNECTED:</span>
+                        <span class="status-value" id="home-agents">0</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">SURVEILLANCE ZONE:</span>
+                        <span class="status-value">SCHUYLKILL COUNTY PA</span>
+                    </div>
+                </div>
+
+                <div class="home-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+                <div class="initialization-log">
+                    <div class="log-line">[ <span class="time-stamp">00:00:00</span> ] SYSTEM BOOTSTRAP INITIATED</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:01</span> ] MAPBOX SERVICES: READY</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:02</span> ] WEBSOCKET CONNECTION: ESTABLISHED</div>
+                    <div class="log-line">[ <span class="time-stamp">00:00:03</span> ] EFFECT DISPATCHER: LISTENING</div>
+                    <div class="log-line animate-pulse">[ <span class="time-stamp">00:00:04</span> ] AWAITING COMMAND...</div>
+                </div>
+            </div>
+
+            <!-- Bottom section: footer -->
+            <div class="home-footer">
+                <div class="footer-line">For Authorized Personnel Only</div>
+                <div class="footer-line">Unauthorized Access Subject to Legal Action</div>
+            </div>
+        </div>
+    </div>
+
     <div id="map"></div>
 
     <!-- Overlays -->

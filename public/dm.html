@@ -52,6 +52,7 @@
                     </div>
                     <button id="effect-blackout">Blackout</button>
                     <button id="effect-clear">Limpiar Overlays</button>
+                    <button id="effect-home" class="btn-home" title="Vuelve a la pantalla de inicio de AMINA (limpia todos los efectos)">◄ Home AMINA</button>
                 </div>
 
                 <div class="control-section">
@@ -324,7 +325,7 @@
                         <tr><td><strong>Jugador X</strong></td><td>Solo ese jugador — info privada, secreto para los demás</td></tr>
                     </tbody>
                 </table>
-                <p class="help-note">Lo que tocas aquí aparece al instante en las otras pantallas. No hay botones en la pantalla del proyector, solo lo que tú envías.</p>
+                <p class="help-note">Lo que tocas aquí aparece al instante en las otras pantallas. El proyector siempre muestra el home dinámico de AMINA de fondo, con efectos superpuestos encima. Sin botones ni controles interactivos — solo visualización.</p>
             </section>
 
             <!-- QUÉ PUEDE VER CADA EFECTO -->
@@ -430,17 +431,34 @@
             </section>
 
             <!-- PANTALLA DEL PROYECTOR -->
-            <section class="help-section">
+            <section class="help-section help-section--full">
                 <h3 class="help-section-title">Pantalla de proyector — `/entropia`</h3>
-                <p class="help-note" style="margin-bottom:10px">Abre esta dirección en el navegador del proyector de sala. No necesita contraseña.</p>
+                <p class="help-note" style="margin-bottom:10px">Abre esta dirección en el navegador del proyector de sala. No necesita contraseña. Es la pantalla atmosférica de tu mesa.</p>
+
+                <h4 class="help-subsection-title">Home AMINA</h4>
                 <ul class="help-list help-list--bullets">
-                    <li>Mapa grande de la zona, igual que el que ven los jugadores.</li>
-                    <li>Reloj en directo, código de incidente, estado de AMINA, etiquetas.</li>
-                    <li>Recibe los mismos efectos que lanzas (si eliges "Todos" o "Proyector").</li>
-                    <li>Sin botones ni controles visibles — los jugadores solo ven lo que tú envías.</li>
-                    <li>Se reconecta automáticamente si hay desconexión.</li>
+                    <li><strong>Pantalla de inicio:</strong> Muestra el home de AMINA (branding OV, logo, estado del sistema).</li>
+                    <li><strong>Dinámico:</strong> Logo pulsante, borde que respira, scanner de estado que "late", estado de agentes conectados en tiempo real.</li>
+                    <li><strong>Siempre visible:</strong> El home es el "fondo" de la pantalla. Nunca desaparece completamente.</li>
+                    <li><strong>Botón en DM:</strong> "◄ Home AMINA" en la sección de Efectos. Úsalo para limpiar todos los efectos y volver al descanso.</li>
                 </ul>
-                <p class="help-note" style="margin-top:12px"><strong>Setup típico:</strong> Proyector en `/entropia` (sin tocar). Tú en `/dm` (tu portátil). Jugadores en `/agent` (sus móviles). Todos en la misma red.</p>
+
+                <h4 class="help-subsection-title" style="margin-top:14px">Efectos superpuestos</h4>
+                <ul class="help-list help-list--bullets">
+                    <li>Los efectos (imágenes, vídeos, tarjetas, recuperación, triangulación) <strong>se superponen</strong> encima del home.</li>
+                    <li>El home sigue "respirando" detrás, creando una sensación de sistema vivo.</li>
+                    <li>Efectos recibidos si eliges: "Todos" o "Proyector".</li>
+                    <li>Sin botones ni controles visibles — los jugadores solo ven lo que tú envías.</li>
+                </ul>
+
+                <h4 class="help-subsection-title" style="margin-top:14px">Elementos siempre visibles</h4>
+                <ul class="help-list help-list--bullets">
+                    <li><strong>HUD ambiental:</strong> Reloj en directo, código de incidente, estado de membrana, ticker, coordenadas (en las esquinas).</li>
+                    <li><strong>Scanlines:</strong> Efecto CRT que se mueve continuamente.</li>
+                    <li><strong>Branding:</strong> Logo AMINA + Ordo Veritatis.</li>
+                </ul>
+
+                <p class="help-note" style="margin-top:14px"><strong>Setup típico:</strong> Proyector abierto en `/entropia` (dejado tranquilo). Tú en `/dm` controlando. Jugadores en `/agent`. Todos en la misma red.</p>
             </section>
 
         </div><!-- .help-grid -->

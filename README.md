@@ -113,18 +113,103 @@ All responses are JSON and include `dm_note` and `image_url`; the frontend decid
 - These usernames appear in the **Field Operative** flow; enter their password to authenticate.
 
 ## Real-Time Effects System
-AMINA now includes a real-time effects system that allows a Game Master (DM) to trigger visual and narrative effects on players' (Agents) screens. This system uses WebSockets for instant communication.
 
-### Architecture
-- A WebSocket server is integrated into the main Node.js application.
-- A dedicated DM control panel (`/dm.html`) sends effect commands.
-- A dedicated Agent view (`/agent.html`) receives and renders these effects on a Mapbox map.
+AMINA includes a complete real-time effects engine with WebSocket dispatch, in-game overlays, and narrative tools for the DM.
 
-### Usage
-1.  **Start the server** as usual:
-    ```bash
-    npm start
-    ```
-2.  **DM View**: The Game Master should open the control panel by navigating to [http://localhost:3002/dm.html](http://localhost:3002/dm.html). This page provides a list of connected agents and controls for all available effects.
-3.  **Agent View**: Each player should open the agent view by navigating to [http://localhost:3002/agent.html](http://localhost:3002/agent.html). The page will automatically connect to the server and be ready to receive effects. Each agent is assigned a unique, persistent ID stored in a cookie.
-# amina
+### Three Views
+
+| View | URL | Auth | Purpose |
+|------|-----|------|---------|
+| **Consola DM** | `/dm` | ✓ Requiere sesión DM | Control panel: lanzar efectos, gestionar escenas, repositorio de media |
+| **Vista Agente** | `/agent` | ✓ Requiere sesión Agente | Mapa + overlays: recibe efectos en tiempo real |
+| **Pantalla Entropia** | `/entropia` | ✗ Pública (proyector) | Proyector de sala: mapa + HUD ambiental, sin controles |
+
+### Consola DM (`/dm`) — Tabs
+
+1. **Efectos**: Controles rápidos de cámara, distorsión, tarjetas de texto. 10 botones preconfigurados. Mapa de operaciones (click → rellena coordenadas).
+
+2. **Media**: Repositorio de imágenes, vídeos y audio. Subida vía drag-drop. Gestión: descripción, borrado, lanzamiento directo.
+
+3. **Escenas**: Constructor de timelines. Crea escenas con N beats (pasos). Cada beat es un efecto con delay, duración y target. Reproductor: Play, Pause, Next, Prev, Stop. Exporta/Importa JSON.
+   - **Coord Picker (panel lateral)**: Mapa interactivo. Click → inyecta coordenadas automáticamente. Vista previa del efecto según tipo.
+
+4. **Intel**: Dos herramientas narrativas:
+   - **Presets**: Guarda efectos completos. Categorízalos, lánzalos con un click.
+   - **Cola de Análisis**: Crea análisis "pendientes" (AMINA procesa). Disparas el resultado cuando narrativamente encaja.
+
+5. **Ayuda**: Guía completa en lenguaje jugador. Sin jerga técnica.
+
+### Targets (destinatarios)
+
+Cada efecto elige a quién llega:
+- **Todos**: jugadores + proyector
+- **Solo jugadores**: solo `/agent`
+- **Proyector**: solo `/entropia`
+- **Jugador X**: privado (solo ese agente)
+
+### Pantalla Entropia (`/entropia`)
+
+Pública (sin auth). Pensada para el proyector de sala.
+- Mapa de Schuylkill County en pantalla completa
+- HUD ambiental: reloj, código de incidente, estado AMINA, ticker
+- Recibe efectos en tiempo real (misma infraestructura que agentes)
+- Cero controles visibles, solo visualización
+- Reconexión automática si cae
+
+### Efectos disponibles
+
+**Visuales**: Glitch, Ruido, Viñeta, Pantalla negra
+**Cámara**: Sacudida, Enfocar posición, Mostrar área rectangular
+**Multimedia**: Imagen fullscreen, Vídeo, Audio, CCTV (efecto cámara de vigilancia)
+**Tarjetas**: Texto centrado con 5 estilos (oficial OV, interceptada, corrupta, alerta, humano)
+**Especiales**: Recuperación de archivo (barra progreso + texto censurado), Triangulación de señal (coords + barras pulsantes)
+**Mapa**: Etiquetas flotantes, Heatmap
+**POI**: Parpadeo, Resalte, Bloqueo visual, Ephemeral (temporal)
+
+### API nuevos
+
+**Media**:
+- `GET /api/media` — lista assets
+- `POST /api/media` — subir (multipart, DM-only)
+- `PUT /api/media/:id` — editar descripción
+- `DELETE /api/media/:id` — borrar
+
+**Escenas**:
+- `GET /api/scenes` — lista
+- `POST /api/scenes` — crear
+- `GET /api/scenes/:id` — detalle + beats
+- `POST /api/scenes/:id/beats` — añadir beat
+- `PUT /api/scenes/:id/beats/:id` — editar beat
+- `DELETE /api/scenes/:id/beats/:id` — borrar beat
+- `POST /api/scenes/:id/beats/reorder` — reordenar
+
+**Presets**:
+- `GET /api/presets?category=` — lista con filtro
+- `POST /api/presets` — crear
+- `PUT /api/presets/:id` — editar
+- `DELETE /api/presets/:id` — borrar
+- `POST /api/presets/:id/fire` — lanzar ahora vía WS
+
+**Análisis**:
+- `GET /api/analysis` — lista
+- `POST /api/analysis` — crear
+- `POST /api/analysis/:id/complete` — disparar resultado
+- `POST /api/analysis/:id/reset` — reabrir completado
+- `DELETE /api/analysis/:id` — borrar
+
+Todos requieren sesión DM válida.
+
+### Bases de datos
+
+Nuevas tablas:
+- `media_assets` — archivos subidos
+- `dm_presets` — efectos guardados
+- `analysis_queue` — análisis pendientes
+- `scenes`, `scene_beats` — escenas y timelines
+
+### WebSocket
+
+Mensaje `effect`: `{ type: 'effect', effect, payload, target, agentId }`
+Targets: `all` | `agents` | `screen` | `agent`
+
+Rol `screen` se registra sin auth (proyector).

@@ -543,6 +543,7 @@ function bindEffectEvents() {
     });
     document.getElementById('effect-blackout').addEventListener('click', () => sendEffect('MODE_BLACKOUT', {}));
     document.getElementById('effect-clear').addEventListener('click', () => sendEffect('CLEAR_OVERLAYS', {}));
+    document.getElementById('effect-home').addEventListener('click', () => sendEffect('AMINA_HOME', {}, 'screen'));
 
     document.getElementById('effect-nudge').addEventListener('click', () => sendEffect('NUDGE_CAMERA'));
     document.getElementById('effect-focus').addEventListener('click', () => {

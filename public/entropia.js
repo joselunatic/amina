@@ -9,6 +9,8 @@ const state = {
     membranStatus: 'INTACT',
     triMarker: null,
     triTimeout: null,
+    bootShown: true,
+    agentsConnected: 0,
 };
 
 // --- Ambient HUD data ---
@@ -38,6 +40,28 @@ const signalTriangulationOverlay = document.getElementById('signal-triangulation
 const audioPlayer         = document.getElementById('audio-player');
 const sceneIndicator      = document.getElementById('scene-indicator');
 
+// --- AMINA Home management ---
+function updateHomeScreen() {
+    const membEl = document.getElementById('boot-membrana');
+    const agentsEl = document.getElementById('boot-agents');
+    if (membEl) membEl.textContent = state.membranStatus;
+    if (agentsEl) agentsEl.textContent = state.agentsConnected;
+}
+
+function showAminaHome() {
+    const home = document.getElementById('amina-home');
+    if (home) {
+        home.classList.remove('hidden');
+    }
+}
+
+function hideAminaHome() {
+    const home = document.getElementById('amina-home');
+    if (home) {
+        home.classList.add('hidden');
+    }
+}
+
 // --- WebSocket ---
 function connectWebSocket() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -52,7 +76,13 @@ function connectWebSocket() {
     ws.onmessage = (event) => {
         try {
             const msg = JSON.parse(event.data);
-            if (msg.type === 'effect') handleEffect(msg.effect, msg.payload);
+            if (msg.type === 'effect') {
+                handleEffect(msg.effect, msg.payload);
+            }
+            if (msg.type === 'agents-list') {
+                state.agentsConnected = (msg.agents || []).length;
+                updateHomeScreen();
+            }
         } catch (e) {
             console.error('[entropia] WS parse error', e);
         }
@@ -151,6 +181,11 @@ function handleEffect(effect, payload = {}) {
         case 'FILE_RECOVERY': showFileRecovery(payload); break;
 
         case 'SIGNAL_TRIANGULATION': showSignalTriangulation(payload); break;
+
+        case 'AMINA_HOME':
+            showAminaHome();
+            clearAll();
+            break;
     }
 }
 
@@ -490,7 +525,8 @@ async function initializeMap() {
     }
 }
 
-// --- Boot ---
+// --- Initialization ---
 initializeHUD();
+updateHomeScreen();
 initializeMap();
 connectWebSocket();
