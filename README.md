@@ -126,7 +126,7 @@ AMINA includes a complete real-time effects engine with WebSocket dispatch, in-g
 
 ### Consola DM (`/dm`) — Tabs
 
-1. **Efectos**: Controles rápidos de cámara, distorsión, tarjetas de texto. 10 botones preconfigurados. Mapa de operaciones (click → rellena coordenadas).
+1. **Efectos**: Controles rápidos de cámara, distorsión, tarjetas de texto. 12 botones preconfigurados. Control de estado de membrana (Intacta/Debilitada/Rota → proyector). Mapa de operaciones (click → rellena coordenadas).
 
 2. **Media**: Repositorio de imágenes, vídeos y audio. Subida vía drag-drop. Gestión: descripción, borrado, lanzamiento directo.
 
@@ -161,8 +161,9 @@ Pública (sin auth). Pensada para el proyector de sala.
 **Visuales**: Glitch, Ruido, Viñeta, Pantalla negra
 **Cámara**: Sacudida, Enfocar posición, Mostrar área rectangular
 **Multimedia**: Imagen fullscreen, Vídeo, Audio, CCTV (efecto cámara de vigilancia)
-**Tarjetas**: Texto centrado con 5 estilos (oficial OV, interceptada, corrupta, alerta, humano)
-**Especiales**: Recuperación de archivo (barra progreso + texto censurado), Triangulación de señal (coords + barras pulsantes)
+**Tarjetas**: Texto centrado con 5 estilos (oficial OV, interceptada, corrupta, alerta, humano). Campos opcionales `confidence` y `source` → pie de fiabilidad ("CONFIANZA: 62% · FUENTE: ARCHIVO SELLADO")
+**Especiales**: Recuperación de archivo (barra progreso + texto censurado), Triangulación de señal (coords + barras pulsantes), Transmisión interceptada (forma de onda + transcripción parcial con cortes + audio opcional), Correlación anómala (nodos conectados + % coincidencia + fuente), Ficha de expediente (`ENTITY_DOSSIER`: proyecta una entidad de la BD con campos censurables, foto y sello CLASIFICADO — las notas DM nunca se envían)
+**Ambiente**: Estado de membrana (`MEMBRANA_SET`: INTACT/FRAYED/TORN — cambia el HUD del proyector y añade parpadeo ambiental persistente)
 **Mapa**: Etiquetas flotantes, Heatmap
 **POI**: Parpadeo, Resalte, Bloqueo visual, Ephemeral (temporal)
 

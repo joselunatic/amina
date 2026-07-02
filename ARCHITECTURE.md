@@ -134,14 +134,27 @@ switch (effect) {
   case 'FOCUS_INCIDENT': /* fly-to en mapa */ break;
   case 'FILE_RECOVERY': showFileRecovery(payload); break;
   case 'SIGNAL_TRIANGULATION': showSignalTriangulation(payload); break;
+  case 'INTERCEPTED_TRANSMISSION': showInterceptedTransmission(payload); break;
+  case 'CORRELATION_REVEAL': showCorrelationReveal(payload); break;
+  case 'MEMBRANA_SET': applyMembranaStatus(payload); break; // solo entropia.js
   case 'SCENE_CARD': showCard(payload); break;
   // ... 20+ efectos más
 }
 ```
 
+### Efectos narrativos especiales
+
+- **`INTERCEPTED_TRANSMISSION`** — Overlay ámbar con forma de onda animada (28 barras) y transcripción línea a línea. Payload: `{ source, frequency, lines: [], lost: [índices], audio_url?, duration }`. Las líneas en `lost` se renderizan como "▓▓▓ SEÑAL PERDIDA ▓▓▓".
+- **`CORRELATION_REVEAL`** — Overlay rojo que conecta 2-4 nodos con líneas animadas en secuencia y remata con sello de coincidencia. Payload: `{ title?, nodes: [], confidence?, source?, duration }`.
+- **`MEMBRANA_SET`** — Solo `entropia.js`. Payload: `{ status: 'INTACT'|'FRAYED'|'TORN' }`. Actualiza HUD + home (etiquetas en español vía `MEMBRANA_LABELS`) y aplica clase `membrana-frayed`/`membrana-torn` al `<body>` (parpadeo ambiental persistente vía `::after`).
+- **`ENTITY_DOSSIER`** — Ficha de expediente. Payload genérico: `{ title, classification?, stamp?, image_url?, fields: [{label, value?, redacted?}], summary?, threat_level?, voice?, confidence?, source?, duration }`. La consola DM lo construye desde una entidad real (`buildDossierPayload` en `dm.js`) — `dm_notes` y `unlock_code` nunca entran en el payload; el nombre real sale `redacted` salvo opt-in. "Proyectar Conexiones" consulta `/api/dm/entities/:id/context` y lanza un `CORRELATION_REVEAL` con los `to_code_name` de las relaciones.
+- **Acciones rápidas de POI** — En la sección POI de la tab Efectos: `#poi-triangulate` lanza `SIGNAL_TRIANGULATION` sobre las coordenadas reales del POI (precisión aleatoria 55-90%); `#poi-alert` lanza `LABEL_PING` + `SCENE_CARD` (voz alert) con nombre y coordenadas del POI.
+
 ### Estilos de voz (SCENE_CARD)
 
-Las tarjetas de texto soportan 5 "voces" visuales:
+Las tarjetas de texto aceptan campos opcionales `confidence` (número) y `source` (texto) que se muestran como pie de fiabilidad (`.card-meta`): "CONFIANZA: 62% · FUENTE: ARCHIVO SELLADO". La fiabilidad mostrada es narrativa — el DM decide si es verdad.
+
+Además soportan 5 "voces" visuales:
 
 ```css
 .card-voice-ov         /* Verde oficial, tipografía rígida */
@@ -161,7 +174,8 @@ Aplicadas vía: `cardOverlay.classList.add('card-voice-' + payload.voice)`
 
 1. **Efectos** (`#tab-effects`)
    - Controles rápidos (camera, blackout, POI, tarjetas)
-   - 10 botones preconfigurados → `sendEffect(SCENE_CARD, ...)`
+   - 12 botones preconfigurados → `sendEffect(evt.effect || 'SCENE_CARD', ...)` (los eventos rápidos pueden declarar `effect` + `payload` arbitrarios)
+   - Control de membrana: 3 botones → `sendEffect('MEMBRANA_SET', { status }, 'screen')` (`sendEffect` acepta un tercer parámetro que fuerza el target ignorando el selector)
    - Mapa de operaciones (click → rellena focus-coords)
 
 2. **Media** (`#tab-media`)

@@ -613,3 +613,354 @@ body, html {
     0%, 100% { box-shadow: 0 0 15px rgba(0,255,136,0.6), inset 0 0 10px rgba(0,255,136,0.2); transform: scale(1); }
     50% { box-shadow: 0 0 30px rgba(0,255,136,0.9), inset 0 0 20px rgba(0,255,136,0.4); transform: scale(1.1); }
 }
+/* ---- Card meta footer (fiabilidad de la pista) ---- */
+.card-meta {
+    display: none;
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.12);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--card-color, #00ff88);
+    opacity: 0.6;
+}
+
+/* ---- Intercepted Transmission overlay ---- */
+.transmission-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 260;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.88);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+.transmission-overlay.active { opacity: 1; pointer-events: auto; }
+
+.transmission-inner {
+    background: rgba(22,13,0,0.97);
+    border: 1px solid #ffb700;
+    box-shadow: 0 0 50px rgba(255,183,0,0.25), inset 0 0 40px rgba(0,0,0,0.4);
+    padding: 24px 28px;
+    width: 92%;
+    max-width: 640px;
+    font-family: 'Courier New', monospace;
+    filter: contrast(1.1) brightness(0.95);
+}
+.transmission-header {
+    display: flex;
+    justify-content: space-between;
+    color: rgba(255,183,0,0.8);
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+.transmission-source {
+    color: rgba(255,215,122,0.6);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+}
+.transmission-wave {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 40px;
+    margin-bottom: 16px;
+    border-top: 1px solid rgba(255,183,0,0.25);
+    border-bottom: 1px solid rgba(255,183,0,0.25);
+    padding: 4px 2px;
+}
+.wave-bar {
+    flex: 1;
+    height: 15%;
+    background: #ffb700;
+    opacity: 0.7;
+    box-shadow: 0 0 6px rgba(255,183,0,0.5);
+    animation: wave-bounce 0.6s ease-in-out infinite alternate;
+}
+@keyframes wave-bounce {
+    from { height: 10%; opacity: 0.35; }
+    to   { height: 95%; opacity: 0.85; }
+}
+.transmission-content {
+    min-height: 80px;
+    max-height: 40vh;
+    overflow-y: auto;
+}
+.transmission-line {
+    color: #ffd77a;
+    font-size: 14px;
+    line-height: 1.9;
+    letter-spacing: 0.04em;
+    animation: transmission-line-in 0.35s ease;
+}
+.transmission-line.lost {
+    color: rgba(255,183,0,0.35);
+    letter-spacing: 0.2em;
+}
+@keyframes transmission-line-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.transmission-footer {
+    margin-top: 16px;
+    color: rgba(255,65,54,0.7);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    animation: rec-pulse 1.4s ease-in-out infinite;
+}
+@keyframes rec-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+/* ---- Correlation Reveal overlay ---- */
+.correlation-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 260;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(12,0,0,0.93);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+.correlation-overlay.active { opacity: 1; pointer-events: auto; }
+
+.correlation-inner {
+    text-align: center;
+    width: 94%;
+    max-width: 700px;
+}
+.correlation-title {
+    color: #ff4136;
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-shadow: 0 0 30px rgba(255,65,54,0.6);
+    margin-bottom: 30px;
+    animation: correlation-title-pulse 1.3s ease-in-out infinite;
+}
+@keyframes correlation-title-pulse {
+    0%, 100% { opacity: 1; text-shadow: 0 0 30px rgba(255,65,54,0.6); }
+    50% { opacity: 0.75; text-shadow: 0 0 50px rgba(255,65,54,0.9); }
+}
+.correlation-nodes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    row-gap: 16px;
+}
+.correlation-node {
+    border: 1px solid #ff4136;
+    background: rgba(45,0,0,0.85);
+    color: #ffd7d4;
+    padding: 12px 18px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0;
+    transform: scale(0.88);
+    transition: opacity 0.45s ease, transform 0.45s ease, box-shadow 0.45s ease;
+}
+.correlation-node.revealed {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 30px rgba(255,65,54,0.35);
+}
+.correlation-link {
+    width: 36px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(255,65,54,0.15), #ff4136);
+    opacity: 0;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: opacity 0.45s ease, transform 0.45s ease;
+}
+.correlation-link.revealed { opacity: 1; transform: scaleX(1); }
+
+.correlation-stamp {
+    margin-top: 34px;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+.correlation-stamp.revealed { opacity: 1; }
+.correlation-confidence {
+    color: #ff4136;
+    font-size: 17px;
+    font-weight: bold;
+    letter-spacing: 0.16em;
+    margin-bottom: 8px;
+}
+.correlation-source {
+    color: rgba(255,220,220,0.65);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+}
+
+/* ---- Entity Dossier overlay (versión compacta móvil) ---- */
+.dossier-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 260;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.9);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+    --dossier-color: #00ff88;
+    --dossier-dim: rgba(0,255,136,0.55);
+}
+.dossier-overlay.active { opacity: 1; pointer-events: auto; }
+
+.dossier-inner {
+    background: rgba(4,16,9,0.97);
+    border: 1px solid var(--dossier-color);
+    box-shadow: 0 0 50px rgba(0,255,136,0.2), inset 0 0 40px rgba(0,0,0,0.4);
+    padding: 22px 24px;
+    width: 94%;
+    max-width: 640px;
+    max-height: 88vh;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+}
+.dossier-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--dossier-dim);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+}
+.dossier-classification {
+    color: var(--dossier-dim);
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+.dossier-stamp {
+    border: 2px solid #ff4136;
+    color: #ff4136;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    padding: 3px 8px 3px 11px;
+    transform: rotate(-3deg);
+    opacity: 0.85;
+}
+.dossier-name {
+    color: var(--dossier-color);
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-shadow: 0 0 18px rgba(0,255,136,0.4);
+    margin-bottom: 16px;
+}
+.dossier-body {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+}
+.dossier-photo {
+    flex: 0 0 120px;
+    height: 145px;
+    border: 1px solid var(--dossier-dim);
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+.dossier-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: saturate(0.6) contrast(1.1);
+}
+.dossier-no-photo {
+    color: var(--dossier-dim);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-align: center;
+    line-height: 2;
+    opacity: 0.6;
+}
+.dossier-fields {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.dossier-field {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px dotted rgba(255,255,255,0.12);
+    padding-bottom: 5px;
+    opacity: 0;
+    animation: dossier-field-in 0.4s ease forwards;
+}
+@keyframes dossier-field-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+.dossier-field-label {
+    color: var(--dossier-dim);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.dossier-field-value {
+    color: #d5f0dd;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-align: right;
+    text-transform: uppercase;
+}
+.dossier-field-value.censored {
+    color: #555;
+    letter-spacing: 0;
+}
+.dossier-summary {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--dossier-dim);
+    color: #b8d8c2;
+    font-size: 12px;
+    line-height: 1.8;
+    white-space: pre-line;
+}
+.dossier-meta {
+    display: none;
+    margin-top: 14px;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dossier-color);
+    opacity: 0.55;
+}
+.dossier-voice-intercepted { --dossier-color: #ffb700; --dossier-dim: rgba(255,183,0,0.55); }
+.dossier-voice-intercepted .dossier-inner { background: rgba(22,13,0,0.97); }
+.dossier-voice-corrupted { --dossier-color: #999; --dossier-dim: rgba(153,153,153,0.5); }
+.dossier-voice-corrupted .dossier-inner { background: rgba(12,12,12,0.97); filter: contrast(0.85) saturate(0.4); }
+.dossier-voice-alert { --dossier-color: #ff4136; --dossier-dim: rgba(255,65,54,0.55); }
+.dossier-voice-alert .dossier-inner { background: rgba(20,3,2,0.97); }

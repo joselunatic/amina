@@ -11,6 +11,16 @@ const state = {
     triTimeout: null,
     bootShown: true,
     agentsConnected: 0,
+    transmissionTimeout: null,
+    transmissionLineTimeout: null,
+    correlationTimeouts: [],
+    dossierTimeout: null,
+};
+
+const MEMBRANA_LABELS = {
+    INTACT: 'INTACTA',
+    FRAYED: 'DEBILITADA',
+    TORN: 'ROTA'
 };
 
 // --- Ambient HUD data ---
@@ -36,6 +46,9 @@ const mediaVideoEl        = document.getElementById('media-video-el');
 const mediaVideoCaption   = document.getElementById('media-video-caption');
 const cardOverlay         = document.getElementById('card-overlay');
 const fileRecoveryOverlay = document.getElementById('file-recovery-overlay');
+const transmissionOverlay = document.getElementById('transmission-overlay');
+const correlationOverlay  = document.getElementById('correlation-overlay');
+const dossierOverlay      = document.getElementById('dossier-overlay');
 const signalTriangulationOverlay = document.getElementById('signal-triangulation-overlay');
 const audioPlayer         = document.getElementById('audio-player');
 const sceneIndicator      = document.getElementById('scene-indicator');
@@ -44,7 +57,7 @@ const sceneIndicator      = document.getElementById('scene-indicator');
 function updateHomeScreen() {
     const membEl = document.getElementById('home-membrana');
     const agentsEl = document.getElementById('home-agents');
-    if (membEl) membEl.textContent = state.membranStatus;
+    if (membEl) membEl.textContent = MEMBRANA_LABELS[state.membranStatus] || state.membranStatus;
     if (agentsEl) agentsEl.textContent = state.agentsConnected;
 }
 
@@ -182,6 +195,14 @@ function handleEffect(effect, payload = {}) {
 
         case 'SIGNAL_TRIANGULATION': showSignalTriangulation(payload); break;
 
+        case 'INTERCEPTED_TRANSMISSION': showInterceptedTransmission(payload); break;
+
+        case 'CORRELATION_REVEAL': showCorrelationReveal(payload); break;
+
+        case 'ENTITY_DOSSIER': showEntityDossier(payload); break;
+
+        case 'MEMBRANA_SET': applyMembranaStatus(payload); break;
+
         case 'AMINA_HOME':
             showAminaHome();
             clearAll();
@@ -248,9 +269,192 @@ function showCard(payload) {
     document.getElementById('card-subtitle').textContent = payload.subtitle || '';
     document.getElementById('card-title').textContent = payload.title || '';
     document.getElementById('card-body').textContent = payload.body || '';
+    const metaEl = document.getElementById('card-meta');
+    const metaParts = [];
+    if (payload.confidence != null && payload.confidence !== '') metaParts.push(`CONFIANZA: ${payload.confidence}%`);
+    if (payload.source) metaParts.push(`FUENTE: ${payload.source}`);
+    metaEl.textContent = metaParts.join('  ·  ');
+    metaEl.style.display = metaParts.length ? 'block' : 'none';
     cardOverlay.className = 'card-overlay active';
     if (payload.theme) cardOverlay.classList.add(`card-theme-${payload.theme}`);
     if (payload.voice) cardOverlay.classList.add(`card-voice-${payload.voice}`);
+}
+
+function applyMembranaStatus(payload) {
+    const status = String(payload.status || 'INTACT').toUpperCase();
+    setMembranStatus(status);
+    updateHomeScreen();
+    document.body.classList.remove('membrana-frayed', 'membrana-torn');
+    if (status === 'FRAYED') document.body.classList.add('membrana-frayed');
+    if (status === 'TORN') document.body.classList.add('membrana-torn');
+}
+
+function showInterceptedTransmission(payload) {
+    const lines = payload.lines || [];
+    const lost = new Set(payload.lost || []);
+    const duration = payload.duration || 10000;
+
+    hideInterceptedTransmission();
+
+    document.getElementById('transmission-source').textContent = payload.source || 'FUENTE DESCONOCIDA';
+    document.getElementById('transmission-freq').textContent = payload.frequency || '---.- MHz';
+    const content = document.getElementById('transmission-content');
+    content.innerHTML = '';
+
+    const wave = document.getElementById('transmission-wave');
+    wave.innerHTML = '';
+    for (let i = 0; i < 28; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'wave-bar';
+        bar.style.animationDelay = (Math.random() * 0.8) + 's';
+        bar.style.animationDuration = (0.4 + Math.random() * 0.7) + 's';
+        wave.appendChild(bar);
+    }
+
+    transmissionOverlay.classList.add('active');
+    if (payload.audio_url) {
+        audioPlayer.src = payload.audio_url;
+        audioPlayer.loop = false;
+        audioPlayer.volume = payload.volume != null ? payload.volume : 0.8;
+        audioPlayer.play().catch(() => {});
+    }
+
+    const lineDelay = Math.min(1600, (duration * 0.7) / Math.max(lines.length, 1));
+    let idx = 0;
+    function nextLine() {
+        if (idx >= lines.length) return;
+        const el = document.createElement('div');
+        el.className = 'transmission-line';
+        if (lost.has(idx)) {
+            el.classList.add('lost');
+            el.textContent = '▓▓▓ SEÑAL PERDIDA ▓▓▓';
+        } else {
+            el.textContent = lines[idx];
+        }
+        content.appendChild(el);
+        idx++;
+        state.transmissionLineTimeout = setTimeout(nextLine, lineDelay);
+    }
+    nextLine();
+
+    state.transmissionTimeout = setTimeout(hideInterceptedTransmission, duration);
+}
+
+function hideInterceptedTransmission() {
+    clearTimeout(state.transmissionTimeout);
+    clearTimeout(state.transmissionLineTimeout);
+    transmissionOverlay.classList.remove('active');
+}
+
+function showCorrelationReveal(payload) {
+    const nodes = payload.nodes || [];
+    const duration = payload.duration || 10000;
+
+    hideCorrelationReveal();
+
+    document.getElementById('correlation-title').textContent = payload.title || 'CORRELACIÓN ANÓMALA DETECTADA';
+    const nodesEl = document.getElementById('correlation-nodes');
+    nodesEl.innerHTML = '';
+    const stampEl = document.getElementById('correlation-stamp');
+    stampEl.classList.remove('revealed');
+    document.getElementById('correlation-confidence').textContent =
+        (payload.confidence != null && payload.confidence !== '') ? `COINCIDENCIA: ${payload.confidence}%` : '';
+    document.getElementById('correlation-source').textContent =
+        payload.source ? `FUENTE: ${payload.source}` : '';
+
+    const revealables = [];
+    nodes.forEach((label, i) => {
+        if (i > 0) {
+            const link = document.createElement('div');
+            link.className = 'correlation-link';
+            nodesEl.appendChild(link);
+            revealables.push(link);
+        }
+        const node = document.createElement('div');
+        node.className = 'correlation-node';
+        node.textContent = label;
+        nodesEl.appendChild(node);
+        revealables.push(node);
+    });
+
+    correlationOverlay.classList.add('active');
+
+    const stepDelay = 550;
+    revealables.forEach((el, i) => {
+        state.correlationTimeouts.push(setTimeout(() => el.classList.add('revealed'), 600 + i * stepDelay));
+    });
+    state.correlationTimeouts.push(setTimeout(() => stampEl.classList.add('revealed'), 600 + revealables.length * stepDelay + 400));
+    state.correlationTimeouts.push(setTimeout(hideCorrelationReveal, duration));
+}
+
+function hideCorrelationReveal() {
+    state.correlationTimeouts.forEach(clearTimeout);
+    state.correlationTimeouts = [];
+    correlationOverlay.classList.remove('active');
+}
+
+function showEntityDossier(payload) {
+    clearTimeout(state.dossierTimeout);
+
+    document.getElementById('dossier-classification').textContent = payload.classification || 'EXPEDIENTE — ORDO VERITATIS';
+    document.getElementById('dossier-stamp').textContent = payload.stamp || 'CLASIFICADO';
+    document.getElementById('dossier-name').textContent = payload.title || '';
+
+    const photoEl = document.getElementById('dossier-photo');
+    if (payload.image_url) {
+        photoEl.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = payload.image_url;
+        img.alt = '';
+        photoEl.appendChild(img);
+    } else {
+        photoEl.innerHTML = '<div class="dossier-no-photo">SIN REGISTRO<br>VISUAL</div>';
+    }
+
+    const fieldsEl = document.getElementById('dossier-fields');
+    fieldsEl.innerHTML = '';
+    (payload.fields || []).forEach((field, i) => {
+        const row = document.createElement('div');
+        row.className = 'dossier-field';
+        row.style.animationDelay = (0.3 + i * 0.25) + 's';
+        const label = document.createElement('span');
+        label.className = 'dossier-field-label';
+        label.textContent = field.label || '';
+        const value = document.createElement('span');
+        value.className = 'dossier-field-value';
+        if (field.redacted) {
+            value.classList.add('censored');
+            value.textContent = '████████████';
+        } else {
+            value.textContent = field.value || '—';
+        }
+        row.appendChild(label);
+        row.appendChild(value);
+        fieldsEl.appendChild(row);
+    });
+
+    const summaryEl = document.getElementById('dossier-summary');
+    summaryEl.textContent = payload.summary || '';
+    summaryEl.style.display = payload.summary ? 'block' : 'none';
+
+    const metaEl = document.getElementById('dossier-meta');
+    const metaParts = [];
+    if (payload.confidence != null && payload.confidence !== '') metaParts.push(`CONFIANZA: ${payload.confidence}%`);
+    if (payload.source) metaParts.push(`FUENTE: ${payload.source}`);
+    metaEl.textContent = metaParts.join('  ·  ');
+    metaEl.style.display = metaParts.length ? 'block' : 'none';
+
+    dossierOverlay.className = 'dossier-overlay active';
+    if (payload.voice) dossierOverlay.classList.add(`dossier-voice-${payload.voice}`);
+
+    if (payload.duration) {
+        state.dossierTimeout = setTimeout(hideEntityDossier, payload.duration);
+    }
+}
+
+function hideEntityDossier() {
+    clearTimeout(state.dossierTimeout);
+    dossierOverlay.classList.remove('active');
 }
 
 function showBlackout() {
@@ -371,6 +575,9 @@ function clearSignalTriangulation() {
 function clearAll() {
     clearMediaOverlays();
     clearSignalTriangulation();
+    hideInterceptedTransmission();
+    hideCorrelationReveal();
+    hideEntityDossier();
     blackoutOverlay.classList.remove('active');
     cardOverlay.classList.remove('active');
     fileRecoveryOverlay.classList.remove('active');
@@ -485,7 +692,7 @@ function updateCoordinates() {
 function setMembranStatus(status) {
     state.membranStatus = status;
     const el = document.getElementById('membrana-status');
-    el.textContent = `MEMBRANA: ${status}`;
+    el.textContent = `MEMBRANA: ${MEMBRANA_LABELS[status] || status}`;
     el.className = `hud-item status-${status.toLowerCase()}`;
 }
 

@@ -67,13 +67,14 @@ function getTarget() {
     return { target: 'agent', agentId: v };
 }
 
-function sendEffect(effect, payload = {}) {
+function sendEffect(effect, payload = {}, targetOverride) {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
         console.error('WS not connected');
         return;
     }
     if (effect.startsWith('POI_')) payload.markerType = state.selectedMarkerType;
-    state.ws.send(JSON.stringify({ type: 'effect', effect, ...getTarget(), payload }));
+    const targeting = targetOverride ? { target: targetOverride } : getTarget();
+    state.ws.send(JSON.stringify({ type: 'effect', effect, ...targeting, payload }));
 }
 
 function sendSceneControl(action, sceneId) {
@@ -509,6 +510,37 @@ const QUICK_EVENTS = [
         title: 'CRITICAL ERROR',
         body: 'DATABASE INTEGRITY COMPROMISED\nRECOVERY IN PROGRESS\nSYSTEM UNSTABLE',
         voice: 'corrupted'
+    },
+    {
+        id: 'intercepted-transmission',
+        label: 'Transmisión Interceptada',
+        hint: 'Ámbar: audio sucio, transcripción con cortes',
+        effect: 'INTERCEPTED_TRANSMISSION',
+        payload: {
+            source: 'FUENTE DESCONOCIDA — BANDA NO REGISTRADA',
+            frequency: '147.300 MHz',
+            lines: [
+                '...no deberían estar escuchando esto...',
+                '...repito: la señal viene de DEBAJO de...',
+                '',
+                '...no confíen en el archivo. El archivo ha sido...'
+            ],
+            lost: [2],
+            duration: 14000
+        }
+    },
+    {
+        id: 'correlation-reveal',
+        label: 'Correlación Anómala',
+        hint: 'Rojo: AMINA conecta piezas que no deberían estar conectadas',
+        effect: 'CORRELATION_REVEAL',
+        payload: {
+            title: 'CORRELACIÓN ANÓMALA DETECTADA',
+            nodes: ['INCIDENTE ACTUAL', 'EXPEDIENTE SELLADO', 'CASO CERRADO — 1987'],
+            confidence: 62,
+            source: 'ARCHIVO SELLADO — ACCESO RESTRINGIDO',
+            duration: 13000
+        }
     }
 ];
 
@@ -521,6 +553,10 @@ function renderQuickEvents() {
         btn.title = evt.hint;
         btn.innerHTML = `<span class="event-label">${evt.label}</span><span class="event-hint">${evt.hint}</span>`;
         btn.addEventListener('click', () => {
+            if (evt.effect) {
+                sendEffect(evt.effect, evt.payload || {});
+                return;
+            }
             sendEffect('SCENE_CARD', {
                 title: evt.title,
                 body: evt.body,
@@ -545,6 +581,11 @@ function bindEffectEvents() {
     document.getElementById('effect-clear').addEventListener('click', () => sendEffect('CLEAR_OVERLAYS', {}));
     document.getElementById('effect-home').addEventListener('click', () => sendEffect('AMINA_HOME', {}, 'screen'));
 
+    // Membrane status: only the projector renders it, so always target the screen
+    document.getElementById('membrana-intact').addEventListener('click', () => sendEffect('MEMBRANA_SET', { status: 'INTACT' }, 'screen'));
+    document.getElementById('membrana-frayed').addEventListener('click', () => sendEffect('MEMBRANA_SET', { status: 'FRAYED' }, 'screen'));
+    document.getElementById('membrana-torn').addEventListener('click', () => sendEffect('MEMBRANA_SET', { status: 'TORN' }, 'screen'));
+
     document.getElementById('effect-nudge').addEventListener('click', () => sendEffect('NUDGE_CAMERA'));
     document.getElementById('effect-focus').addEventListener('click', () => {
         const [lng, lat, zoom] = document.getElementById('focus-coords').value.split(',').map(Number);
@@ -562,6 +603,28 @@ function bindEffectEvents() {
     document.getElementById('effect-poi-highlight').addEventListener('click', () => sendEffect('POI_HIGHLIGHT', { poiId: poiSelect.value }));
     document.getElementById('effect-poi-lock').addEventListener('click', () => sendEffect('POI_LOCKED', { poiId: poiSelect.value }));
     document.getElementById('effect-poi-unlock').addEventListener('click', () => sendEffect('POI_UNLOCKED', { poiId: poiSelect.value }));
+
+    document.getElementById('poi-triangulate').addEventListener('click', () => {
+        const poi = state.pois.find(p => String(p.id) === String(poiSelect.value));
+        if (!poi || poi.longitude == null) return;
+        sendEffect('SIGNAL_TRIANGULATION', {
+            lng: poi.longitude,
+            lat: poi.latitude,
+            precision: 55 + Math.floor(Math.random() * 36),
+            duration: 8000
+        });
+    });
+    document.getElementById('poi-alert').addEventListener('click', () => {
+        const poi = state.pois.find(p => String(p.id) === String(poiSelect.value));
+        if (!poi || poi.longitude == null) return;
+        sendEffect('LABEL_PING', { lng: poi.longitude, lat: poi.latitude, text: poi.name || 'ZONA MARCADA', duration: 9000 });
+        sendEffect('SCENE_CARD', {
+            title: 'ACTIVIDAD ANÓMALA DETECTADA',
+            subtitle: poi.name || '',
+            body: `SECTOR: ${(poi.name || 'DESCONOCIDO').toUpperCase()}\nCOORD: ${Number(poi.latitude).toFixed(4)}, ${Number(poi.longitude).toFixed(4)}\nEQUIPO DE CAMPO: INVESTIGAR`,
+            voice: 'alert'
+        });
+    });
 
     document.getElementById('effect-layer-on').addEventListener('click', () => sendEffect('LAYER_TOGGLE', { layerId: document.getElementById('layer-id').value, visible: true }));
     document.getElementById('effect-layer-off').addEventListener('click', () => sendEffect('LAYER_TOGGLE', { layerId: document.getElementById('layer-id').value, visible: false }));
@@ -1063,8 +1126,12 @@ function payloadHint(type) {
         'MEDIA_VIDEO':          '{ "url": "/uploads/...", "autoplay": true, "loop": false, "muted": false }',
         'MEDIA_VIDEO (CCTV)':   '{ "url": "/uploads/...", "cctv": true, "camera_name": "CAM-02", "autoplay": true }',
         'MEDIA_AUDIO':          '{ "url": "/uploads/...", "volume": 0.8, "loop": false }',
-        'SCENE_CARD':           '{ "title": "Título", "subtitle": "Sub", "body": "Texto...", "voice": "ov" }',
+        'SCENE_CARD':           '{ "title": "Título", "subtitle": "Sub", "body": "Texto...", "voice": "ov", "confidence": 62, "source": "ARCHIVO SELLADO" }',
         'FILE_RECOVERY':        '{ "lines": ["LINE 1", "CLASSIFIED", "LINE 3"], "censored": [1], "duration": 8000 }',
+        'INTERCEPTED_TRANSMISSION': '{ "source": "FUENTE DESCONOCIDA", "frequency": "147.300 MHz", "lines": ["...", "..."], "lost": [1], "audio_url": "", "duration": 12000 }',
+        'CORRELATION_REVEAL':   '{ "nodes": ["NOMBRE A", "INCIDENTE B"], "confidence": 62, "source": "ARCHIVO SELLADO", "duration": 12000 }',
+        'ENTITY_DOSSIER':       '{ "title": "VICTORIA ALLEN", "fields": [{"label":"NOMBRE REAL","redacted":true},{"label":"ROL","value":"..."}], "summary": "...", "voice": "ov", "duration": 20000 }',
+        'MEMBRANA_SET':         '{ "status": "FRAYED" }  (INTACT | FRAYED | TORN)',
         'LABEL_PING':           '{ "lng": -76.26, "lat": 40.70, "text": "Etiqueta", "duration": 4000 }',
         'HEATMAP_SET':          '{ "points": [{"lng":-76.26,"lat":40.70,"weight":1}] }',
         'VIGNETTE_LEVEL':       '{ "level": 2 }',
@@ -1084,6 +1151,10 @@ function defaultPayload(type) {
         'MEDIA_AUDIO':          { url: '', volume: 0.8, loop: false },
         'SCENE_CARD':           { title: '', subtitle: '', body: '', voice: 'ov' },
         'FILE_RECOVERY':        { lines: ['CAMPO 1', 'CAMPO CENSURADO', 'CAMPO 3'], censored: [1], duration: 8000 },
+        'INTERCEPTED_TRANSMISSION': { source: 'FUENTE DESCONOCIDA', frequency: '147.300 MHz', lines: ['LÍNEA 1', 'LÍNEA PERDIDA', 'LÍNEA 3'], lost: [1], audio_url: '', duration: 12000 },
+        'CORRELATION_REVEAL':   { title: 'CORRELACIÓN ANÓMALA DETECTADA', nodes: ['NODO A', 'NODO B', 'NODO C'], confidence: 62, source: 'ARCHIVO SELLADO', duration: 12000 },
+        'ENTITY_DOSSIER':       { title: 'NOMBRE EN CLAVE', classification: 'EXPEDIENTE — ORDO VERITATIS', stamp: 'CLASIFICADO', image_url: '', fields: [{ label: 'NOMBRE REAL', redacted: true }, { label: 'TIPO', value: 'INDIVIDUO' }], summary: '', voice: 'ov', duration: 20000 },
+        'MEMBRANA_SET':         { status: 'FRAYED' },
         'LABEL_PING':           { lng: -76.26391, lat: 40.70682, text: '', duration: 4000 },
         'HEATMAP_SET':          { points: [{ lng: -76.26391, lat: 40.70682, weight: 1 }] },
         'VIGNETTE_LEVEL':       { level: 2 },
@@ -1406,6 +1477,129 @@ function bindAnalysisEvents() {
 }
 
 // =====================
+// Proyectar Expediente (entidades → ENTITY_DOSSIER / CORRELATION_REVEAL)
+// =====================
+
+let dossierEntities = [];
+
+const ENTITY_TYPE_LABELS = {
+    pc: 'AGENTE OV',
+    npc: 'INDIVIDUO',
+    org: 'ORGANIZACIÓN',
+    criatura: 'ENTIDAD ANÓMALA'
+};
+
+async function loadEntities() {
+    try {
+        const list = await fetch('/api/dm/entities').then(r => r.json());
+        dossierEntities = (list || []).filter(e => !e.archived);
+    } catch (e) {
+        console.error('Entities load error', e);
+        dossierEntities = [];
+    }
+    renderEntitySelector();
+}
+
+function renderEntitySelector() {
+    const select = document.getElementById('dossier-entity-select');
+    if (!select) return;
+    select.innerHTML = '';
+    if (!dossierEntities.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'Sin entidades registradas';
+        select.appendChild(opt);
+        return;
+    }
+    dossierEntities.forEach(entity => {
+        const opt = document.createElement('option');
+        opt.value = entity.id;
+        const name = entity.code_name || entity.real_name || `Entidad #${entity.id}`;
+        opt.textContent = `${name} (${ENTITY_TYPE_LABELS[entity.type] || entity.type})`;
+        select.appendChild(opt);
+    });
+}
+
+function buildDossierPayload(entity) {
+    const revealName = document.getElementById('dossier-reveal-name').checked;
+    const includeImage = document.getElementById('dossier-include-image').checked;
+    const includeSummary = document.getElementById('dossier-include-summary').checked;
+    const voice = document.getElementById('dossier-voice').value;
+    const source = document.getElementById('dossier-source').value.trim();
+    const confidence = document.getElementById('dossier-confidence').value;
+
+    // Solo campos narrativos: dm_notes y unlock_code jamás salen de la consola
+    const fields = [];
+    if (entity.real_name) {
+        fields.push(revealName
+            ? { label: 'NOMBRE REAL', value: entity.real_name }
+            : { label: 'NOMBRE REAL', redacted: true });
+    }
+    fields.push({ label: 'TIPO', value: ENTITY_TYPE_LABELS[entity.type] || entity.type });
+    if (entity.role) fields.push({ label: 'ROL', value: entity.role });
+    if (entity.status) fields.push({ label: 'ESTADO', value: entity.status });
+    if (entity.alignment) fields.push({ label: 'ALINEACIÓN', value: entity.alignment });
+    if (entity.threat_level != null && entity.threat_level !== '') {
+        const n = Math.max(0, Math.min(5, Number(entity.threat_level) || 0));
+        fields.push({ label: 'NIVEL DE AMENAZA', value: '▮'.repeat(n) + '▯'.repeat(5 - n) + `  ${n}/5` });
+    }
+
+    const payload = {
+        title: entity.code_name || entity.real_name || `ENTIDAD #${entity.id}`,
+        classification: 'EXPEDIENTE — ORDO VERITATIS',
+        stamp: 'CLASIFICADO',
+        fields,
+        voice,
+        duration: 20000
+    };
+    if (includeImage && entity.image_url) payload.image_url = entity.image_url;
+    if (includeSummary && entity.public_summary) payload.summary = entity.public_summary;
+    if (source) payload.source = source;
+    if (confidence !== '') payload.confidence = Number(confidence);
+    return payload;
+}
+
+function bindDossierEvents() {
+    document.getElementById('dossier-refresh').addEventListener('click', loadEntities);
+
+    document.getElementById('dossier-project-btn').addEventListener('click', () => {
+        const id = document.getElementById('dossier-entity-select').value;
+        const entity = dossierEntities.find(e => String(e.id) === String(id));
+        if (!entity) return;
+        sendEffect('ENTITY_DOSSIER', buildDossierPayload(entity));
+    });
+
+    document.getElementById('dossier-connections-btn').addEventListener('click', async () => {
+        const id = document.getElementById('dossier-entity-select').value;
+        const entity = dossierEntities.find(e => String(e.id) === String(id));
+        if (!entity) return;
+        let ctx;
+        try {
+            ctx = await fetch(`/api/dm/entities/${id}/context`).then(r => r.json());
+        } catch (e) {
+            console.error('Context load error', e);
+            return;
+        }
+        const relations = (ctx.relations || []).filter(r => r.to_code_name);
+        if (!relations.length) {
+            alert('Esta entidad no tiene conexiones registradas.');
+            return;
+        }
+        const centerName = entity.code_name || entity.real_name || `ENTIDAD #${entity.id}`;
+        const nodes = [centerName, ...relations.slice(0, 3).map(r => r.to_code_name)];
+        const source = document.getElementById('dossier-source').value.trim();
+        const confidence = document.getElementById('dossier-confidence').value;
+        sendEffect('CORRELATION_REVEAL', {
+            title: 'CORRELACIÓN ANÓMALA DETECTADA',
+            nodes,
+            confidence: confidence !== '' ? Number(confidence) : 62,
+            source: source || 'ARCHIVO OV — GRAFO DE CAMPAÑA',
+            duration: 13000
+        });
+    });
+}
+
+// =====================
 // Boot
 // =====================
 async function main() {
@@ -1416,11 +1610,13 @@ async function main() {
     renderPoiSelector();
     renderMarkerSelector();
     bindEffectEvents();
+    bindDossierEvents();
     bindMediaEvents();
     bindSceneControls();
     bindPresetsEvents();
     bindAnalysisEvents();
     initializeDmMap();
+    await loadEntities();
     await loadMedia();
     await loadScenes();
     await loadPresets();

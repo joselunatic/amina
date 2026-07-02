@@ -56,6 +56,15 @@
                 </div>
 
                 <div class="control-section">
+                    <h2>Estado de Membrana <span class="section-note">(proyector)</span></h2>
+                    <div class="control-group">
+                        <button id="membrana-intact" title="Verde: todo en orden. El estado se ve en el HUD del proyector.">Intacta</button>
+                        <button id="membrana-frayed" title="Ámbar: la pantalla gana un halo inestable. Tensión de fondo.">Debilitada</button>
+                        <button id="membrana-torn" title="Rojo: parpadeo persistente en toda la proyección. Algo está cruzando.">Rota</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
                     <h2>Efectos de Cámara</h2>
                     <button id="effect-nudge">Mover Cámara</button>
                     <div class="control-group">
@@ -81,6 +90,10 @@
                         <button id="effect-poi-lock">Bloquear</button>
                         <button id="effect-poi-unlock">Desbloquear</button>
                     </div>
+                    <div class="control-group">
+                        <button id="poi-triangulate" title="Lanza una triangulación de señal sobre el POI seleccionado (precisión aleatoria 55-90%)">📡 Triangular Señal</button>
+                        <button id="poi-alert" title="Alerta de actividad anómala + etiqueta en el mapa sobre el POI seleccionado">⚠ Alerta Aquí</button>
+                    </div>
                 </div>
 
                 <div class="control-section">
@@ -103,6 +116,30 @@
                         <input type="text" id="ephemeral-poi-name" placeholder="Nombre" />
                         <input type="text" id="ephemeral-poi-coords" placeholder="lng,lat" value="-76.4,40.75" />
                         <button id="create-ephemeral-poi">Crear</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h2>Proyectar Expediente <button id="dossier-refresh" class="btn-small" title="Recargar lista de entidades">↻</button></h2>
+                    <div class="control-group">
+                        <select id="dossier-entity-select"></select>
+                        <div class="dossier-options">
+                            <label title="Si no lo marcas, el nombre real aparece censurado (████)"><input type="checkbox" id="dossier-reveal-name" /> Revelar nombre real</label>
+                            <label><input type="checkbox" id="dossier-include-image" checked /> Incluir imagen</label>
+                            <label><input type="checkbox" id="dossier-include-summary" checked /> Incluir resumen público</label>
+                        </div>
+                        <select id="dossier-voice">
+                            <option value="ov">Voz: Oficial OV (verde)</option>
+                            <option value="intercepted">Voz: Interceptada (ámbar)</option>
+                            <option value="corrupted">Voz: Corrupta (gris)</option>
+                            <option value="alert">Voz: Alerta (rojo)</option>
+                        </select>
+                        <input type="text" id="dossier-source" placeholder="Fuente (opcional, ej: ARCHIVO SELLADO)" />
+                        <input type="number" id="dossier-confidence" placeholder="Confianza % (opcional)" min="0" max="100" />
+                        <div class="control-group">
+                            <button id="dossier-project-btn" title="Proyecta la ficha de la entidad. Las notas DM nunca se envían.">▶ Proyectar Ficha</button>
+                            <button id="dossier-connections-btn" title="Proyecta las conexiones de esta entidad como correlación anómala">🕸 Proyectar Conexiones</button>
+                        </div>
                     </div>
                 </div>
 
@@ -186,6 +223,10 @@
                         <option value="SCENE_CARD">Card de texto</option>
                         <option value="FILE_RECOVERY">Recuperación de archivo</option>
                         <option value="SIGNAL_TRIANGULATION">Triangulación de señal</option>
+                        <option value="INTERCEPTED_TRANSMISSION">Transmisión interceptada</option>
+                        <option value="CORRELATION_REVEAL">Correlación anómala</option>
+                        <option value="ENTITY_DOSSIER">Ficha de expediente</option>
+                        <option value="MEMBRANA_SET">Estado de membrana</option>
                         <option value="MEDIA_IMAGE">Imagen</option>
                         <option value="MEDIA_VIDEO">Vídeo</option>
                         <option value="MEDIA_AUDIO">Audio</option>
@@ -221,6 +262,9 @@
                         <option value="SCENE_CARD">Card de texto</option>
                         <option value="FILE_RECOVERY">Recuperación de archivo</option>
                         <option value="SIGNAL_TRIANGULATION">Triangulación de señal</option>
+                        <option value="INTERCEPTED_TRANSMISSION">Transmisión interceptada</option>
+                        <option value="CORRELATION_REVEAL">Correlación anómala</option>
+                        <option value="ENTITY_DOSSIER">Ficha de expediente</option>
                         <option value="MEDIA_IMAGE">Imagen</option>
                         <option value="MEDIA_VIDEO">Vídeo</option>
                         <option value="MEDIA_AUDIO">Audio</option>
@@ -360,9 +404,15 @@
                 <ul class="help-list help-list--bullets">
                     <li><strong>Recuperación de archivo:</strong> Barra de progreso que sube mientras aparecen líneas de texto. Puedes marcar campos como censurados (█████). Al final, imagen opcional.</li>
                     <li><strong>Triangulación de señal:</strong> Muestra coordenadas con barras pulsantes. El mapa vuela a esa posición automáticamente. Parece que AMINA está localizando algo en tiempo real.</li>
+                    <li><strong>Transmisión interceptada:</strong> Pantalla ámbar con forma de onda animada y una transcripción que aparece línea a línea. Las líneas que marques como perdidas salen como "▓▓▓ SEÑAL PERDIDA ▓▓▓". Puedes añadir un audio que suene de fondo. Ideal para llamadas de emergencia, psicofonías o mensajes que se cortan justo antes de lo importante.</li>
+                    <li><strong>Correlación anómala:</strong> Pantalla roja dramática: AMINA conecta 2-4 piezas (nombres, incidentes, casos) con líneas animadas y remata con un % de coincidencia y la fuente. La fuente puede ser "ARCHIVO SELLADO" o "FUENTE NO FIABLE" — el % no tiene por qué ser verdad.</li>
+                    <li><strong>Estado de membrana:</strong> Tres botones (Intacta / Debilitada / Rota) que cambian el indicador del HUD del proyector. Con "Debilitada" la pantalla gana un halo inestable; con "Rota", un parpadeo rojo persistente en toda la sala. Es iluminación ambiental: cambia el tono de la sesión sin decir nada.</li>
+                    <li><strong>Proyectar Expediente:</strong> Elige una entidad de tu base de datos y AMINA proyecta su ficha oficial: foto, campos, sello CLASIFICADO. Tú decides qué se revela — el nombre real sale censurado (████) salvo que lo marques, y las notas DM jamás se envían. "Proyectar Conexiones" lanza las relaciones reales de esa entidad como una correlación anómala.</li>
+                    <li><strong>Acciones de POI:</strong> Con un POI seleccionado, "📡 Triangular Señal" lanza una triangulación sobre sus coordenadas reales y "⚠ Alerta Aquí" marca el punto en el mapa con una alerta roja. Un click y AMINA "descubre" un lugar que tú ya tenías preparado.</li>
                     <li><strong>Etiqueta en el mapa:</strong> Aparece una anotación flotante en una posición del mapa (ej: "Sospechoso visto aquí") y desaparece sola después de unos segundos.</li>
                     <li><strong>Heatmap:</strong> Dibuja una zona roja en el mapa mostrando concentración de actividad o peligro.</li>
                 </ul>
+                <p class="help-note" style="margin-top:12px"><strong>Fiabilidad de pistas:</strong> cualquier Card de texto acepta dos campos opcionales en su payload: <code>"confidence": 62</code> y <code>"source": "ARCHIVO SELLADO"</code>. Aparecen como un pie discreto en la tarjeta. Un 91% puede estar manipulado; un 43% puede bastar para inquietar.</p>
             </section>
 
             <!-- EVENTOS RÁPIDOS -->
@@ -380,6 +430,8 @@
                     <li><strong>Mensaje Interceptado</strong> — Ámbar sospechoso, comunicación de origen desconocido</li>
                     <li><strong>Coords Localizadas</strong> — Verde confianza, triangulación completada</li>
                     <li><strong>Error Sistema</strong> — Gris pánico, AMINA está siendo atacada</li>
+                    <li><strong>Transmisión Interceptada</strong> — Ámbar, transcripción con cortes y una advertencia sobre el archivo</li>
+                    <li><strong>Correlación Anómala</strong> — Rojo, AMINA conecta el incidente actual con un caso cerrado</li>
                 </ul>
             </section>
 
