@@ -1,0 +1,116 @@
+/* =====================================================================
+   AMINA — Sistema de tokens compartido
+   Enlazado desde entropia.html y dm.html ANTES de su CSS propio.
+   Todo lo visual (color, tipografía, grosores, glows, cadencias)
+   cuelga de aquí para que proyector y consola hablen el mismo idioma.
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Saira+Condensed:wght@400;500;600;700&display=swap');
+
+:root {
+    /* ---- Las 5 voces del sistema (fuentes narrativas) ---- */
+    --v-ov:          #12ff92;   /* oficial OV — verde fósforo */
+    --v-ov-deep:     #06c56e;
+    --v-intercepted: #ffb422;   /* interceptada — ámbar radio */
+    --v-corrupted:   #9aa2a0;   /* corrupta — gris muerto */
+    --v-alert:       #ff3b30;   /* alerta — rojo amenaza */
+    --v-human:       #c8e8d0;   /* humano — verde cálido suave */
+    --v-anomaly:     #b44dff;   /* anomalías / entidades — púrpura */
+
+    /* RGB crudos para componer rgba() con opacidad variable */
+    --v-ov-rgb:          18,255,146;
+    --v-intercepted-rgb: 255,180,34;
+    --v-corrupted-rgb:   154,162,160;
+    --v-alert-rgb:       255,59,48;
+    --v-human-rgb:       200,232,208;
+    --v-anomaly-rgb:     180,77,255;
+
+    /* Voz activa por defecto (los overlays la re-mapean con card-voice-*) */
+    --voice:      var(--v-ov);
+    --voice-rgb:  var(--v-ov-rgb);
+
+    /* ---- Fondos / superficie ---- */
+    --void:       #000000;
+    --bg-0:       #04070a;      /* negro con tinte frío */
+    --bg-1:       #070d10;
+    --panel:      rgba(6, 15, 13, 0.94);
+    --panel-warm: rgba(20, 13, 2, 0.95);
+    --panel-dead: rgba(12, 13, 13, 0.95);
+    --ink:        #d7f0e0;      /* texto cuerpo sobre panel verde */
+    --ink-dim:    rgba(215, 240, 224, 0.62);
+
+    /* ---- Tipografía ---- */
+    --mono:    'JetBrains Mono', ui-monospace, 'Courier New', monospace;
+    --display: 'Saira Condensed', 'Arial Narrow', var(--mono);
+
+    /* Escalas pensadas para PARED (proyector). La consola las baja localmente. */
+    --fs-hud:     13px;
+    --fs-label:   14px;
+    --fs-body:    18px;
+    --fs-title:   40px;
+    --fs-hero:    64px;
+
+    /* Espaciado de letra por rol */
+    --ls-mono:    0.06em;
+    --ls-label:   0.24em;   /* etiquetas clasificadas */
+    --ls-display: 0.04em;
+
+    /* ---- Estructura ---- */
+    --hair:       1px;
+    --frame:      2px;
+    --radius:     2px;
+    --bracket:    22px;      /* tamaño de las escuadras de esquina */
+
+    /* ---- Glows por voz (sombra de caja unificada) ---- */
+    --glow-soft:  0 0 40px rgba(var(--voice-rgb), 0.14),
+                  inset 0 0 60px rgba(0, 0, 0, 0.55);
+    --glow-hard:  0 0 60px rgba(var(--voice-rgb), 0.28),
+                  0 0 120px rgba(var(--voice-rgb), 0.10),
+                  inset 0 0 60px rgba(0, 0, 0, 0.5);
+
+    /* ---- Cadencias (una sola batería de tiempos) ---- */
+    --t-fast:   0.15s;
+    --t-mid:    0.4s;
+    --t-slow:   0.6s;
+    --pulse-cta:  1.2s;
+    --pulse-amb:  4s;
+}
+
+/* =====================================================================
+   Utilidades compartidas — chrome clasificado
+   Se aplican por igual en overlays del proyector y paneles de consola.
+   ===================================================================== */
+
+/* Escuadras de esquina (marco de expediente) sobre cualquier .amina-framed */
+.amina-framed { position: relative; }
+.amina-framed::before,
+.amina-framed::after {
+    content: '';
+    position: absolute;
+    width: var(--bracket);
+    height: var(--bracket);
+    border: var(--frame) solid rgba(var(--voice-rgb), 0.7);
+    pointer-events: none;
+}
+.amina-framed::before { top: -1px;  left: -1px;  border-right: none; border-bottom: none; }
+.amina-framed::after  { bottom: -1px; right: -1px; border-left: none;  border-top: none; }
+
+/* Aberración cromática CRT sutil para titulares grandes */
+@keyframes amina-chroma {
+    0%, 100% { text-shadow: -0.5px 0 rgba(255,0,60,0.35), 0.5px 0 rgba(0,180,255,0.30); }
+    50%      { text-shadow: -1.5px 0 rgba(255,0,60,0.30), 1.5px 0 rgba(0,180,255,0.28); }
+}
+
+/* Parpadeo de fósforo ocasional, barato (opacity only) */
+@keyframes amina-phosphor {
+    0%, 96%, 100% { opacity: 1; }
+    97%           { opacity: 0.82; }
+    98%           { opacity: 1; }
+    99%           { opacity: 0.9; }
+}
+
+/* Pulso de urgencia reutilizable */
+@keyframes amina-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}

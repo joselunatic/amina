@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AMINA — Entropia (preview)</title>
+<link rel="stylesheet" href="../amina-tokens.css" />
+<link rel="stylesheet" href="../entropia.css" />
+<style>
+/* PREVIEW-ONLY: this harness runs in a throttled iframe where the CSS
+   animation clock is paused, so content-reveal animations (which start at
+   opacity:0) would stay invisible. Force their end-state for screenshots.
+   NOT part of the delivered CSS. */
+.dossier-field, .recovery-line, .transmission-line, .recovery-image img { opacity: 1 !important; animation: none !important; }
+.card-inner, .transmission-inner, .dossier-inner, .recovery-inner, .triangulation-inner { animation: none !important; }
+</style>
+</head>
+<body>
+<div id="algorithm-background"></div>
+
+<div id="amina-home" class="amina-home">
+  <div class="home-container">
+    <div class="home-header">
+      <div class="ov-seal"><div class="seal-circle">◊</div><div class="seal-text">ORDO VERITATIS</div></div>
+    </div>
+    <div class="home-content">
+      <div class="amina-logo">
+        <div class="logo-text">[ AMINA ]</div>
+        <div class="logo-sub">ANÁLISIS DE MISIONES E</div>
+        <div class="logo-sub">INVESTIGACIÓN DE NUEVAS</div>
+        <div class="logo-sub">AMENAZAS</div>
+      </div>
+      <div class="system-status">
+        <div class="status-line"><span class="status-label">ESTADO DEL SISTEMA:</span><span class="status-value online">● EN LÍNEA</span></div>
+        <div class="status-line"><span class="status-label">ESTADO DE MEMBRANA:</span><span class="status-value" id="home-membrana">INTACTA</span></div>
+        <div class="status-line"><span class="status-label">AGENTES CONECTADOS:</span><span class="status-value" id="home-agents">3</span></div>
+        <div class="status-line"><span class="status-label">ZONA DE VIGILANCIA:</span><span class="status-value">CONDADO SCHUYLKILL, PA</span></div>
+      </div>
+      <div class="home-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="initialization-log">
+        <div class="log-line">[ <span class="time-stamp">00:00:00</span> ] INICIO DEL SISTEMA</div>
+        <div class="log-line">[ <span class="time-stamp">00:00:01</span> ] SERVICIOS DE MAPEO: LISTO</div>
+        <div class="log-line">[ <span class="time-stamp">00:00:02</span> ] CONEXIÓN DE RED: ESTABLECIDA</div>
+        <div class="log-line">[ <span class="time-stamp">00:00:03</span> ] DESPACHADOR DE EFECTOS: ESCUCHANDO</div>
+        <div class="log-line animate-pulse">[ <span class="time-stamp">00:00:04</span> ] ESPERANDO COMANDO...</div>
+      </div>
+    </div>
+    <div class="home-footer">
+      <div class="footer-line">Solo para Personal Autorizado</div>
+      <div class="footer-line">El Acceso No Autorizado está Sujeto a Acciones Legales</div>
+    </div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<!-- Overlays -->
+<div id="card-overlay" class="card-overlay">
+  <div class="card-inner">
+    <div class="card-subtitle" id="card-subtitle">INFORME OFICIAL — OV</div>
+    <div class="card-title" id="card-title">ENTITY SIGNATURE DETECTED</div>
+    <div class="card-body" id="card-body">MEMBRANA CORRELATION: 68%
+LOCATION APPROXIMATED
+TACTICAL RESPONSE ADVISED</div>
+    <div class="card-meta" id="card-meta">CONFIANZA: 62% · FUENTE: ARCHIVO SELLADO</div>
+  </div>
+</div>
+
+<div id="transmission-overlay" class="transmission-overlay">
+  <div class="transmission-inner">
+    <div class="transmission-header"><span>TRANSMISIÓN INTERCEPTADA</span><span id="transmission-freq">147.300 MHz</span></div>
+    <div class="transmission-source" id="transmission-source">FUENTE DESCONOCIDA — BANDA NO REGISTRADA</div>
+    <div class="transmission-wave" id="transmission-wave"></div>
+    <div class="transmission-content" id="transmission-content">
+      <div class="transmission-line">...no deberían estar escuchando esto...</div>
+      <div class="transmission-line">...repito: la señal viene de DEBAJO de...</div>
+      <div class="transmission-line lost">▓▓▓ SEÑAL PERDIDA ▓▓▓</div>
+      <div class="transmission-line">...no confíen en el archivo. El archivo ha sido...</div>
+    </div>
+    <div class="transmission-footer">● GRABANDO — TRANSCRIPCIÓN PARCIAL — ANÁLISIS DE VOZ EN COLA</div>
+  </div>
+</div>
+
+<div id="correlation-overlay" class="correlation-overlay">
+  <div class="correlation-inner">
+    <div class="correlation-title" id="correlation-title">CORRELACIÓN ANÓMALA DETECTADA</div>
+    <div class="correlation-nodes" id="correlation-nodes">
+      <div class="correlation-node revealed">INCIDENTE ACTUAL</div>
+      <div class="correlation-link revealed"></div>
+      <div class="correlation-node revealed">EXPEDIENTE SELLADO</div>
+      <div class="correlation-link revealed"></div>
+      <div class="correlation-node revealed">CASO CERRADO — 1987</div>
+    </div>
+    <div class="correlation-stamp revealed" id="correlation-stamp">
+      <div class="correlation-confidence" id="correlation-confidence">COINCIDENCIA 62%</div>
+      <div class="correlation-source" id="correlation-source">ARCHIVO SELLADO — ACCESO RESTRINGIDO</div>
+    </div>
+  </div>
+</div>
+
+<div id="dossier-overlay" class="dossier-overlay">
+  <div class="dossier-inner">
+    <div class="dossier-header">
+      <span class="dossier-classification" id="dossier-classification">EXPEDIENTE — ORDO VERITATIS</span>
+      <span class="dossier-stamp" id="dossier-stamp">CLASIFICADO</span>
+    </div>
+    <div class="dossier-name" id="dossier-name">VICTORIA ALLEN</div>
+    <div class="dossier-body">
+      <div class="dossier-photo" id="dossier-photo"><img src="../agents/victoria_allen.jpg" alt="" /></div>
+      <div class="dossier-fields" id="dossier-fields">
+        <div class="dossier-field"><span class="dossier-field-label">ALIAS</span><span class="dossier-field-value">LA CARTÓGRAFA</span></div>
+        <div class="dossier-field"><span class="dossier-field-label">ESTADO</span><span class="dossier-field-value">EN LIBERTAD</span></div>
+        <div class="dossier-field"><span class="dossier-field-label">ÚLTIMA POSICIÓN</span><span class="dossier-field-value censored">████████████</span></div>
+        <div class="dossier-field"><span class="dossier-field-label">AFILIACIÓN</span><span class="dossier-field-value">CÍRCULO DE HÉRMES</span></div>
+        <div class="dossier-field"><span class="dossier-field-label">NIVEL DE AMENAZA</span><span class="dossier-field-value">ALTO</span></div>
+      </div>
+    </div>
+    <div class="dossier-summary" id="dossier-summary">Sujeto vinculado a tres incidentes de ruptura de membrana en el condado. Patrón de comportamiento consistente con conocimiento previo de las anomalías. Se recomienda vigilancia continua.</div>
+    <div class="dossier-meta" id="dossier-meta">CONFIANZA: 74% · FUENTE: OV-CENTRAL</div>
+  </div>
+</div>
+
+<div id="file-recovery-overlay" class="file-recovery-overlay">
+  <div class="recovery-inner">
+    <div class="recovery-title">ARCHIVE RECOVERY IN PROGRESS</div>
+    <div class="recovery-progress">
+      <div class="recovery-bar" id="recovery-bar" style="width:73%"></div>
+      <div class="recovery-percent" id="recovery-percent">73%</div>
+    </div>
+    <div class="recovery-content" id="recovery-content">
+      <div class="recovery-line">> RECUPERANDO SECTOR 0x1A4F...</div>
+      <div class="recovery-line">> INTEGRIDAD PARCIAL CONFIRMADA</div>
+      <div class="recovery-line">> CLASIFICACIÓN: <span class="censored">██████</span></div>
+      <div class="recovery-line">> SUJETO: <span class="censored">████████</span> — INCIDENTE 1987</div>
+    </div>
+    <div class="recovery-image" id="recovery-image"></div>
+  </div>
+</div>
+
+<div id="signal-triangulation-overlay" class="signal-triangulation-overlay">
+  <div class="triangulation-inner">
+    <div class="triangulation-title">SIGNAL TRIANGULATION</div>
+    <div class="triangulation-coords">
+      <div class="coord-item"><span class="coord-label">LAT:</span> <span class="coord-value" id="tri-lat">40.7068</span></div>
+      <div class="coord-item"><span class="coord-label">LNG:</span> <span class="coord-value" id="tri-lng">-76.2639</span></div>
+    </div>
+    <div class="triangulation-bars">
+      <div class="tri-bar" style="height:40%"></div>
+      <div class="tri-bar" style="height:72%"></div>
+      <div class="tri-bar" style="height:55%"></div>
+      <div class="tri-bar" style="height:88%"></div>
+      <div class="tri-bar" style="height:63%"></div>
+    </div>
+    <div class="triangulation-precision"><span class="precision-label">PRECISION:</span><span class="precision-value" id="tri-precision">73%</span></div>
+    <div class="triangulation-status" id="tri-status">SCANNING...</div>
+  </div>
+</div>
+
+<div id="blackout-overlay" class="blackout-overlay"></div>
+
+<div id="scanlines"></div>
+
+<div id="amina-hud">
+  <div id="hud-top-left">
+    <div id="incident-code" class="hud-item">INC-2187-04</div>
+    <div id="membrana-status" class="hud-item status-intact">MEMBRANA: INTACTA</div>
+  </div>
+  <div id="hud-top-center"><div id="system-ticker" class="hud-item">ANÁLISIS DE SEÑAL EN CURSO</div></div>
+  <div id="hud-top-right"><div id="signal-indicator" class="hud-item">◯ ACTIVE</div></div>
+  <div id="hud-bottom-left"><div id="coordinates-display" class="hud-item">COORD: 40.7068, -76.2639</div></div>
+  <div id="hud-bottom-right"><div id="system-clock" class="hud-item">02:14:47</div></div>
+</div>
+
+<div id="screen-brand"><span class="brand-label">AMINA</span><span class="brand-sub">SURVEILLANCE NETWORK</span></div>
+
+<script>
+  // Populate a few algorithm-background elements for texture
+  const bg = document.getElementById('algorithm-background');
+  const rnd = (a,b)=>a+Math.random()*(b-a);
+  for(let i=0;i<28;i++){const n=document.createElement('div');n.className='signal-node active';const s=rnd(3,7);n.style.cssText=`width:${s}px;height:${s}px;left:${rnd(2,98)}%;top:${rnd(2,98)}%;background:var(--v-ov);animation-delay:${rnd(0,2.5)}s`;bg.appendChild(n);}
+  for(let i=0;i<3;i++){const t=document.createElement('div');t.className='threat-indicator rupture';t.style.cssText=`width:${rnd(20,40)}px;height:${rnd(20,40)}px;left:${rnd(15,85)}%;top:${rnd(15,85)}%;animation-delay:${rnd(0,3)}s`;bg.appendChild(t);}
+  for(let i=0;i<2;i++){const e=document.createElement('div');e.className='threat-indicator entity';e.style.cssText=`width:${rnd(18,32)}px;height:${rnd(18,32)}px;left:${rnd(20,80)}%;top:${rnd(20,80)}%;animation-delay:${rnd(0,3)}s`;bg.appendChild(e);}
+  for(let i=0;i<3;i++){const h=document.createElement('div');h.className='regional-hotspot active';const s=rnd(120,240);h.style.cssText=`width:${s}px;height:${s}px;left:${rnd(10,80)}%;top:${rnd(10,80)}%;animation-delay:${rnd(0,4)}s`;bg.appendChild(h);}
+  // transmission waveform bars
+  const tw=document.getElementById('transmission-wave');for(let i=0;i<28;i++){const b=document.createElement('div');b.className='wave-bar';b.style.animationDelay=(i*0.04)+'s';tw.appendChild(b);}
+
+  // State switcher for screenshots
+  const overlays=['card-overlay','transmission-overlay','correlation-overlay','dossier-overlay','file-recovery-overlay','signal-triangulation-overlay','blackout-overlay'];
+  const voiceClasses=['card-voice-ov','card-voice-intercepted','card-voice-corrupted','card-voice-alert','card-voice-human','card-theme-danger','card-theme-warning','dossier-voice-intercepted','dossier-voice-corrupted','dossier-voice-alert'];
+  window.showState=function(opts){
+    opts=opts||{};
+    document.body.classList.remove('membrana-frayed','membrana-torn');
+    overlays.forEach(id=>{const el=document.getElementById(id);el.classList.remove('active');el.style.opacity='';el.style.transition='';voiceClasses.forEach(v=>el.classList.remove(v));});
+    document.getElementById('amina-home').classList.toggle('hidden', !!opts.active);
+    if(opts.membrana) document.body.classList.add('membrana-'+opts.membrana);
+    if(opts.active){const el=document.getElementById(opts.active);el.classList.add('active');if(opts.voice)el.classList.add(opts.voice);}
+    try{ localStorage.setItem('aminaPreviewState', JSON.stringify(opts)); }catch(e){}
+  };
+  // Re-apply persisted state on load (survives the capture tool's reload)
+  try{ const s=localStorage.getItem('aminaPreviewState'); if(s){ const o=JSON.parse(s);
+    document.getElementById('amina-home').classList.toggle('hidden', !!o.active);
+    if(o.membrana) document.body.classList.add('membrana-'+o.membrana);
+    if(o.active){const el=document.getElementById(o.active); el.style.transition='none'; el.style.opacity='1'; el.classList.add('active'); if(o.voice)el.classList.add(o.voice); }
+  } }catch(e){}
+</script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AMINA — Consola DM (preview)</title>
+<link rel="stylesheet" href="../amina-tokens.css" />
+<link rel="stylesheet" href="../dm.css" />
+</head>
+<body>
+<header class="dm-header">
+  <h1>AMINA · Consola de DM</h1>
+  <nav class="dm-tabs">
+    <button class="tab-btn active" data-tab="effects">Efectos</button>
+    <button class="tab-btn" data-tab="media">Media</button>
+    <button class="tab-btn" data-tab="scenes">Escenas</button>
+    <button class="tab-btn" data-tab="intel">Intel</button>
+    <button class="tab-btn" data-tab="help">Ayuda</button>
+  </nav>
+</header>
+
+<div id="tab-effects" class="tab-panel active">
+  <div class="main-container">
+    <div class="controls-column">
+
+      <div class="control-section">
+        <h2>Objetivo</h2>
+        <div class="agent-list-container">
+          <label for="agent-select">Target:</label>
+          <select id="agent-select">
+            <option value="all">Todos (Agentes + Pantalla)</option>
+            <option value="agents">Solo Agentes</option>
+            <option value="screen" selected>Pantalla (Entropia)</option>
+            <option value="agent-victoria">Victoria Allen</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>Eventos Narrativos Rápidos</h2>
+        <div id="quick-events-grid" class="quick-events-grid"></div>
+      </div>
+
+      <div class="control-section">
+        <h2>Efectos Visuales</h2>
+        <div class="control-group">
+          <button id="effect-glitch">Glitch</button>
+          <button id="effect-noise">Ruido</button>
+          <button id="effect-blackout">Blackout</button>
+          <button id="effect-clear">Limpiar Overlays</button>
+        </div>
+        <div class="control-group">
+          <label for="vignette-level">Viñeta (0-3):</label>
+          <input type="range" id="vignette-level" min="0" max="3" value="0" />
+          <button id="effect-vignette">Aplicar Viñeta</button>
+        </div>
+        <button id="effect-home" class="btn-home" title="Vuelve a la pantalla de inicio de AMINA">◄ Home AMINA</button>
+      </div>
+
+      <div class="control-section">
+        <h2>Estado de Membrana <span class="section-note">(proyector)</span></h2>
+        <div class="control-group">
+          <button id="membrana-intact">Intacta</button>
+          <button id="membrana-frayed">Debilitada</button>
+          <button id="membrana-torn">Rota</button>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>Efectos de Cámara</h2>
+        <button id="effect-nudge">Mover Cámara</button>
+        <div class="control-group">
+          <input type="text" id="focus-coords" value="-76.26391,40.70682,16" />
+          <button id="effect-focus">Enfocar Incidente</button>
+        </div>
+        <div class="control-group">
+          <input type="text" id="sweep-coords" value="-76.3,40.7|-76.2,40.65" />
+          <button id="effect-sweep">Barrido de Área</button>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>Efectos de POI</h2>
+        <div class="control-group">
+          <label for="poi-select">POI:</label>
+          <select id="poi-select"><option>Mina Abandonada #4</option></select>
+        </div>
+        <div class="control-group">
+          <button id="effect-poi-blink-on">Parpadeo ON</button>
+          <button id="effect-poi-blink-off">Parpadeo OFF</button>
+          <button id="effect-poi-highlight">Resaltar</button>
+          <button id="effect-poi-lock">Bloquear</button>
+          <button id="effect-poi-unlock">Desbloquear</button>
+        </div>
+        <div class="control-group">
+          <button id="poi-triangulate" title="Triangula señal sobre el POI">📡 Triangular Señal</button>
+          <button id="poi-alert" title="Alerta de actividad anómala">⚠ Alerta Aquí</button>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>Tipo de Marker</h2>
+        <div id="amina-marker-selector" class="marker-selector">
+          <button class="active">Incidente</button><button>Anomalía</button><button>Entidad</button><button>Refugio</button>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>Capas</h2>
+        <div class="control-group">
+          <input type="text" id="layer-id" value="3d-buildings" />
+          <button id="effect-layer-on">Mostrar</button>
+          <button id="effect-layer-off">Ocultar</button>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>POI Efímero</h2>
+        <div class="control-group">
+          <input type="text" id="ephemeral-poi-name" placeholder="Nombre" />
+          <input type="text" id="ephemeral-poi-coords" value="-76.4,40.75" />
+          <button id="create-ephemeral-poi">Crear</button>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>Proyectar Expediente <button id="dossier-refresh" class="btn-small">↻</button></h2>
+        <div class="control-group">
+          <select id="dossier-entity-select"><option>Victoria Allen — La Cartógrafa</option></select>
+          <div class="dossier-options">
+            <label><input type="checkbox" id="dossier-reveal-name" /> Revelar nombre real</label>
+            <label><input type="checkbox" id="dossier-include-image" checked /> Incluir imagen</label>
+            <label><input type="checkbox" id="dossier-include-summary" checked /> Incluir resumen público</label>
+          </div>
+          <select id="dossier-voice">
+            <option value="ov">Voz: Oficial OV (verde)</option>
+            <option value="intercepted">Voz: Interceptada (ámbar)</option>
+            <option value="corrupted">Voz: Corrupta (gris)</option>
+            <option value="alert">Voz: Alerta (rojo)</option>
+          </select>
+          <input type="text" id="dossier-source" placeholder="Fuente (opcional)" />
+          <input type="number" id="dossier-confidence" placeholder="Confianza %" min="0" max="100" />
+          <div class="control-group">
+            <button id="dossier-project-btn">▶ Proyectar Ficha</button>
+            <button id="dossier-connections-btn">🕸 Proyectar Conexiones</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>Card de Escena</h2>
+        <div class="control-group">
+          <input type="text" id="card-title-input" placeholder="Título" />
+          <input type="text" id="card-subtitle-input" placeholder="Subtítulo (opcional)" />
+          <textarea id="card-body-input" placeholder="Cuerpo del mensaje..." rows="3"></textarea>
+          <select id="card-theme-input"><option value="">Default</option><option value="danger">Peligro</option><option value="warning">Aviso</option></select>
+          <button id="effect-card">Mostrar Card</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="intel-column">
+      <div class="control-section">
+        <h2>Mapa de Operaciones</h2>
+        <div id="dm-map"></div>
+        <button id="request-satellite-image">Imagen Satelital</button>
+      </div>
+      <div class="control-section">
+        <h2>Análisis de Inteligencia</h2>
+        <div id="image-analysis-panel"><p>Esperando solicitud...</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Same order as QUICK_EVENTS in dm.js (drives nth-child voice coding)
+  const QE = [
+    ['Alerta Membrana','Rojo pulsante: anomalía detectada'],
+    ['Señal Adquirida','Ámbar: triangulación incompleta'],
+    ['Acceso No Autorizado','Gris: pantalla comprometida'],
+    ['Interferencia','Glitch: zona oscurecida'],
+    ['Apagón','Negro/rojo: urgencia total'],
+    ['Archivo Recuperado','Verde: oficial y formal'],
+    ['Entidad Detectada','Rojo: amenaza inmediata'],
+    ['Mensaje Interceptado','Ámbar: desconfianza'],
+    ['Coords Localizadas','Verde: preciso y confiable'],
+    ['Error Sistema','Gris: pánico controlado'],
+    ['Transmisión Interceptada','Ámbar: audio sucio, transcripción con cortes'],
+    ['Correlación Anómala','Rojo: AMINA conecta piezas']
+  ];
+  const grid = document.getElementById('quick-events-grid');
+  QE.forEach(([label,hint])=>{const b=document.createElement('button');b.className='quick-event-btn';b.innerHTML=`<span class="event-label">${label}</span><span class="event-hint">${hint}</span>`;grid.appendChild(b);});
+  // Tab switching (visual only)
+  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');}));
+</script>
+</body>
+</html>

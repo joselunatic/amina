@@ -359,7 +359,8 @@ amina/
 │   ├── entropia.js          ← Idem agente (sin auth)
 │   ├── dm.css               ← Estilos tabs + coord picker
 │   ├── agent.css            ← Overlays + efectos visuales
-│   └── entropia.css         ← HUD + scanlines
+│   ├── entropia.css         ← HUD + scanlines + overlays
+│   └── amina-tokens.css     ← Tokens de diseño compartidos (voces, paneles, tipografía) — cargado ANTES de entropia.css/dm.css
 ├── src/
 │   ├── app.js               ← Express app, rutas protegidas
 │   ├── routes/
