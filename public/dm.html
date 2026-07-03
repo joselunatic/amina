@@ -11,8 +11,32 @@
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
 </head>
 <body>
+    <div id="dm-auth-overlay" class="dm-auth-overlay hidden">
+        <div class="dm-auth-panel">
+            <div class="dm-auth-kicker">Acceso DM</div>
+            <h2 class="dm-auth-title">Consola AMINA</h2>
+            <p class="dm-auth-copy">Introduce la misma contraseña de DM que usas en `/`. La backdoor sigue siendo válida.</p>
+            <form id="dm-auth-form" class="dm-auth-form">
+                <label for="dm-auth-password">Contraseña DM</label>
+                <input type="password" id="dm-auth-password" autocomplete="current-password" />
+                <div class="dm-auth-actions">
+                    <button type="submit" class="btn-primary">Acceder</button>
+                </div>
+                <p id="dm-auth-status" class="dm-auth-status"></p>
+            </form>
+        </div>
+    </div>
+
     <header class="dm-header">
         <h1>AMINA · Consola de DM</h1>
+        <div id="ws-status" class="ws-status ws-status-connecting" aria-live="polite">
+            <span class="ws-status-dot" aria-hidden="true"></span>
+            <span id="ws-status-label">WS conectando</span>
+        </div>
+        <div id="agents-status" class="presence-status" aria-live="polite">
+            <span class="presence-status-label">Auth 0</span>
+            <span id="agents-status-list" class="presence-status-list">ninguno</span>
+        </div>
         <nav class="dm-tabs">
             <button class="tab-btn active" data-tab="effects">Efectos</button>
             <button class="tab-btn" data-tab="media">Media</button>

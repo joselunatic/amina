@@ -1,4 +1,4 @@
-const CACHE_NAME = 'amina-pwa-v14';
+const CACHE_NAME = 'amina-pwa-v15';
 const API_CACHE_NAME = 'amina-api-v1';
 const PRECACHE_URLS = [
   '/',

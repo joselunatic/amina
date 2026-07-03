@@ -75,6 +75,10 @@ function hideAminaHome() {
     }
 }
 
+function setEffectPresentationMode(active) {
+    document.body.classList.toggle('effect-presentation-active', active);
+}
+
 // --- WebSocket ---
 function connectWebSocket() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -112,6 +116,10 @@ function connectWebSocket() {
 // --- Effect handler (mirrors agent.js, without auth/agentId) ---
 function handleEffect(effect, payload = {}) {
     console.log(`[entropia] effect: ${effect}`, payload);
+    if (effect !== 'AMINA_HOME') {
+        setEffectPresentationMode(true);
+        hideAminaHome();
+    }
     switch (effect) {
         // Visual
         case 'GLITCH':
@@ -125,7 +133,18 @@ function handleEffect(effect, payload = {}) {
 
         // Camera
         case 'NUDGE_CAMERA':
-            if (state.map) state.map.panBy([Math.random() * 200 - 100, Math.random() * 200 - 100], { duration: 500 });
+            if (state.map) {
+                if (Number.isFinite(payload.lng) && Number.isFinite(payload.lat)) {
+                    state.map.easeTo({
+                        center: [payload.lng, payload.lat],
+                        zoom: Number.isFinite(payload.zoom) ? payload.zoom : Math.max(state.map.getZoom(), 13),
+                        duration: 900,
+                        essential: true
+                    });
+                } else {
+                    state.map.panBy([Math.random() * 200 - 100, Math.random() * 200 - 100], { duration: 500 });
+                }
+            }
             break;
         case 'FOCUS_INCIDENT':
             if (state.map) state.map.flyTo({
@@ -204,6 +223,7 @@ function handleEffect(effect, payload = {}) {
         case 'MEMBRANA_SET': applyMembranaStatus(payload); break;
 
         case 'AMINA_HOME':
+            setEffectPresentationMode(false);
             showAminaHome();
             clearAll();
             break;

@@ -1,5 +1,6 @@
 const path = require('path');
 const express = require('express');
+const sqlite3 = require('sqlite3');
 const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
 const {
@@ -183,6 +184,53 @@ function validateEntityPayload(payload) {
   return validateEntity(payload, { ENTITY_TYPES });
 }
 
+function listAuthenticatedAgentSessions() {
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(SESSION_DB_PATH, sqlite3.OPEN_READONLY, (openErr) => {
+      if (openErr) {
+        reject(openErr);
+        return;
+      }
+    });
+
+    db.all('SELECT sess, expired FROM sessions WHERE expired > ?', [Date.now()], (err, rows = []) => {
+      db.close();
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      const byAgent = new Map();
+      rows.forEach((row) => {
+        try {
+          const sessionData = JSON.parse(row.sess || '{}');
+          if (sessionData.role !== 'agent' || !sessionData.agentId) return;
+          const agentId = normalizeUsername(sessionData.agentId);
+          if (!agentId) return;
+          const existing = byAgent.get(agentId) || {
+            agentId,
+            agentDisplay: sessionData.agentDisplay || agentId,
+            sessionCount: 0
+          };
+          existing.sessionCount += 1;
+          if (!existing.agentDisplay && sessionData.agentDisplay) {
+            existing.agentDisplay = sessionData.agentDisplay;
+          }
+          byAgent.set(agentId, existing);
+        } catch (_err) {
+          // Ignore malformed session payloads.
+        }
+      });
+
+      resolve(
+        Array.from(byAgent.values()).sort((a, b) =>
+          String(a.agentDisplay || a.agentId).localeCompare(String(b.agentDisplay || b.agentId))
+        )
+      );
+    });
+  });
+}
+
 app.use(express.json());
 const sessionMiddleware = session({
   name: 'amina.sid',
@@ -204,7 +252,11 @@ const sessionMiddleware = session({
 app.use(sessionMiddleware);
 
 // Protected routes first (before static) so they take precedence
-app.get('/dm', requireDmSession, (_req, res) => {
+app.get('/dm', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'dm.html'));
+});
+
+app.get('/dm.html', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'dm.html'));
 });
 
@@ -254,6 +306,15 @@ app.get('/api/config', (req, res) => {
     mapStyle: MAPBOX_STYLE,
     debug: DEBUG_MODE
   });
+});
+
+app.get('/api/auth/agent-presence', requireDmSession, async (req, res, next) => {
+  try {
+    const agents = await listAuthenticatedAgentSessions();
+    res.json({ agents });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.get('/api/entropia/zones', requireAnySession, async (req, res, next) => {

@@ -356,6 +356,17 @@ body::before {
     pointer-events: none;
 }
 
+body.effect-presentation-active #algorithm-background,
+body.effect-presentation-active #amina-home,
+body.effect-presentation-active #scanlines,
+body.effect-presentation-active #amina-hud,
+body.effect-presentation-active #screen-brand,
+body.effect-presentation-active #scene-indicator {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 /* ===================================================================
    OVERLAYS — chrome compartido
    Todos los paneles de expediente comparten borde, cabecera, escuadras

@@ -112,6 +112,17 @@ function broadcastAgentList() {
   for (const client of dmClients) { client.send(message); }
 }
 
+function broadcastScreenStatus() {
+  const message = JSON.stringify({
+    type: 'screen-status',
+    count: screenClients.size,
+    ready: screenClients.size > 0
+  });
+  for (const client of dmClients) {
+    if (client.readyState === 1) client.send(message);
+  }
+}
+
 function broadcastChatMessage({ thread, message }) {
   if (!thread || !message) return;
   const payload = JSON.stringify({
@@ -191,6 +202,7 @@ function registerDmClient(ws) {
   dmClients.add(ws);
   console.log('DM client connected');
   broadcastAgentList();
+  broadcastScreenStatus();
 }
 
 function registerAgentClient(ws, agentId) {
@@ -202,16 +214,19 @@ function registerAgentClient(ws, agentId) {
 function registerScreenClient(ws) {
   screenClients.add(ws);
   console.log('Screen client connected');
+  broadcastScreenStatus();
 }
 
 function unregisterSocket(ws) {
   let shouldBroadcastAgents = false;
+  let shouldBroadcastScreens = false;
   if (dmClients.has(ws)) { dmClients.delete(ws); console.log('DM client disconnected'); }
   if (agentClients.has(ws)) { agentClients.delete(ws); console.log('Agent client disconnected'); shouldBroadcastAgents = true; }
-  if (screenClients.has(ws)) { screenClients.delete(ws); console.log('Screen client disconnected'); }
+  if (screenClients.has(ws)) { screenClients.delete(ws); console.log('Screen client disconnected'); shouldBroadcastScreens = true; }
   if (messageClients.has(ws)) messageClients.delete(ws);
   if (chatClients.has(ws)) chatClients.delete(ws);
   if (shouldBroadcastAgents) broadcastAgentList();
+  if (shouldBroadcastScreens) broadcastScreenStatus();
 }
 
 async function registerSocketFromSession(ws, request, data) {

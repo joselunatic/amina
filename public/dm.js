@@ -2,6 +2,10 @@
 const state = {
     ws: null,
     agents: [],
+    authenticatedAgents: [],
+    authenticatedAgentsPoll: null,
+    screenCount: 0,
+    initialized: false,
     pois: [],
     mediaAssets: [],
     scenes: [],
@@ -23,6 +27,14 @@ const poiSelect          = document.getElementById('poi-select');
 const aminaMarkerSelector = document.getElementById('amina-marker-selector');
 const dmMapContainer     = document.getElementById('dm-map');
 const mapbox             = window.mapboxgl || null;
+const wsStatusEl         = document.getElementById('ws-status');
+const wsStatusLabelEl    = document.getElementById('ws-status-label');
+const agentsStatusEl     = document.getElementById('agents-status');
+const agentsStatusListEl = document.getElementById('agents-status-list');
+const dmAuthOverlayEl    = document.getElementById('dm-auth-overlay');
+const dmAuthFormEl       = document.getElementById('dm-auth-form');
+const dmAuthPasswordEl   = document.getElementById('dm-auth-password');
+const dmAuthStatusEl     = document.getElementById('dm-auth-status');
 
 // --- Marker taxonomy ---
 const AMINA_MARKER_TYPES = [
@@ -39,23 +51,152 @@ const AMINA_MARKER_TYPES = [
 // =====================
 // WebSocket
 // =====================
+function updateWsStatus(status, label) {
+    if (!wsStatusEl || !wsStatusLabelEl) return;
+    wsStatusEl.classList.remove(
+        'ws-status-connecting',
+        'ws-status-connected',
+        'ws-status-disconnected',
+        'ws-status-error'
+    );
+    wsStatusEl.classList.add(`ws-status-${status}`);
+    const screenLabel = state.screenCount === 1
+        ? 'Pantalla 1'
+        : `Pantallas ${state.screenCount}`;
+    wsStatusLabelEl.textContent = `${label} · ${screenLabel}`;
+}
+
+async function hasDmSession() {
+    try {
+        const response = await fetch('/api/auth/me', { credentials: 'same-origin' });
+        if (!response.ok) return false;
+        const payload = await response.json();
+        return payload.role === 'dm';
+    } catch (_err) {
+        return false;
+    }
+}
+
+function showDmAuthOverlay(message = '') {
+    dmAuthOverlayEl?.classList.remove('hidden');
+    if (dmAuthStatusEl) dmAuthStatusEl.textContent = message;
+    dmAuthPasswordEl?.focus();
+}
+
+function hideDmAuthOverlay() {
+    dmAuthOverlayEl?.classList.add('hidden');
+    if (dmAuthStatusEl) dmAuthStatusEl.textContent = '';
+    if (dmAuthPasswordEl) dmAuthPasswordEl.value = '';
+}
+
+async function submitDmLogin(password) {
+    const response = await fetch('/api/auth/dm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ password })
+    });
+
+    if (!response.ok) {
+        let message = 'No se pudo abrir sesión DM.';
+        try {
+            const payload = await response.json();
+            if (payload?.error) message = payload.error;
+        } catch (_err) {}
+        throw new Error(message);
+    }
+}
+
+function bindDmAuth() {
+    if (!dmAuthFormEl) return;
+    dmAuthFormEl.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const password = dmAuthPasswordEl?.value || '';
+        if (!password) {
+            if (dmAuthStatusEl) dmAuthStatusEl.textContent = 'Introduce la contraseña DM.';
+            return;
+        }
+        if (dmAuthStatusEl) dmAuthStatusEl.textContent = 'Validando...';
+        try {
+            await submitDmLogin(password);
+            hideDmAuthOverlay();
+            if (!state.initialized) {
+                await main();
+            } else {
+                connectWebSocket();
+                startAuthenticatedAgentsPolling();
+            }
+        } catch (err) {
+            if (dmAuthStatusEl) dmAuthStatusEl.textContent = err.message;
+        }
+    });
+}
+
+async function refreshAuthenticatedAgents() {
+    try {
+        const response = await fetch('/api/auth/agent-presence', { credentials: 'same-origin' });
+        if (!response.ok) return;
+        const payload = await response.json();
+        state.authenticatedAgents = Array.isArray(payload.agents) ? payload.agents : [];
+        updateAgentPresence();
+    } catch (err) {
+        console.error('Authenticated agents load error', err);
+    }
+}
+
+function startAuthenticatedAgentsPolling() {
+    if (state.authenticatedAgentsPoll) return;
+    refreshAuthenticatedAgents();
+    state.authenticatedAgentsPoll = window.setInterval(refreshAuthenticatedAgents, 5000);
+}
+
+function stopAuthenticatedAgentsPolling() {
+    if (state.authenticatedAgentsPoll) {
+        clearInterval(state.authenticatedAgentsPoll);
+        state.authenticatedAgentsPoll = null;
+    }
+}
+
 function connectWebSocket() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    updateWsStatus('connecting', 'WS conectando');
     state.ws = new WebSocket(`${proto}://${window.location.host}`);
 
     state.ws.onopen = () => {
+        updateWsStatus('connected', 'WS activo');
+        startAuthenticatedAgentsPolling();
         state.ws.send(JSON.stringify({ type: 'hello', role: 'dm' }));
     };
     state.ws.onmessage = (event) => {
         try {
             const msg = JSON.parse(event.data);
             if (msg.type === 'agents-list') updateAgentList(msg.agents);
+            if (msg.type === 'screen-status') {
+                state.screenCount = Number(msg.count) || 0;
+                if (state.ws?.readyState === WebSocket.OPEN) {
+                    updateWsStatus('connected', 'WS activo');
+                }
+            }
         } catch (e) {
             console.error('WS parse error', e);
         }
     };
-    state.ws.onclose = () => setTimeout(connectWebSocket, 3000);
-    state.ws.onerror = (err) => console.error('WS error', err);
+    state.ws.onclose = () => {
+        stopAuthenticatedAgentsPolling();
+        state.authenticatedAgents = [];
+        updateAgentPresence();
+        state.screenCount = 0;
+        updateWsStatus('disconnected', 'WS reconectando');
+        setTimeout(connectWebSocket, 3000);
+    };
+    state.ws.onerror = (err) => {
+        stopAuthenticatedAgentsPolling();
+        state.authenticatedAgents = [];
+        updateAgentPresence();
+        state.screenCount = 0;
+        updateWsStatus('error', 'WS error');
+        console.error('WS error', err);
+    };
 }
 
 // =====================
@@ -85,6 +226,20 @@ function sendSceneControl(action, sceneId) {
 // =====================
 // Agent list
 // =====================
+function updateAgentPresence() {
+    if (!agentsStatusEl || !agentsStatusListEl) return;
+    const count = state.authenticatedAgents.length;
+    const labelEl = agentsStatusEl.querySelector('.presence-status-label');
+    const names = state.authenticatedAgents.map((agent) => agent.agentDisplay || agent.agentId).filter(Boolean);
+    if (labelEl) {
+        labelEl.textContent = count === 1 ? 'Auth 1' : `Auth ${count}`;
+    }
+    agentsStatusListEl.textContent = names.length ? names.join(', ') : 'ninguno';
+    agentsStatusEl.title = names.length
+        ? `Agentes autenticados: ${names.join(', ')}`
+        : 'No hay agentes autenticados';
+}
+
 function updateAgentList(agents) {
     state.agents = agents;
     // Remove individual agents (keep static options)
@@ -586,7 +741,14 @@ function bindEffectEvents() {
     document.getElementById('membrana-frayed').addEventListener('click', () => sendEffect('MEMBRANA_SET', { status: 'FRAYED' }, 'screen'));
     document.getElementById('membrana-torn').addEventListener('click', () => sendEffect('MEMBRANA_SET', { status: 'TORN' }, 'screen'));
 
-    document.getElementById('effect-nudge').addEventListener('click', () => sendEffect('NUDGE_CAMERA'));
+    document.getElementById('effect-nudge').addEventListener('click', () => {
+        const [lng, lat, zoom] = document.getElementById('focus-coords').value.split(',').map(Number);
+        if (Number.isFinite(lng) && Number.isFinite(lat)) {
+            sendEffect('NUDGE_CAMERA', { lng, lat, zoom });
+            return;
+        }
+        sendEffect('NUDGE_CAMERA');
+    });
     document.getElementById('effect-focus').addEventListener('click', () => {
         const [lng, lat, zoom] = document.getElementById('focus-coords').value.split(',').map(Number);
         sendEffect('FOCUS_INCIDENT', { lng, lat, zoom });
@@ -1603,6 +1765,8 @@ function bindDossierEvents() {
 // Boot
 // =====================
 async function main() {
+    if (state.initialized) return;
+    state.initialized = true;
     initTabs();
     renderQuickEvents();
     connectWebSocket();
@@ -1623,4 +1787,15 @@ async function main() {
     await loadAnalysis();
 }
 
-main();
+async function bootDmConsole() {
+    bindDmAuth();
+    const authenticated = await hasDmSession();
+    if (!authenticated) {
+        showDmAuthOverlay('Sesión DM requerida.');
+        return;
+    }
+    hideDmAuthOverlay();
+    await main();
+}
+
+bootDmConsole();

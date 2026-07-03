@@ -74,12 +74,19 @@ body, html {
     background-color: #00ff88;
     border: 2px solid #fff;
     cursor: pointer;
-    transition: all 0.3s;
+    transition:
+        opacity 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease,
+        background-color 0.2s ease,
+        filter 0.2s ease;
 }
 
 .poi-marker.highlight {
-    transform: scale(1.5);
-    box-shadow: 0 0 15px #ff00ff;
+    box-shadow:
+        0 0 0 3px rgba(255,0,255,0.35),
+        0 0 18px rgba(255,0,255,0.85);
+    filter: brightness(1.15);
 }
 
 .poi-marker.blink {
@@ -87,7 +94,8 @@ body, html {
 }
 
 @keyframes blink-animation {
-    50% { opacity: 0.2; transform: scale(0.8); }
+    0%, 100% { opacity: 1; filter: brightness(1); }
+    50% { opacity: 0.2; filter: brightness(1.35); }
 }
 
 /* AMINA Marker Type Styles */
