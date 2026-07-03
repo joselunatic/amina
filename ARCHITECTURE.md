@@ -357,10 +357,12 @@ amina/
 │   ├── dm.js                ← Lógica tabs, media, escenas, intel
 │   ├── agent.js             ← WebSocket + handlers de efectos
 │   ├── entropia.js          ← Idem agente (sin auth)
-│   ├── dm.css               ← Estilos tabs + coord picker
-│   ├── agent.css            ← Overlays + efectos visuales
-│   ├── entropia.css         ← HUD + scanlines + overlays
-│   └── amina-tokens.css     ← Tokens de diseño compartidos (voces, paneles, tipografía) — cargado ANTES de entropia.css/dm.css
+│   ├── dm.css               ← Estilos tabs + coord picker + panel expedientes
+│   ├── agent.css            ← Overlays + efectos visuales + dossier/transmisión/correlación
+│   ├── entropia.css         ← HUD + scanlines + overlays + fichas de expediente
+│   ├── amina-tokens.css     ← Tokens de diseño compartidos: 5 voces narrativas, paneles, tipografía (JetBrains Mono + Saira Condensed)
+│   ├── AMINA.png            ← Logo referencia (no servida)
+│   └── entropia.svg         ← SVG de efectos (animaciones, heatmap)
 ├── src/
 │   ├── app.js               ← Express app, rutas protegidas
 │   ├── routes/
@@ -405,6 +407,65 @@ amina/
    - `connectWebSocket()` → registra rol `screen`
    - `initializeHUD()` → reloj, ticker, membrana, etc.
    - Sin agentId, sin controles de usuario
+
+## Handlers de Efectos Nuevos (Sprint F)
+
+### `ENTITY_DOSSIER` — Ficha de Expediente
+
+**Frontend** (`entropia.js` / `agent.js`):
+```javascript
+case 'ENTITY_DOSSIER':
+  showEntityDossier(payload);
+  break;
+
+function showEntityDossier(payload) {
+  // payload: { title, fields: [{label, value, redacted}, ...], summary, voice, duration }
+  // Anima cabecera (CLASIFICADO), nombre, foto, campos con censura, resumen
+  // Limpia automáticamente al expirar duration
+}
+```
+
+**Backend** (`dm.js`):
+```javascript
+// loadEntities() — GET /api/dm/entities, carga 71 entidades pre-seeded
+// buildDossierPayload(entity) — CRÍTICO: filtra dm_notes + unlock_code
+// bindDossierEvents() — wira botones "▶ Proyectar Ficha" y "🕸 Proyectar Conexiones"
+```
+
+**API**: `GET /api/dm/entities` (DM-only)
+- Devuelve: id, name, real_name, photo_url, threat_level (1..5 barras), category, notes
+- Filtra: `archived = false`
+- **Nunca devuelve**: dm_notes, unlock_code (seguridad crítica)
+
+### `INTERCEPTED_TRANSMISSION` — Transmisión Interceptada
+
+**Frontend** (`entropia.js` / `agent.js`):
+```javascript
+case 'INTERCEPTED_TRANSMISSION':
+  showTransmission(payload);
+  break;
+
+function showTransmission(payload) {
+  // payload: { source, frequency, lines: [text, ...], lost: [indices], duration, audioUrl }
+  // Renderiza forma de onda animada + líneas (algunas tachadas/censura)
+  // Reproductor de audio opcional
+}
+```
+
+### `CORRELATION_REVEAL` — Correlación Anómala
+
+**Frontend** (`entropia.js` / `agent.js`):
+```javascript
+case 'CORRELATION_REVEAL':
+  showCorrelation(payload);
+  break;
+
+function showCorrelation(payload) {
+  // payload: { nodes: [strings], confidence, source, duration }
+  // Dibuja nodos + enlaces revelándose en cascada
+  // % confianza + fuente en stamp
+}
+```
 
 ---
 
@@ -462,9 +523,163 @@ amina/
 
 ---
 
+## Sistema de Tokens de Diseño
+
+### `amina-tokens.css` — Unificación Visual
+
+**Carga**:
+- Enlazado ANTES de `entropia.css`, `dm.css`, `agent.css` en HTML
+- Define variables CSS globales para todas las vistas
+
+**Variables de Voz** (5 narrativas):
+```css
+--v-ov:        #12ff92  /* OV oficial, verde brillante */
+--v-intercepted: #ffb422  /* Interceptada, ámbar */
+--v-corrupted:   #c71f16  /* Corrupta, rojo */
+--v-alert:       #ff3b30  /* Alerta, rojo vivo */
+--v-human:       #a0a0a0  /* Humana, gris */
+--v-anomaly:     #00d4ff  /* Anomalía, cian */
+
+/* RGB crudos para rgba(var(--v-X-rgb), 0.3), etc. */
+--v-ov-rgb: 18, 255, 146
+--v-intercepted-rgb: 255, 180, 34
+...
+```
+
+**Variables Funcionales**:
+```css
+--void:        /* Fondo principal (negro profundo) */
+--panel:       /* Paneles (translúcidos) */
+--ink:         /* Texto principal */
+--mono:        /* Familia tipográfica monoespaciada */
+--t-fast:      /* Transición rápida (0.15s) */
+--t-slow:      /* Transición lenta (0.6s) */
+--hair:        /* Borde finísimo (0.5px) */
+--ls-mono:     /* Letter-spacing monoespaciada */
+```
+
+**Tipografía**:
+- `--mono`: "JetBrains Mono", ui-monospace, "Courier New"
+- `--serif-accent`: "Saira Condensed" (headlines en consola DM)
+- Google Fonts preconnect en `entropia.html` / `dm.html` / `agent.html`
+
+### Beneficios
+
+- **Cohesión**: DM y proyector comparten estética sin duplicación
+- **Legibilidad**: Diseño validado para 3m de distancia (projector)
+- **Narrativa**: 5 voces × RGB = 30+ combinaciones de color-significado
+- **Mantenibilidad**: Cambio central de color afecta todas las vistas
+
+---
+
+## API Reference — Entidades & Proyección
+
+### Entidades (`/api/dm/entities`)
+
+**GET /api/dm/entities** — Lista todas las entidades (no archivadas)
+
+```json
+// Request
+GET /api/dm/entities
+// Requiere: sesión DM válida
+
+// Response 200 OK
+{
+  "entities": [
+    {
+      "id": 1,
+      "name": "Victoria Allen",
+      "real_name": "[REDACTADO]",
+      "photo_url": "https://...",
+      "threat_level": 3,
+      "category": "Agent",
+      "notes": "Información pública..."
+      // NO incluye: dm_notes, unlock_code (privado)
+    }
+  ]
+}
+```
+
+### buildDossierPayload() — Construcción Segura
+
+En `dm.js`, esta función filtra automáticamente:
+
+```javascript
+function buildDossierPayload(entity) {
+  const payload = {
+    title: entity.name,
+    fields: [
+      { label: 'NOMBRE REAL', value: redacted ? '█████████' : entity.real_name },
+      { label: 'CATEGORÍA', value: entity.category },
+      ...
+    ],
+    summary: entity.notes,
+    voice: selectedVoice,
+    duration: 3500,
+    // CRÍTICO: NUNCA incluir dm_notes ni unlock_code
+  };
+  return payload;
+}
+```
+
+### WebSocket — Efectos Nuevos
+
+**ENTITY_DOSSIER**:
+```json
+{
+  "type": "effect",
+  "effect": "ENTITY_DOSSIER",
+  "target": "all",
+  "payload": {
+    "title": "Victoria Allen",
+    "fields": [...],
+    "summary": "...",
+    "voice": "ov",
+    "confidence": 95,
+    "source": "BASES OPERACIONALES",
+    "duration": 4000
+  }
+}
+```
+
+**INTERCEPTED_TRANSMISSION**:
+```json
+{
+  "type": "effect",
+  "effect": "INTERCEPTED_TRANSMISSION",
+  "target": "screen",
+  "payload": {
+    "source": "CANAL 7",
+    "frequency": "147.3 MHz",
+    "lines": ["línea 1", "perdida", "línea 3"],
+    "lost": [1],
+    "duration": 3000
+  }
+}
+```
+
+**CORRELATION_REVEAL**:
+```json
+{
+  "type": "effect",
+  "effect": "CORRELATION_REVEAL",
+  "target": "agents",
+  "payload": {
+    "nodes": ["Node A", "Node B", "Node C"],
+    "confidence": 62,
+    "source": "ANÁLISIS AUTOMATIZADO",
+    "duration": 4000
+  }
+}
+```
+
+---
+
 ## Notas de seguridad
 
-- **`DM_SECRET`**: Shared secret para boot. NO es para prod.
-- **WebSocket sin auth adicional**: Confiamos en la sesión HTTP.
-- **Uploads**: Sin validación de contenido (SVG/XSS posible). Usar HTTPS en prod.
-- **Sesiones**: HttpOnly cookies, 10 años de TTL (ajustable en env).
+- **`DM_SECRET`**: Shared secret para boot. NO es para prod. Cambiar en `.env`.
+- **Entity Dossier — Filtrado crítico**: `buildDossierPayload()` elimina `dm_notes` e `unlock_code` antes de enviar a proyección. **Auditar en cada cambio**.
+- **WebSocket sin auth adicional**: Confiamos en la sesión HTTP. En producción, validar role en cada efecto.
+- **Uploads**: Sin validación de contenido (SVG/XSS posible). Usar HTTPS en prod + sanitizar.
+- **Sesiones**: HttpOnly cookies, 10 años de TTL (ajustable en `src/app.js`).
+- **CORS**: Deshabilitado (AMINA es monolítica). Si separas frontend/backend, configurar `CORS` headers.

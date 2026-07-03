@@ -1,13 +1,16 @@
 # AMINA — Análisis de Misiones e Investigación de Nuevas Amenazas
 
-AMINA is a retro-futuristic surveillance console for Ordo Veritatis DMs running *The Esoterrorists* in Schuylkill County. It unifies POI intelligence, map overlays, and DM-only controls behind a neon CRT interface so you can monitor the membrane in real time.
+AMINA is a retro-futuristic surveillance console for Ordo Veritatis DMs running *The Esoterrorists* in Schuylkill County. It unifies POI intelligence, entity dossiers, real-time effects, and DM-only controls behind a neon CRT interface so you can narrate the membrane, coordinate agents, and run live projections during play.
 
 ## Features
-- Express + SQLite backend with REST API for managing POIs.
-- Mapbox GL JS frontend showing markers, popups, and a filterable list.
-- Sr. Verdad access (DM channel) guarded by a shared secret for creating, editing, deleting POIs (including optional reference images).
-- Optional auto-seeded database packed with campaign-friendly locations.
-- Neon CRT/X-Files aesthetic with AMINA insignia and CRT glow optimized for desktop control panels.
+- **Three-tier UI**: DM control panel (`/dm`), agent field console (`/agent`), public projector screen (`/entropia`)
+- **Real-time WebSocket effects engine**: dispatch narrative events (cards, overlays, HUD updates) to all players simultaneously
+- **Entity dossiers**: project classified intel on campaign entities with optional redaction, confidence ratings, and source attribution
+- **Map-based POI management**: 71 pre-seeded locations in Schuylkill County; DM can create, edit, delete, and attach images
+- **Narrative tools**: presets, scene timelines, analysis queue, media library (image, video, audio)
+- **Express + SQLite backend**: REST API for POIs, entities, media, scenes, and analysis tools
+- **Design token system** (`amina-tokens.css`): unified color palette across all interfaces (5 narrative voices, accessibility tokens)
+- **Neon CRT/X-Files aesthetic**: retro scanlines, viñettes, algorithm background, HUD + CRT boot terminal
 
 ## Requirements
 - Node.js 18+
@@ -126,16 +129,22 @@ AMINA includes a complete real-time effects engine with WebSocket dispatch, in-g
 
 ### Consola DM (`/dm`) — Tabs
 
-1. **Efectos**: Controles rápidos de cámara, distorsión, tarjetas de texto. 12 botones preconfigurados. Control de estado de membrana (Intacta/Debilitada/Rota → proyector). Mapa de operaciones (click → rellena coordenadas).
+1. **Efectos**: 
+   - 12 botones rápidos (glitch, ruido, tarjeta de escena, etc.)
+   - Control de membrana (Intacta → Debilitada → Rota; visible en `/entropia`)
+   - Mapa de operaciones: click → rellena coordenadas para efectos de cámara
+   - **Panel de expedientes**: selector de 71 entidades BD, opciones de redacción, selector de voz narrativa
+   - **Proyectar ficha**: visualiza entidad clasificada en proyector (censura automática de campos dm_notes)
+   - **Quick-actions de POI**: triangular ubicación de entidad, lanzar alerta con nombre + coords
 
-2. **Media**: Repositorio de imágenes, vídeos y audio. Subida vía drag-drop. Gestión: descripción, borrado, lanzamiento directo.
+2. **Media**: Repositorio de imágenes, vídeos y audio. Drag-drop upload. Descripción, borrado, lanzamiento directo desde la consola.
 
-3. **Escenas**: Constructor de timelines. Crea escenas con N beats (pasos). Cada beat es un efecto con delay, duración y target. Reproductor: Play, Pause, Next, Prev, Stop. Exporta/Importa JSON.
-   - **Coord Picker (panel lateral)**: Mapa interactivo. Click → inyecta coordenadas automáticamente. Vista previa del efecto según tipo.
+3. **Escenas**: Constructor de timelines. Crea escenas con N beats. Cada beat: efecto + delay + duración + target. Reproductor: Play, Pause, Next, Prev, Stop. Exporta/Importa JSON.
+   - **Coord Picker (panel lateral)**: Mapa interactivo. Click → inyecta coords. Vista previa según tipo de efecto.
 
-4. **Intel**: Dos herramientas narrativas:
-   - **Presets**: Guarda efectos completos. Categorízalos, lánzalos con un click.
-   - **Cola de Análisis**: Crea análisis "pendientes" (AMINA procesa). Disparas el resultado cuando narrativamente encaja.
+4. **Intel**: 
+   - **Presets**: Guarda efectos completos. Categorízalos, dispara con un click.
+   - **Cola de Análisis**: Crea análisis "pendientes" (estados: pendiente → procesando → completado). Dispara resultado cuando narrativamente encaja.
 
 5. **Ayuda**: Guía completa en lenguaje jugador. Sin jerga técnica.
 
@@ -158,14 +167,23 @@ Pública (sin auth). Pensada para el proyector de sala.
 
 ### Efectos disponibles
 
-**Visuales**: Glitch, Ruido, Viñeta, Pantalla negra
-**Cámara**: Sacudida, Enfocar posición, Mostrar área rectangular
+**Visuales**: Glitch, Ruido, Viñeta, Pantalla negra, Recuperación de archivo (barra progreso + líneas censuradas)
+
+**Cámara & Mapa**: Sacudida, Enfocar posición, Mostrar área rectangular, Etiquetas flotantes, Heatmap
+
 **Multimedia**: Imagen fullscreen, Vídeo, Audio, CCTV (efecto cámara de vigilancia)
-**Tarjetas**: Texto centrado con 5 estilos (oficial OV, interceptada, corrupta, alerta, humano). Campos opcionales `confidence` y `source` → pie de fiabilidad ("CONFIANZA: 62% · FUENTE: ARCHIVO SELLADO")
-**Especiales**: Recuperación de archivo (barra progreso + texto censurado), Triangulación de señal (coords + barras pulsantes), Transmisión interceptada (forma de onda + transcripción parcial con cortes + audio opcional), Correlación anómala (nodos conectados + % coincidencia + fuente), Ficha de expediente (`ENTITY_DOSSIER`: proyecta una entidad de la BD con campos censurables, foto y sello CLASIFICADO — las notas DM nunca se envían)
-**Ambiente**: Estado de membrana (`MEMBRANA_SET`: INTACT/FRAYED/TORN — cambia el HUD del proyector y añade parpadeo ambiental persistente)
-**Mapa**: Etiquetas flotantes, Heatmap
-**POI**: Parpadeo, Resalte, Bloqueo visual, Ephemeral (temporal)
+
+**Tarjetas narrativas**: `SCENE_CARD` con 5 estilos de voz (OV oficial, interceptada, corrupta, alerta, humano). Incluye opcionales `confidence` y `source` → pie de fiabilidad ("CONFIANZA: 62% · FUENTE: ARCHIVO SELLADO")
+
+**Transmisiones**: `INTERCEPTED_TRANSMISSION` — forma de onda animada + transcripción parcial con líneas perdidas + audio opcional
+
+**Análisis**: `CORRELATION_REVEAL` — nodos conectados revelándose + % coincidencia + fuente; `SIGNAL_TRIANGULATION` — coords precisas + barras de fuerza pulsantes
+
+**Fichas de expediente**: `ENTITY_DOSSIER` — proyecta entidad de BD con campos censurables, foto CLASIFICADO, resumen y pie de confianza. **Crítico de seguridad**: `dm_notes` e `unlock_code` nunca se envían a proyección (privado de DM)
+
+**Estado de membrana**: `MEMBRANA_SET` (INTACT/FRAYED/TORN) — cambia el HUD del proyector, añade viñeta de distorsión persistente
+
+**POI vivos**: Parpadeo, Resalte, Bloqueo visual, Ephemeral (temporal), Quick-actions desde DM (triangular coordenadas, lanzar alerta)
 
 ### API nuevos
 
@@ -198,7 +216,27 @@ Pública (sin auth). Pensada para el proyector de sala.
 - `POST /api/analysis/:id/reset` — reabrir completado
 - `DELETE /api/analysis/:id` — borrar
 
+**Entidades**:
+- `GET /api/dm/entities` — lista todas las entidades (requiere sesión DM). Filtra `archived = false`
+- Cada entidad: `id`, `name`, `real_name`, `photo_url`, `threat_level` (1..5 barras), `category`, `notes`, `dm_notes` (privado), `unlock_code` (privado)
+
 Todos requieren sesión DM válida.
+
+### Diseño visual y tokens
+
+**Sistema de tokens** (`public/amina-tokens.css`):
+- Unifica la paleta de color en proyector (`/entropia`) y consola DM (`/dm`)
+- **5 voces narrativas**: OV oficial (`--v-ov` #12ff92), interceptada (`--v-intercepted` #ffb422), corrupta, alerta (`--v-alert` #ff3b30), humana, anomalía
+- Cada voz incluye variantes RGB para efectos de opacidad en overlays
+- **Tokens funcionales**: paneles, fondos, tinta, tipografía (JetBrains Mono + Saira Condensed)
+- Cadencias de transición (`--t-fast`, `--t-slow`) para coherencia de animación
+- Aplicado automáticamente: `/entropia` y `/dm` cargan `amina-tokens.css` antes de CSS propio
+
+**Rediseño reciente** (Junio 2026):
+- Claude Design profesionalizó home screen, overlays de fichas, transmisiones, correlaciones
+- Mejora legibilidad a 3m (proyector); jerarquía en-vivo vs preparación en consola
+- Todos los JS handlers (`entropia.js`, `agent.js`, `dm.js`) verificados y funcionales post-rediseño
+- Sin regresiones: 71 entidades cargan, efectos disparan, WebSocket conecta
 
 ### Bases de datos
 
